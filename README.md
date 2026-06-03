@@ -28,7 +28,7 @@ IntelliDraft/
 
 | Tool | Version | Purpose |
 |------|---------|---------|
-| Python | 3.11+ | Backend runtime |
+| Python | 3.11.x or 3.12.x | Backend runtime (3.13+ not yet supported — azure-functions 1.x required) |
 | pip | latest | Package manager |
 | Azure Functions Core Tools | v4 | Run Functions locally |
 | Node.js | 18+ | Frontend (optional) |
