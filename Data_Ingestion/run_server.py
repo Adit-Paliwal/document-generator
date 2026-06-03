@@ -438,7 +438,8 @@ def create_project():
             s.add(proj)
             s.add(_D(project_id=pid))
             s.commit()
-        return json_resp({"project_id": pid, "status": proj.status,
+            saved_status = proj.status  # read inside session before it closes
+        return json_resp({"project_id": pid, "status": saved_status,
                           "message": f"Project '{form.project_name}' saved."}, 201)
     except Exception as e:
         logger.exception("create_project failed")
