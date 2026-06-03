@@ -367,26 +367,37 @@ def create_template():
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-# PROJECT ENDPOINTS
+# PROJECT ENDPOINTS  (DB-backed via SQLAlchemy — consistent with function_app)
 # ═════════════════════════════════════════════════════════════════════════════
 
-def _projects_dir() -> Path:
-    d = _BASE / "local_storage" / "projects"
-    d.mkdir(parents=True, exist_ok=True)
-    return d
+import json as _json_mod
 
-def _save_project(project: dict) -> dict:
-    project["updated_at"] = datetime.utcnow().isoformat()
-    (_projects_dir() / f"{project['project_id']}.json").write_text(
-        json.dumps(project, indent=2, default=str), encoding="utf-8"
-    )
-    return project
-
-def _load_project(project_id: str) -> dict:
-    path = _projects_dir() / f"{project_id}.json"
-    if not path.exists():
+def _get_proj_or_404(session, project_id: str):
+    from generation.db import Project as _P
+    p = session.get(_P, project_id)
+    if p is None:
         raise FileNotFoundError(f"Project '{project_id}' not found")
-    return json.loads(path.read_text(encoding="utf-8"))
+    return p
+
+def _apply_fields(proj, body: dict) -> None:
+    """Write body keys onto the ORM project object. Safe for partial updates."""
+    scalar = [
+        "project_code", "project_name", "business_unit", "business_priority",
+        "problem_statement", "project_objective", "as_is_processes",
+        "proposed_solution", "technical_landscape", "constraints", "risks",
+        "estimated_cost_crores", "start_date", "end_date",
+        "document_type", "output_format", "additional_instructions",
+        "template_id", "status",
+    ]
+    for f in scalar:
+        if f in body:
+            setattr(proj, f, body[f])
+    if "stakeholders" in body:
+        v = body["stakeholders"]
+        proj.stakeholders_json = _json_mod.dumps(v) if isinstance(v, list) else v
+    if "document_ids" in body:
+        v = body["document_ids"]
+        proj.document_ids_json = _json_mod.dumps(v) if isinstance(v, list) else v
 
 
 # 15. POST /api/extract-project-data
@@ -398,155 +409,327 @@ def extract_project_data():
         document_ids = body.get("document_ids") or []
         if not document_ids:
             return json_resp({"error": "document_ids array is required"}, 400)
-
-        result = _extract(document_ids)   # returns full envelope with missing_required etc.
-
-        filled   = result.get("filled_count", 0)
-        total    = result.get("total_fields", 15)
-        missing  = len(result.get("missing_required", []))
-
-        if missing == 0:
-            msg = f"All fields populated from {len(document_ids)} document(s)."
-        else:
-            msg = (f"Extracted {filled}/{total} fields from {len(document_ids)} document(s). "
-                   f"{missing} required field(s) need your input — see highlighted fields below.")
-
-        return json_resp({
-            **result,
-            "document_count": len(document_ids),
-            "message":        msg,
-        })
+        result  = _extract(document_ids)
+        filled  = result.get("filled_count", 0)
+        total   = result.get("total_fields", 15)
+        missing = len(result.get("missing_required", []))
+        msg = (f"All fields populated from {len(document_ids)} document(s)."
+               if missing == 0 else
+               f"Extracted {filled}/{total} fields. {missing} required field(s) still needed.")
+        return json_resp({**result, "document_count": len(document_ids), "message": msg})
     except Exception as e:
         logger.exception("extract-project-data failed")
         return json_resp({"error": str(e)}, 500)
 
 
-# 16. POST /api/projects
+# 16. POST /api/projects  — create project
 @app.route("/api/projects", methods=["POST"])
 def create_project():
     try:
-        from models.project_schema import ProjectFormData, Project
-        body      = request.get_json() or {}
-        form_data = ProjectFormData(**body)
-        project   = Project(form_data=form_data)
-        project.status = "ready" if form_data.project_name else "draft"
-        saved = _save_project(project.model_dump())
-        return json_resp({
-            "project_id": saved["project_id"],
-            "status":     saved["status"],
-            "message":    f"Project '{form_data.project_name}' saved.",
-        }, 201)
+        from generation.db import Project as _P, DerivedData as _D, get_session
+        from models.project_schema import ProjectFormData
+        body = request.get_json() or {}
+        form = ProjectFormData(**body)
+        pid  = str(uuid4())
+        proj = _P(project_id=pid)
+        proj.status = "ready" if form.project_name.strip() else "draft"
+        _apply_fields(proj, form.model_dump())
+        with get_session() as s:
+            s.add(proj)
+            s.add(_D(project_id=pid))
+            s.commit()
+        return json_resp({"project_id": pid, "status": proj.status,
+                          "message": f"Project '{form.project_name}' saved."}, 201)
     except Exception as e:
         logger.exception("create_project failed")
         return json_resp({"error": str(e)}, 500)
 
 
-# 17. GET /api/projects
+# 17. GET /api/projects  — list all projects
 @app.route("/api/projects", methods=["GET"])
 def list_projects():
     try:
-        projects = []
-        for p in sorted(_projects_dir().glob("*.json"),
-                        key=lambda x: x.stat().st_mtime, reverse=True):
-            try:
-                data = json.loads(p.read_text(encoding="utf-8"))
-                fd   = data.get("form_data", {})
-                projects.append({
-                    "project_id":    data["project_id"],
-                    "project_name":  fd.get("project_name", ""),
-                    "project_code":  fd.get("project_code", ""),
-                    "business_unit": fd.get("business_unit", ""),
-                    "document_type": fd.get("document_type", "BRD"),
-                    "status":        data.get("status", "draft"),
-                    "job_id":        data.get("job_id"),
-                    "created_at":    data.get("created_at", ""),
-                    "updated_at":    data.get("updated_at", ""),
-                })
-            except Exception:
-                pass
-        return json_resp({"projects": projects, "count": len(projects)})
+        from generation.db import Project as _P, get_session
+        from sqlalchemy import or_, func as sqlfunc
+        q      = (request.args.get("q")      or "").strip().lower()
+        status = (request.args.get("status") or "").strip()
+        with get_session() as s:
+            qry = s.query(_P)
+            if q:
+                qry = qry.filter(or_(
+                    sqlfunc.lower(_P.project_name).contains(q),
+                    sqlfunc.lower(_P.project_code).contains(q),
+                ))
+            if status:
+                qry = qry.filter(_P.status == status)
+            rows = qry.order_by(_P.created_at.desc()).all()
+            summaries = [p.to_summary_dict() for p in rows]
+        return json_resp({"projects": summaries, "count": len(summaries)})
     except Exception as e:
+        logger.exception("list_projects failed")
         return json_resp({"error": str(e)}, 500)
 
 
-# 18. GET /api/projects/<project_id>
+# 18a. GET /api/projects/<project_id>  — full project
 @app.route("/api/projects/<project_id>", methods=["GET"])
 def get_project(project_id):
     try:
-        return json_resp(_load_project(project_id))
+        from generation.db import get_session
+        with get_session() as s:
+            return json_resp(_get_proj_or_404(s, project_id).to_full_dict())
     except FileNotFoundError:
         return json_resp({"error": f"Project '{project_id}' not found."}, 404)
     except Exception as e:
         return json_resp({"error": str(e)}, 500)
 
 
-# 19. POST /api/generate/project/<project_id>
+# 18b. PUT /api/projects/<project_id>  — full update
+@app.route("/api/projects/<project_id>", methods=["PUT"])
+def update_project(project_id):
+    try:
+        from generation.db import get_session
+        body = request.get_json() or {}
+        now  = datetime.utcnow()
+        with get_session() as s:
+            proj = _get_proj_or_404(s, project_id)
+            _apply_fields(proj, body)
+            proj.updated_at = now
+            s.commit()
+        return json_resp({"project_id": project_id, "updated_at": now.isoformat()})
+    except FileNotFoundError:
+        return json_resp({"error": f"Project '{project_id}' not found."}, 404)
+    except Exception as e:
+        return json_resp({"error": str(e)}, 500)
+
+
+# 18c. PATCH /api/projects/<project_id>  — partial update / autosave
+@app.route("/api/projects/<project_id>", methods=["PATCH"])
+def patch_project(project_id):
+    try:
+        from generation.db import get_session
+        body = request.get_json() or {}
+        if not body:
+            return json_resp({"error": "Request body is empty."}, 400)
+        now = datetime.utcnow()
+        with get_session() as s:
+            proj = _get_proj_or_404(s, project_id)
+            _apply_fields(proj, body)
+            proj.updated_at = now
+            s.commit()
+        return json_resp({"project_id": project_id, "updated_at": now.isoformat()})
+    except FileNotFoundError:
+        return json_resp({"error": f"Project '{project_id}' not found."}, 404)
+    except Exception as e:
+        return json_resp({"error": str(e)}, 500)
+
+
+# 18d. DELETE /api/projects/<project_id>
+@app.route("/api/projects/<project_id>", methods=["DELETE"])
+def delete_project(project_id):
+    try:
+        from generation.db import get_session
+        with get_session() as s:
+            proj = _get_proj_or_404(s, project_id)
+            s.delete(proj)
+            s.commit()
+        from flask import Response as _R
+        return _R(status=204, headers=CORS_HEADERS)
+    except FileNotFoundError:
+        return json_resp({"error": f"Project '{project_id}' not found."}, 404)
+    except Exception as e:
+        return json_resp({"error": str(e)}, 500)
+
+
+# 18e. GET /api/projects/<project_id>/data  — ingested + derived combined
+@app.route("/api/projects/<project_id>/data", methods=["GET"])
+def get_project_data(project_id):
+    try:
+        from generation.db import DerivedData as _D, get_session
+        with get_session() as s:
+            proj    = _get_proj_or_404(s, project_id)
+            ingested = proj.to_ingested_dict()
+            for k in ("project_id","status","job_id","created_at","updated_at",
+                      "document_type","output_format","additional_instructions",
+                      "document_ids","template_id"):
+                ingested.pop(k, None)
+            row = s.get(_D, project_id)
+            if row:
+                derived      = row.to_dict()
+                generated_at = derived.pop("generated_at", None)
+                derived.pop("project_id", None); derived.pop("updated_at", None)
+            else:
+                derived = {k:"" for k in [
+                    "current_challenges","to_be_process","success_criteria",
+                    "business_requirements","functional_requirements",
+                    "non_functional_requirements","industry_benchmarks","workflow",
+                    "analytics_requirements","systems_involved",
+                    "data_sources","constraints_dependencies",
+                ]}
+                generated_at = None
+        return json_resp({"project_id": project_id, "ingested": ingested,
+                          "derived": derived, "derived_generated_at": generated_at})
+    except FileNotFoundError:
+        return json_resp({"error": f"Project '{project_id}' not found."}, 404)
+    except Exception as e:
+        return json_resp({"error": str(e)}, 500)
+
+
+# 18f. PUT /api/projects/<project_id>/data/ingested  — save ingested edits
+@app.route("/api/projects/<project_id>/data/ingested", methods=["PUT"])
+def update_ingested_data(project_id):
+    try:
+        from generation.db import get_session
+        body = request.get_json() or {}
+        if not body:
+            return json_resp({"error": "Request body is empty."}, 400)
+        non_ing = {"status","job_id","document_type","output_format",
+                   "additional_instructions","document_ids","template_id"}
+        body = {k: v for k, v in body.items() if k not in non_ing}
+        now = datetime.utcnow()
+        with get_session() as s:
+            proj = _get_proj_or_404(s, project_id)
+            _apply_fields(proj, body)
+            proj.updated_at = now
+            s.commit()
+        return json_resp({"project_id": project_id, "updated_at": now.isoformat()})
+    except FileNotFoundError:
+        return json_resp({"error": f"Project '{project_id}' not found."}, 404)
+    except Exception as e:
+        return json_resp({"error": str(e)}, 500)
+
+
+# 18g. PUT /api/projects/<project_id>/data/derived  — save derived edits
+@app.route("/api/projects/<project_id>/data/derived", methods=["PUT"])
+def update_derived_data(project_id):
+    try:
+        from generation.db import DerivedData as _D, get_session
+        body = request.get_json() or {}
+        if not body:
+            return json_resp({"error": "Request body is empty."}, 400)
+        DER_FIELDS = [
+            "current_challenges","to_be_process","success_criteria",
+            "business_requirements","functional_requirements",
+            "non_functional_requirements","industry_benchmarks","workflow",
+            "analytics_requirements","systems_involved",
+            "data_sources","constraints_dependencies",
+        ]
+        mark_gen = bool(body.get("mark_as_generated", False))
+        now = datetime.utcnow()
+        with get_session() as s:
+            _get_proj_or_404(s, project_id)   # existence check
+            row = s.get(_D, project_id)
+            if row is None:
+                row = _D(project_id=project_id); s.add(row)
+            for f in DER_FIELDS:
+                if f in body: setattr(row, f, body[f])
+            row.updated_at = now
+            if mark_gen: row.generated_at = now
+            s.commit()
+        return json_resp({"project_id": project_id, "updated_at": now.isoformat()})
+    except FileNotFoundError:
+        return json_resp({"error": f"Project '{project_id}' not found."}, 404)
+    except Exception as e:
+        return json_resp({"error": str(e)}, 500)
+
+
+# 18h. POST /api/projects/<project_id>/derive-fields  — AI-derive 12 fields
+@app.route("/api/projects/<project_id>/derive-fields", methods=["POST"])
+def derive_project_fields(project_id):
+    try:
+        from generation.db import DerivedData as _D, get_session
+        from generation.derive_fields import derive_project_fields as _derive
+
+        with get_session() as s:
+            proj = _get_proj_or_404(s, project_id)
+            project_data = proj.to_ingested_dict()
+            doc_ids = _json_mod.loads(proj.document_ids_json or "[]")
+
+        derived = _derive(project_data, doc_ids)
+        now     = datetime.utcnow()
+
+        with get_session() as s:
+            _get_proj_or_404(s, project_id)
+            row = s.get(_D, project_id)
+            if row is None:
+                row = _D(project_id=project_id); s.add(row)
+            for k, v in derived.items():
+                if hasattr(row, k): setattr(row, k, v)
+            row.generated_at = now
+            row.updated_at   = now
+            s.commit()
+
+        populated = sum(1 for v in derived.values() if v)
+        return json_resp({"project_id": project_id, "status": "ok",
+                          "fields_populated": populated, "updated_at": now.isoformat(),
+                          "message": f"{populated} fields derived by AI."})
+
+    except FileNotFoundError:
+        return json_resp({"error": f"Project '{project_id}' not found."}, 404)
+    except Exception as e:
+        logger.exception("derive-fields failed")
+        return json_resp({"error": str(e)}, 502)
+
+
+# 19. POST /api/generate/project/<project_id>  — start generation from saved project
 @app.route("/api/generate/project/<project_id>", methods=["POST"])
 def generate_from_project(project_id):
     try:
+        from generation.db import get_session
         from generation.generation_service import start_job
 
-        project   = _load_project(project_id)
-        form_data = project.get("form_data", {})
+        with get_session() as s:
+            proj      = _get_proj_or_404(s, project_id)
+            fd        = proj.to_ingested_dict()
+            doc_ids   = _json_mod.loads(proj.document_ids_json or "[]")
+            sths      = _json_mod.loads(proj.stakeholders_json or "[]")
 
-        document_ids = form_data.get("document_ids") or []
-        if not document_ids:
+        if not doc_ids:
             return json_resp({"error": "No documents attached to this project."}, 400)
 
-        primary_doc_id = document_ids[0]
-
-        # Build stakeholders string
-        stakeholders_list = form_data.get("stakeholders") or []
-        stakeholders_str  = ", ".join(
+        sth_str = ", ".join(
             f"{s.get('name','')} ({s.get('designation','')})"
-            for s in stakeholders_list if s.get("name")
+            for s in sths if s.get("name")
         ) or None
 
-        # Combine extra context into additional_instructions
         extra = []
-        for label, key in [
-            ("Constraints",       "constraints"),
-            ("Risks & Mitigation","risks"),
-            ("Technical Landscape","technical_landscape"),
-            ("Business Unit",     "business_unit"),
-            ("Project Code",      "project_code"),
-            ("Business Priority", "business_priority"),
-        ]:
-            if form_data.get(key):
-                extra.append(f"{label}: {form_data[key]}")
-
-        if form_data.get("start_date") or form_data.get("end_date"):
-            extra.append(f"Timeline: {form_data.get('start_date','TBD')} to {form_data.get('end_date','TBD')}")
-        if form_data.get("estimated_cost_crores"):
-            extra.append(f"Estimated Cost: Rs.{form_data['estimated_cost_crores']} Crores")
-        if form_data.get("additional_instructions"):
-            extra.append(form_data["additional_instructions"])
+        for label, key in [("Constraints","constraints"),("Risks","risks"),
+                            ("Technical Landscape","technical_landscape"),
+                            ("Business Unit","business_unit"),
+                            ("Project Code","project_code"),
+                            ("Business Priority","business_priority")]:
+            if fd.get(key): extra.append(f"{label}: {fd[key]}")
+        if fd.get("start_date") or fd.get("end_date"):
+            extra.append(f"Timeline: {fd.get('start_date','TBD')} to {fd.get('end_date','TBD')}")
+        if fd.get("estimated_cost_crores"):
+            extra.append(f"Estimated Cost: Rs.{fd['estimated_cost_crores']} Crores")
 
         user_inputs = {
-            "project_name":            form_data.get("project_name", ""),
-            "document_type":           form_data.get("document_type", "BRD"),
-            "output_format":           form_data.get("output_format", "Word (.docx)"),
-            "stakeholders":            stakeholders_str,
-            "project_description":     form_data.get("proposed_solution") or form_data.get("project_objective", ""),
-            "business_problem":        form_data.get("problem_statement"),
-            "expected_outcome":        form_data.get("project_objective"),
+            "project_name":            fd.get("project_name",""),
+            "document_type":           fd.get("document_type","BRD"),
+            "output_format":           fd.get("output_format","Word (.docx)"),
+            "stakeholders":            sth_str,
+            "project_description":     fd.get("proposed_solution") or fd.get("project_objective",""),
+            "business_problem":        fd.get("problem_statement"),
+            "expected_outcome":        fd.get("project_objective"),
             "additional_instructions": "\n\n".join(extra) if extra else None,
         }
 
-        job = start_job(primary_doc_id, user_inputs, form_data.get("template_id"))
+        job = start_job(doc_ids[0], user_inputs, fd.get("template_id"))
 
-        project["job_id"] = job["job_id"]
-        project["status"] = "generating"
-        _save_project(project)
+        now = datetime.utcnow()
+        with get_session() as s:
+            proj2 = _get_proj_or_404(s, project_id)
+            proj2.job_id     = job["job_id"]
+            proj2.status     = "generating"
+            proj2.updated_at = now
+            s.commit()
 
         return json_resp({
             "job_id":   job["job_id"],
             "status":   job["status"],
-            "sections": [{"section_id": s["section_id"],
-                          "section_title": s["section_title"],
-                          "status": s["status"]}
-                         for s in job.get("sections", [])],
-            "message": f"Generation started. {job['total_sections']} sections queued.",
+            "sections": [{"section_id":s["section_id"],"section_title":s["section_title"],
+                          "status":s["status"]} for s in job.get("sections",[])],
+            "message":  f"Generation started. {job['total_sections']} sections queued.",
         }, 201)
 
     except FileNotFoundError as e:

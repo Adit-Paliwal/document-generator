@@ -1,0 +1,62 @@
+# ── Python ────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ── Virtual environments ──────────────────────────────────
+env/
+.venv/
+venv/
+ENV/
+
+# ── Secrets — NEVER bake into image ──────────────────────
+.env
+Data_Ingestion/.env
+Data_Ingestion/agent/.env
+*.key
+*.pem
+*.pfx
+secrets/
+
+# ── Local data — mount as volume instead ─────────────────
+Data_Ingestion/local_storage/
+*.db
+*.sqlite
+*.db-shm
+*.db-wal
+
+# ── Version control ───────────────────────────────────────
+.git/
+.gitignore
+.gitattributes
+
+# ── IDE / OS ──────────────────────────────────────────────
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+*.bak
+~$*
+
+# ── Frontend (served separately or via serve.py) ──────────
+frontend/
+
+# ── Docs / assets (not needed in image) ──────────────────
+*.md
+*.html
+*.postman*
+*.xlsx
+*.zip
+*.pdf
+
+# ── ADK session state ─────────────────────────────────────
+.adk/
+
+# ── Node ──────────────────────────────────────────────────
+node_modules/
+.next/
+.cache/

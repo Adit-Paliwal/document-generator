@@ -1,0 +1,59 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# IntelliDraft — Docker Compose
+#
+# Usage:
+#   1. Copy Data_Ingestion/.env.example  →  Data_Ingestion/.env
+#   2. Fill in your API key in .env
+#   3. docker-compose up -d
+#   4. API available at http://localhost:7071/api
+#
+# Useful commands:
+#   docker-compose up -d          start in background
+#   docker-compose logs -f        stream logs
+#   docker-compose down           stop and remove containers
+#   docker-compose down -v        stop + wipe data volume (fresh start)
+#   docker-compose build          rebuild image after code changes
+# ══════════════════════════════════════════════════════════════════════════════
+
+version: "3.9"
+
+services:
+
+  intellidraft-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: intellidraft-api:latest
+    container_name: intellidraft-api
+    ports:
+      - "7071:7071"      # API available at  http://localhost:7071/api
+
+    # ── Environment variables ─────────────────────────────────────────────────
+    # Reads from Data_Ingestion/.env  (copy from .env.example and fill in keys)
+    env_file:
+      - Data_Ingestion/.env
+
+    # Runtime overrides (these win over .env values)
+    environment:
+      - LOCAL_MODE=true          # store files locally, no Azure Blob needed
+      - LOCAL_DB=true            # SQLite DB at local_storage/intellidraft.db
+      - ASYNC_GENERATION=true    # background generation (non-blocking)
+
+    # ── Persistent storage ────────────────────────────────────────────────────
+    # SQLite DB + parsed documents survive container restarts
+    volumes:
+      - intellidraft-data:/app/Data_Ingestion/local_storage
+
+    restart: unless-stopped
+
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:7071/api/templates"]
+      interval: 30s
+      timeout: 10s
+      start_period: 20s
+      retries: 3
+
+# ── Named volume — data persists across restarts ──────────────────────────────
+volumes:
+  intellidraft-data:
+    name: intellidraft-data
