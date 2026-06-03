@@ -1,0 +1,96 @@
+# ═══════════════════════════════════════
+# IntelliDraft — .gitignore
+# ═══════════════════════════════════════
+
+# ── CRITICAL: Never commit secrets ──────
+.env
+.env.local
+.env.production
+Data_Ingestion/.env
+Data_Ingestion/agent/.env
+*.key
+*.pem
+*.pfx
+secrets/
+
+# ── Python ──────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+.Python
+pip-wheel-metadata/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ── Virtual environments ─────────────────
+env/
+venv/
+.venv/
+ENV/
+env.bak/
+
+# ── Local database & storage ─────────────
+Data_Ingestion/local_storage/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# ── IDE & OS ─────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+desktop.ini
+*.bak
+
+# ── Azure Functions ───────────────────────
+.azure/
+local.settings.json
+bin/
+obj/
+
+# ── Node (frontend) ───────────────────────
+node_modules/
+dist/
+.next/
+.nuxt/
+.cache/
+*.log
+npm-debug.log*
+yarn-error.log*
+
+# ── Jupyter ───────────────────────────────
+.ipynb_checkpoints/
+*.ipynb
+
+# ── Test artifacts ────────────────────────
+htmlcov/
+.coverage
+coverage.xml
+*.cover
+
+# ── Temporary files ───────────────────────
+*.tmp
+*.temp
+tmp/
+temp/
+
+# ── Microsoft Office lock files ───────────
+~$*
+
+# ── ADK session state ─────────────────────
+.adk/
+
+# ── Archives ──────────────────────────────
+*.zip

@@ -1,0 +1,295 @@
+"""
+LLM-powered extraction of project form fields from parsed documents.
+=========================================================================
+Called by  POST /api/extract-project-data.
+
+Flow:
+  1. Load each document's parsed content via ParsedDocument.to_llm_context()
+  2. Concatenate (capped at 60 K chars so it fits in one LLM call)
+  3. Ask the LLM to return a JSON object matching ProjectFormData fields
+  4. Compute which required fields are still missing
+  5. Return  { extracted: {...}, missing_required: [...], missing_optional: [...] }
+
+The function falls back gracefully: if the LLM call fails or returns bad JSON
+it returns {} so the frontend can still show an empty (editable) form.
+"""
+
+from __future__ import annotations
+import json
+import logging
+import os
+import sys
+from pathlib import Path
+
+# Bootstrap sys.path — same pattern as agent.py
+_BASE = Path(__file__).parent.parent.resolve()   # …/Data_Ingestion/
+if str(_BASE) not in sys.path:
+    sys.path.insert(0, str(_BASE))
+
+from dotenv import load_dotenv
+load_dotenv(dotenv_path=_BASE / ".env", override=False)
+
+logger = logging.getLogger(__name__)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Prompts
+# ─────────────────────────────────────────────────────────────────────────────
+
+_SYSTEM = (
+    "You are an expert business analyst and requirements engineer. "
+    "Your job is to read document content (which may be a BRD, requirements doc, "
+    "proposal, presentation, spreadsheet, or any other business document) and extract "
+    "structured project information to fill a standard project intake form. "
+    "Be creative in mapping — e.g. a document title is the project name, a purpose/scope "
+    "section maps to problem_statement and project_objective, a stakeholders table maps "
+    "to stakeholders, etc. "
+    "Return ONLY valid JSON — no markdown fences, no explanation, no prose."
+)
+
+_USER_TMPL = """Analyse the document content below and fill in as many of the following
+project intake form fields as possible.
+
+MAPPING GUIDANCE:
+- business_unit: the Adani group company or division (AESL, AGEL, ANIL, APSEZ, ATL,
+  Adani Ports, Adani Green, Adani Electricity, etc.). If not clearly an Adani document,
+  use the company/department name mentioned. Leave null if truly unknown.
+- project_name: the main title or name of the project / document (required).
+- project_code: any project ID, reference number, version, or code (e.g. AESL-2026-001).
+- problem_statement: WHY this project exists — the business problem, pain point, or
+  challenge. Extract from Purpose, Background, Problem, Objective, or Scope sections.
+- project_objective: WHAT success looks like — goals, objectives, expected outcomes.
+- stakeholders: list every person/role/team mentioned as a stakeholder, owner, or contact.
+  For each person use their full name and role/designation.
+- start_date / end_date: any project timeline dates. Format as YYYY-MM-DD.
+- as_is_processes: current (existing) processes, workflows, tools, or challenges described.
+- proposed_solution: the recommended or proposed approach, solution, or design.
+- constraints: any stated limitations, dependencies, assumptions, or constraints.
+- risks: any risk items, issues, or mitigation strategies mentioned.
+- technical_landscape: systems, integrations, APIs, databases, or tech stack mentioned.
+- estimated_cost_crores: any budget figure — convert to Crores INR if possible (e.g. "12.5").
+- business_priority: Critical / High / Medium / Low — infer from urgency language if explicit
+  priority not stated.
+
+Return EXACTLY this JSON structure (use null for fields you cannot find or reliably infer):
+
+{{
+  "business_unit":          null,
+  "project_name":           null,
+  "project_code":           null,
+  "problem_statement":      null,
+  "project_objective":      null,
+  "stakeholders": [
+    {{"name": "<person name or role title>", "designation": "<role/designation>"}}
+  ],
+  "start_date":             null,
+  "end_date":               null,
+  "as_is_processes":        null,
+  "proposed_solution":      null,
+  "constraints":            null,
+  "risks":                  null,
+  "technical_landscape":    null,
+  "estimated_cost_crores":  null,
+  "business_priority":      null
+}}
+
+DOCUMENT CONTENT:
+{content}
+"""
+
+# Fields that are considered "required" for BRD generation
+_REQUIRED_FIELDS = [
+    "project_name",
+    "problem_statement",
+    "project_objective",
+    "proposed_solution",
+    "stakeholders",
+    "technical_landscape",
+]
+
+# Human-readable labels shown to the user for missing fields
+_FIELD_LABELS = {
+    "business_unit":         "Business Unit (e.g. AESL, AGEL, ANIL)",
+    "project_name":          "Project Name",
+    "project_code":          "Project Code / ID",
+    "problem_statement":     "Problem Statement — what business problem does this solve?",
+    "project_objective":     "Project Objective — what are the goals and expected outcomes?",
+    "stakeholders":          "Stakeholders — names and designations",
+    "start_date":            "Project Start Date",
+    "end_date":              "Project End Date",
+    "as_is_processes":       "As-Is Processes & Challenges",
+    "proposed_solution":     "Proposed Solution Overview",
+    "constraints":           "Constraints & Dependencies",
+    "risks":                 "Risks & Mitigation Strategies",
+    "technical_landscape":   "Technical Landscape & Integrations",
+    "estimated_cost_crores": "Estimated Project Cost (₹ Crores)",
+    "business_priority":     "Business Priority (Critical / High / Medium / Low)",
+}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Public entry point
+# ─────────────────────────────────────────────────────────────────────────────
+
+def extract_project_data(document_ids: list[str]) -> dict:
+    """
+    Load the given parsed documents and call the LLM to extract form fields.
+
+    Args:
+        document_ids: list of document UUIDs (returned by POST /api/upload)
+
+    Returns:
+        {
+            "extracted":         { ...form fields... },
+            "missing_required":  [ {"field": "...", "label": "...", "question": "..."} ],
+            "missing_optional":  [ {"field": "...", "label": "..."} ],
+            "filled_count":      <int>,
+            "total_fields":      <int>,
+        }
+        All keys present even on failure (extracted={}, missing=all fields).
+    """
+    from storage.azure_storage import get_storage_service
+    from models.meta_schema    import ParsedDocument
+
+    store    = get_storage_service()
+    contexts: list[str] = []
+
+    for doc_id in document_ids:
+        try:
+            meta = store.get_meta_json(doc_id)
+            doc  = ParsedDocument(**meta)
+            ctx  = doc.to_llm_context(max_chars=15000)
+            contexts.append(f"=== File: {doc.source_filename} ===\n{ctx}")
+            logger.info("[Extractor] Loaded %s (%d chars)", doc.source_filename, len(ctx))
+        except Exception as exc:
+            logger.warning("[Extractor] Could not load document %s: %s", doc_id, exc)
+
+    if not contexts:
+        logger.warning("[Extractor] No document content loaded — returning empty")
+        return _build_response({})
+
+    combined = "\n\n".join(contexts)[:60_000]   # stay well within context window
+    extracted = _call_llm(combined)
+    return _build_response(extracted)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Missing-fields analysis
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Questions the agent "asks" when a required field is missing
+_MISSING_QUESTIONS = {
+    "project_name":       "What is the full name of this project?",
+    "problem_statement":  "What business problem or challenge is this project solving? Describe the current pain points.",
+    "project_objective":  "What are the main objectives and expected outcomes of this project?",
+    "proposed_solution":  "What is the proposed solution or approach for this project?",
+    "stakeholders":       "Who are the key stakeholders? Please provide names and their roles/designations.",
+    "technical_landscape":"What systems, technologies, integrations, or data sources are involved?",
+    "business_unit":      "Which Adani business unit does this project belong to? (e.g. AESL, AGEL, ANIL, APSEZ)",
+}
+
+def _is_empty(value) -> bool:
+    """Returns True if a field value should be treated as 'missing'."""
+    if value is None:
+        return True
+    if isinstance(value, str) and value.strip() == "":
+        return True
+    if isinstance(value, list) and len(value) == 0:
+        return True
+    return False
+
+def _build_response(extracted: dict) -> dict:
+    """
+    Given an extracted dict, compute missing_required and missing_optional lists.
+    Returns the full response envelope.
+    """
+    all_fields = list(_FIELD_LABELS.keys())
+    missing_required = []
+    missing_optional = []
+
+    for field in all_fields:
+        val = extracted.get(field)
+        if _is_empty(val):
+            entry = {"field": field, "label": _FIELD_LABELS[field]}
+            if field in _REQUIRED_FIELDS:
+                if field in _MISSING_QUESTIONS:
+                    entry["question"] = _MISSING_QUESTIONS[field]
+                missing_required.append(entry)
+            else:
+                missing_optional.append(entry)
+
+    filled_count = sum(
+        1 for f in all_fields if not _is_empty(extracted.get(f))
+    )
+
+    return {
+        "extracted":        extracted,
+        "missing_required": missing_required,
+        "missing_optional": missing_optional,
+        "filled_count":     filled_count,
+        "total_fields":     len(all_fields),
+    }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# LLM call
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _call_llm(content: str) -> dict:
+    try:
+        import litellm
+
+        # GPT-5 does not accept temperature != 1 — silently drop unsupported params
+        litellm.drop_params = True
+
+        provider = os.getenv("MODEL_PROVIDER", "azure_gpt5").lower()
+
+        if provider == "azure_gpt5":
+            key     = os.getenv("AZURE_GPT5_OPENAI_API_KEY",      "")
+            base    = os.getenv("AZURE_GPT5_OPENAI_ENDPOINT",     "")
+            version = os.getenv("AZURE_GPT5_API_VERSION",         "2024-12-01-preview")
+            dep     = os.getenv("AZURE_GPT5_MODEL_DEPLOYMENT_ID", "project-pulse-gpt-5")
+            model   = f"azure/{dep}"
+            os.environ.update({
+                "AZURE_API_KEY":     key,
+                "AZURE_API_BASE":    base,
+                "AZURE_API_VERSION": version,
+            })
+        else:
+            model = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+
+        logger.info("[Extractor] Calling LLM model=%s content_len=%d", model, len(content))
+
+        response = litellm.completion(
+            model    = model,
+            messages = [
+                {"role": "system", "content": _SYSTEM},
+                {"role": "user",   "content": _USER_TMPL.format(content=content)},
+            ],
+            # NOTE: temperature omitted — GPT-5 only supports temperature=1
+            # response_format omitted here — GPT-5 returns JSON reliably with the prompt
+            timeout  = 90,
+        )
+
+        raw = response.choices[0].message.content.strip()
+
+        # Strip accidental markdown fences
+        if raw.startswith("```"):
+            lines = raw.splitlines()
+            raw   = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
+
+        # Sometimes the model wraps in {"result": {...}} — unwrap if so
+        data = json.loads(raw)
+        if isinstance(data, dict) and len(data) == 1:
+            inner = next(iter(data.values()))
+            if isinstance(inner, dict) and "project_name" in inner:
+                data = inner
+
+        logger.info("[Extractor] Extraction OK — keys: %s", sorted(data.keys()))
+        return data
+
+    except json.JSONDecodeError as exc:
+        logger.error("[Extractor] LLM returned invalid JSON: %s", exc)
+        return {}
+    except Exception as exc:
+        logger.exception("[Extractor] LLM call failed: %s", exc)
+        return {}

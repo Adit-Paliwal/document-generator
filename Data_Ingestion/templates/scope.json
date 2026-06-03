@@ -1,0 +1,65 @@
+{
+  "id": "scope",
+  "name": "Scope Document",
+  "document_type": "Scope Document",
+  "description": "Focused document defining the boundaries, deliverables, and boundaries of a project or engagement.",
+  "system_instructions": "You are a project manager writing a clear, unambiguous Scope Document. The primary goal is to prevent scope creep by explicitly defining what is and isn't included. Every statement should be testable — either it is or isn't in scope. Use precise language. Avoid adjectives like 'comprehensive' or 'robust' unless they are backed by specific criteria. Draw from the source document for system names, process names, and stakeholder details.",
+  "sections": [
+    {
+      "key": "purpose",
+      "title": "Purpose & Background",
+      "order": 1,
+      "instructions": "State the purpose of this scope document, what project or initiative it covers, and the business context. Include who commissioned the project, why it is needed now, and how it relates to broader organisational goals.",
+      "target_words": 200
+    },
+    {
+      "key": "in_scope",
+      "title": "In Scope",
+      "order": 2,
+      "instructions": "List in explicit detail everything that IS included in this project. Organise by category: Functional Areas, Systems/Applications, Business Processes, User Groups, Geographies/Locations, Data Domains. Use bullet points. Each bullet must be specific enough to be unambiguous. Where possible, name the specific system, process, or team rather than using generic descriptions.",
+      "target_words": 400
+    },
+    {
+      "key": "out_of_scope",
+      "title": "Out of Scope",
+      "order": 3,
+      "instructions": "Explicitly list everything that is NOT included. This section is as important as 'In Scope'. Include items that stakeholders might assume are included but are not. For each out-of-scope item, briefly state why it is excluded (e.g., future phase, separate project, not feasible within budget). Do not leave ambiguous items — if it might be debated, put it here.",
+      "target_words": 350
+    },
+    {
+      "key": "deliverables",
+      "title": "Deliverables",
+      "order": 4,
+      "instructions": "List every tangible deliverable the project will produce. For each: deliverable name, description (1-2 sentences), format, recipient, and acceptance criteria. Use a table format if there are 5+ deliverables. Deliverables should be specific artifacts that can be handed over and accepted, not activities.",
+      "target_words": 300
+    },
+    {
+      "key": "dependencies",
+      "title": "Dependencies & Assumptions",
+      "order": 5,
+      "instructions": "Two sub-sections: (1) Dependencies — external factors that the project depends on but does not control (e.g., third-party API availability, data from another team, a regulatory decision); (2) Assumptions — what has been assumed to be true in defining this scope. For each assumption, note the risk if it proves incorrect. Dependencies should have owners and expected dates.",
+      "target_words": 250
+    },
+    {
+      "key": "constraints",
+      "title": "Constraints",
+      "order": 6,
+      "instructions": "List the fixed constraints within which the project must operate. Cover: Budget (total envelope), Timeline (hard deadlines), Technology (mandated or forbidden technologies), Resources (headcount limits, specific people required), Regulatory (compliance requirements that constrain design choices), Organisational (change freeze periods, geography limits). Each constraint should state who imposed it.",
+      "target_words": 200
+    },
+    {
+      "key": "acceptance_criteria",
+      "title": "Scope Acceptance Criteria",
+      "order": 7,
+      "instructions": "Define how scope completion will be confirmed. Cover: who approves that the project has delivered what was in scope, what evidence is required (test results, sign-off documents, metrics), the review process, the timeline for scope review after delivery, and how disputes about scope will be resolved.",
+      "target_words": 200
+    },
+    {
+      "key": "change_control",
+      "title": "Scope Change Control",
+      "order": 8,
+      "instructions": "Define the process for managing scope changes: how a scope change is identified and documented, who assesses the impact (time, cost, quality), who approves scope changes and at what threshold, how approved changes are recorded, and the implications for timeline and budget. Emphasise that no scope change is implemented without written approval.",
+      "target_words": 200
+    }
+  ]
+}

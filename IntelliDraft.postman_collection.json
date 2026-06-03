@@ -1,0 +1,409 @@
+{
+  "info": {
+    "name": "IntelliDraft API",
+    "description": "GenAI Document Generation Platform — AESL\n\nBase URL: Set the {{base_url}} environment variable.\n  Dev:  http://localhost:7071/api\n  Prod: https://<function-app>.azurewebsites.net/api\n\nVariables used:\n  {{base_url}}   - API base URL\n  {{doc_id}}     - document_id from /upload\n  {{project_id}} - project_id from POST /projects\n  {{job_id}}     - job_id from /generate/project\n  {{section_id}} - section_id from generation response\n  {{comment_id}} - comment_id from /comment endpoint",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:7071/api", "type": "string" },
+    { "key": "doc_id", "value": "", "type": "string" },
+    { "key": "project_id", "value": "", "type": "string" },
+    { "key": "job_id", "value": "", "type": "string" },
+    { "key": "section_id", "value": "", "type": "string" },
+    { "key": "comment_id", "value": "", "type": "string" }
+  ],
+  "item": [
+
+    {
+      "name": "1. Document Ingestion",
+      "item": [
+        {
+          "name": "Upload Document",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{base_url}}/upload", "host": ["{{base_url}}"], "path": ["upload"] },
+            "body": {
+              "mode": "formdata",
+              "formdata": [{ "key": "file", "type": "file", "src": "/path/to/your/document.pdf", "description": "PDF, DOCX, PPTX, or XLSX (max 50 MB)" }]
+            },
+            "description": "Upload and parse a document. Save the returned document_id into the {{doc_id}} variable."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const json = pm.response.json();",
+                  "  pm.collectionVariables.set('doc_id', json.document_id);",
+                  "  console.log('document_id saved:', json.document_id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Document",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/document/{{doc_id}}", "host": ["{{base_url}}"], "path": ["document", "{{doc_id}}"] },
+            "description": "Get full parsed content of a document."
+          }
+        },
+        {
+          "name": "Get Document Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/document/{{doc_id}}/status", "host": ["{{base_url}}"], "path": ["document", "{{doc_id}}", "status"] },
+            "description": "Lightweight status check."
+          }
+        },
+        {
+          "name": "Get Form Fields",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/form-fields", "host": ["{{base_url}}"], "path": ["form-fields"] },
+            "description": "Get dynamic form field definitions for Create Project form."
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "2. Project Management",
+      "item": [
+        {
+          "name": "Create Project",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/projects", "host": ["{{base_url}}"], "path": ["projects"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"project_name\": \"Smart Grid Phase 2\",\n  \"project_code\": \"AESL-SG-002\",\n  \"business_unit\": \"T&D\",\n  \"business_priority\": \"Critical\",\n  \"problem_statement\": \"Legacy SCADA systems lack real-time visibility into grid performance, leading to reactive maintenance and 12-hour fault response times.\",\n  \"project_objective\": \"Deploy AI-driven smart grid management system to reduce fault response time to under 15 minutes.\",\n  \"as_is_processes\": \"Manual monitoring, 4-hour reporting cycles, on-call technician dispatch.\",\n  \"proposed_solution\": \"Implement IoT sensor network with ML-based anomaly detection and automated alerts.\",\n  \"technical_landscape\": \"Azure IoT Hub, Power BI, existing SAP ERP, legacy PLCs at 47 substations.\",\n  \"constraints\": \"Must comply with CERC regulations. Cannot replace legacy PLCs in Phase 1.\",\n  \"risks\": \"Integration complexity with legacy PLCs. Estimated 3-month delay risk.\",\n  \"estimated_cost_crores\": \"45.5\",\n  \"stakeholders\": [\n    { \"name\": \"Dhairya Chawda\", \"designation\": \"Project Manager\" },\n    { \"name\": \"Srinivas Gutta\", \"designation\": \"Technical Lead\" }\n  ],\n  \"start_date\": \"2026-07-01\",\n  \"end_date\": \"2027-03-31\",\n  \"document_type\": \"BRD\",\n  \"output_format\": \"Word (.docx)\",\n  \"additional_instructions\": \"Include CERC compliance section. Follow AESL tone guidelines.\",\n  \"document_ids\": [\"{{doc_id}}\"],\n  \"template_id\": null\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Save new project. Returns only project_id — do NOT read form data from response."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const json = pm.response.json();",
+                  "  pm.collectionVariables.set('project_id', json.project_id);",
+                  "  console.log('project_id saved:', json.project_id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Projects",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/projects?q=&status=",
+              "host": ["{{base_url}}"],
+              "path": ["projects"],
+              "query": [
+                { "key": "q", "value": "", "description": "Search by name or code" },
+                { "key": "status", "value": "", "description": "draft | ready | generating | completed" }
+              ]
+            },
+            "description": "List all projects. Supports search and status filter."
+          }
+        },
+        {
+          "name": "Get Project",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/projects/{{project_id}}", "host": ["{{base_url}}"], "path": ["projects", "{{project_id}}"] },
+            "description": "Get full project with all fields and lifecycle metadata."
+          }
+        },
+        {
+          "name": "Update Project (Full)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/projects/{{project_id}}", "host": ["{{base_url}}"], "path": ["projects", "{{project_id}}"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"project_name\": \"Smart Grid Phase 2 (Revised)\",\n  \"estimated_cost_crores\": \"50.0\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Full update — replaces all provided fields."
+          }
+        },
+        {
+          "name": "Autosave Project (Partial)",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/projects/{{project_id}}", "host": ["{{base_url}}"], "path": ["projects", "{{project_id}}"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"project_name\": \"Smart Grid Phase 2\",\n  \"constraints\": \"Must comply with CERC regulations. No downtime allowed.\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Partial autosave — only provided fields are written."
+          }
+        },
+        {
+          "name": "Delete Project",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{base_url}}/projects/{{project_id}}", "host": ["{{base_url}}"], "path": ["projects", "{{project_id}}"] },
+            "description": "Hard delete project and all derived data. Returns 204."
+          }
+        },
+        {
+          "name": "Get Project Data (Ingested + Derived)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/projects/{{project_id}}/data", "host": ["{{base_url}}"], "path": ["projects", "{{project_id}}", "data"] },
+            "description": "Load Project Data sub-page. Returns ingested fields + derived AI fields in one call."
+          }
+        },
+        {
+          "name": "Save Ingested Data",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/projects/{{project_id}}/data/ingested", "host": ["{{base_url}}"], "path": ["projects", "{{project_id}}", "data", "ingested"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"project_name\": \"Smart Grid Phase 2 (Revised)\",\n  \"estimated_cost_crores\": \"50.0\",\n  \"stakeholders\": [\n    { \"name\": \"Dhairya Chawda\", \"designation\": \"Project Manager\" }\n  ]\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Save user edits on Ingested Details tab."
+          }
+        },
+        {
+          "name": "Save Derived Data",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/projects/{{project_id}}/data/derived", "host": ["{{base_url}}"], "path": ["projects", "{{project_id}}", "data", "derived"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"current_challenges\": \"Legacy SCADA systems lack real-time analytics...\",\n  \"functional_requirements\": \"System shall support 10,000 concurrent IoT sensors...\",\n  \"success_criteria\": \"Reduce fault response time from 12 hours to 15 minutes.\",\n  \"mark_as_generated\": false\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Save user edits on Derived Details tab. Set mark_as_generated=true when AI populates all 12 fields."
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "3. AI Auto-Populate",
+      "item": [
+        {
+          "name": "Extract Project Fields from Documents",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/extract-project-data", "host": ["{{base_url}}"], "path": ["extract-project-data"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"document_ids\": [\"{{doc_id}}\"]\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Use AI to extract form fields from uploaded documents. Auto-populates Create Project form. Null fields = AI couldn't determine — keep user input."
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "4. Document Generation",
+      "item": [
+        {
+          "name": "Start Generation (from Project) ⭐",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/generate/project/{{project_id}}", "host": ["{{base_url}}"], "path": ["generate", "project", "{{project_id}}"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "PRIMARY ENDPOINT. Start document generation from a saved project. Reads all fields from DB — no body needed. Save returned job_id."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const json = pm.response.json();",
+                  "  pm.collectionVariables.set('job_id', json.job_id);",
+                  "  if (json.sections && json.sections.length > 0) {",
+                  "    pm.collectionVariables.set('section_id', json.sections[0].section_id);",
+                  "  }",
+                  "  console.log('job_id saved:', json.job_id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Start Generation (Direct / No Project)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/generate/start", "host": ["{{base_url}}"], "path": ["generate", "start"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"document_id\": \"{{doc_id}}\",\n  \"user_inputs\": {\n    \"document_type\": \"BRD\",\n    \"project_name\": \"Smart Grid Phase 2\",\n    \"output_format\": \"Word (.docx)\",\n    \"stakeholders\": \"Dhairya Chawda (PM), Srinivas Gutta (Tech)\",\n    \"project_description\": \"Deploy AI-driven smart grid management system...\",\n    \"business_problem\": \"Legacy SCADA systems lack real-time visibility...\",\n    \"expected_outcome\": \"Reduce fault response time to under 15 minutes.\",\n    \"additional_instructions\": \"Include CERC compliance section.\"\n  },\n  \"template_id\": null\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Alternative: start generation without a saved project (direct flow)."
+          }
+        },
+        {
+          "name": "Poll Generation Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/generate/{{job_id}}", "host": ["{{base_url}}"], "path": ["generate", "{{job_id}}"] },
+            "description": "Poll every 3-5 seconds. Check status field: pending | in_progress | completed | failed. current_content has the latest Markdown for each section."
+          }
+        },
+        {
+          "name": "Get Section (with all versions + comments)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/generate/{{job_id}}/section/{{section_id}}", "host": ["{{base_url}}"], "path": ["generate", "{{job_id}}", "section", "{{section_id}}"] },
+            "description": "Get one section with full version history and all comments."
+          }
+        },
+        {
+          "name": "Add Comment (Chatbot Panel)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/generate/{{job_id}}/section/{{section_id}}/comment", "host": ["{{base_url}}"], "path": ["generate", "{{job_id}}", "section", "{{section_id}}", "comment"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"comment_text\": \"Make this section more concise and add CERC regulatory references.\",\n  \"comment_type\": \"edit_request\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "comment_type: edit_request | approval | rejection | note"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const json = pm.response.json();",
+                  "  pm.collectionVariables.set('comment_id', json.comment.comment_id);",
+                  "  console.log('comment_id saved:', json.comment.comment_id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Regenerate Section",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/generate/{{job_id}}/section/{{section_id}}/regenerate", "host": ["{{base_url}}"], "path": ["generate", "{{job_id}}", "section", "{{section_id}}", "regenerate"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"comment_id\": \"{{comment_id}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Regenerate a section with optional comment instruction. Omit comment_id to regenerate from scratch."
+          }
+        },
+        {
+          "name": "Accept Version",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/generate/{{job_id}}/section/{{section_id}}/accept", "host": ["{{base_url}}"], "path": ["generate", "{{job_id}}", "section", "{{section_id}}", "accept"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"version_number\": 1\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Mark a specific version as accepted (locked in final document)."
+          }
+        },
+        {
+          "name": "Export Document (DOCX)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/generate/{{job_id}}/export?format=docx",
+              "host": ["{{base_url}}"],
+              "path": ["generate", "{{job_id}}", "export"],
+              "query": [{ "key": "format", "value": "docx", "description": "docx | pdf | md" }]
+            },
+            "description": "Download assembled document. Returns binary file. format param: docx | pdf | md"
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "5. Templates",
+      "item": [
+        {
+          "name": "List Templates",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/templates",
+              "host": ["{{base_url}}"],
+              "path": ["templates"],
+              "query": [{ "key": "document_type", "value": "", "description": "BRD | RFP | SOW | Project Proposal | Technical Specification | Scope Document", "disabled": true }]
+            },
+            "description": "List all templates. 6 system templates (brd, rfp, sow, proposal, tech_spec, scope) are always available."
+          }
+        },
+        {
+          "name": "Create Custom Template",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/templates", "host": ["{{base_url}}"], "path": ["templates"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"AESL Custom BRD\",\n  \"document_type\": \"BRD\",\n  \"description\": \"Internal AESL template with CERC compliance section\",\n  \"sections\": [\n    {\n      \"key\": \"overview\",\n      \"title\": \"Project Overview\",\n      \"instructions\": \"Summarize the project scope, objectives, and stakeholders in 300 words.\"\n    },\n    {\n      \"key\": \"compliance\",\n      \"title\": \"CERC Compliance\",\n      \"instructions\": \"List all applicable CERC regulations and how the project addresses them.\"\n    }\n  ],\n  \"system_instructions\": \"Always follow AESL tone guidelines. Use formal language. Avoid jargon.\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Create a custom user template with custom sections."
+          }
+        }
+      ]
+    }
+
+  ]
+}

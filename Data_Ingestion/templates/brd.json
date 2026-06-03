@@ -1,0 +1,93 @@
+{
+  "id": "brd",
+  "name": "Business Requirements Document",
+  "document_type": "Business Requirements Document (BRD)",
+  "description": "Comprehensive document describing business needs, stakeholder requirements, and scope for a project or system.",
+  "system_instructions": "You are a senior business analyst writing a formal Business Requirements Document (BRD). Write in clear, professional business language. Requirements must be specific, measurable, and testable. Avoid technical jargon unless the audience is technical. Each requirement should have a clear business justification. Draw directly from the provided document context — cite specific numbers, processes, or entities when they appear in the source material.",
+  "sections": [
+    {
+      "key": "executive_summary",
+      "title": "Executive Summary",
+      "order": 1,
+      "instructions": "Write a concise executive summary that a C-level executive can read in 2 minutes. Cover: (1) the business problem or opportunity being addressed, (2) the proposed solution at a high level, (3) expected business benefits and ROI indicators, (4) high-level scope and timeline context. Do NOT include detailed requirements here — just the strategic picture.",
+      "target_words": 300
+    },
+    {
+      "key": "business_objectives",
+      "title": "Business Objectives",
+      "order": 2,
+      "instructions": "List the specific, measurable business objectives this project must achieve. Format each objective as a numbered list item starting with an action verb (e.g., 'Reduce processing time by 40%', 'Increase customer satisfaction score to 4.5/5'). For each objective, add a sub-bullet explaining the business rationale. Extract concrete numbers and targets from the source document where available.",
+      "target_words": 250
+    },
+    {
+      "key": "scope",
+      "title": "Project Scope",
+      "order": 3,
+      "instructions": "Define what is IN scope and OUT of scope. Use two clear subsections: **In Scope** and **Out of Scope**. For in-scope items, describe the functional areas, processes, and systems included. For out-of-scope items, explicitly list exclusions to prevent scope creep. Include any phase-based delivery scope if applicable. Be specific — vague scope leads to project failure.",
+      "target_words": 350
+    },
+    {
+      "key": "stakeholders",
+      "title": "Stakeholders & Roles",
+      "order": 4,
+      "instructions": "Create a stakeholder register. For each stakeholder or stakeholder group listed by the user, describe: their role in the project, their primary interest/concern, their level of involvement (decision maker / approver / consulted / informed), and any specific requirements or constraints they have. Present as a table if there are 4+ stakeholders.",
+      "target_words": 300
+    },
+    {
+      "key": "current_state",
+      "title": "Current State & Pain Points",
+      "order": 5,
+      "instructions": "Describe the current business process, system, or situation that this project addresses. Cover: how things work today, what the key pain points are, where inefficiencies exist, what manual steps could be automated, and what risks or compliance issues exist in the current state. Draw from any workflow diagrams or process descriptions in the source document.",
+      "target_words": 350
+    },
+    {
+      "key": "functional_requirements",
+      "title": "Functional Requirements",
+      "order": 6,
+      "instructions": "List all functional requirements the system/solution must deliver. Use the format: FR-001, FR-002, etc. For each requirement write: the requirement statement (what the system SHALL do), the business justification (why it's needed), and the priority (Must Have / Should Have / Could Have / Won't Have — MoSCoW). Group related requirements under sub-headings. Extract requirements from the source document — look for features described, processes that need automation, and user needs mentioned.",
+      "target_words": 600
+    },
+    {
+      "key": "non_functional_requirements",
+      "title": "Non-Functional Requirements",
+      "order": 7,
+      "instructions": "Define the quality attributes and constraints the solution must meet. Cover these categories with specific, measurable criteria: Performance (response times, throughput), Availability & Reliability (uptime SLA, RTO, RPO), Security (authentication, authorisation, data encryption, compliance requirements), Scalability (concurrent users, data volume growth), Usability (accessibility standards, browser/device support), Integration (APIs, data formats, protocols), Compliance & Regulatory requirements. Use NFR-001, NFR-002 numbering.",
+      "target_words": 400
+    },
+    {
+      "key": "data_requirements",
+      "title": "Data Requirements",
+      "order": 8,
+      "instructions": "Describe the data aspects of the solution: what data needs to be captured, stored, processed, or migrated; data sources and owners; data volume and retention policies; data quality requirements; any data migration from legacy systems; reporting and analytics data needs; data privacy and masking requirements. Reference specific tables or datasets from the source document if present.",
+      "target_words": 300
+    },
+    {
+      "key": "assumptions_constraints",
+      "title": "Assumptions & Constraints",
+      "order": 9,
+      "instructions": "List project assumptions (things believed to be true that haven't been confirmed) and constraints (fixed limits within which the project must operate). Format as two sub-sections: **Assumptions** and **Constraints**. Constraints should cover: budget, timeline, technology stack, regulatory, organisational, and resource constraints. Each assumption should note the risk if the assumption proves false.",
+      "target_words": 250
+    },
+    {
+      "key": "risks",
+      "title": "Risks & Mitigations",
+      "order": 10,
+      "instructions": "Create a risk register table with columns: Risk ID | Risk Description | Likelihood (H/M/L) | Impact (H/M/L) | Risk Rating | Mitigation Strategy | Owner. Identify 6-10 realistic business and project risks. Focus on risks that could cause the project to fail or not deliver the expected benefits.",
+      "target_words": 350
+    },
+    {
+      "key": "acceptance_criteria",
+      "title": "Acceptance Criteria",
+      "order": 11,
+      "instructions": "Define how the business will confirm that requirements have been met. Write acceptance criteria for each major functional requirement area using Given/When/Then format or clear pass/fail statements. Include: UAT approach, who signs off, what test scenarios must pass, and what metrics must be achieved before go-live.",
+      "target_words": 300
+    },
+    {
+      "key": "glossary",
+      "title": "Glossary",
+      "order": 12,
+      "instructions": "Define domain-specific terms, acronyms, and abbreviations used in this document. Format as a two-column table: Term | Definition. Include business terms from the source document that may not be universally understood, plus any technical terms used in the requirements.",
+      "target_words": 200
+    }
+  ]
+}

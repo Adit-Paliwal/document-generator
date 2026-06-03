@@ -1,0 +1,79 @@
+{
+  "id": "tech_spec",
+  "name": "Technical Specification",
+  "document_type": "Technical Specification",
+  "description": "Detailed technical design document for developers and architects describing how a system will be built.",
+  "system_instructions": "You are a principal software architect writing a technical specification. Be precise and technically accurate. Use standard industry terminology. Architecture decisions should include rationale (why this approach over alternatives). Include enough detail that a developer can implement from this document without ambiguity. Draw system names, data models, and integration points from the source document. Use code-block formatting for schemas, API contracts, and configuration examples.",
+  "sections": [
+    {
+      "key": "overview",
+      "title": "System Overview",
+      "order": 1,
+      "instructions": "Provide a technical overview: what the system does, its primary purpose, key user types, the technology stack chosen, and the overall architectural style (microservices, monolith, event-driven, etc.). Include a high-level component diagram description referencing any architecture diagrams from the source material.",
+      "target_words": 300
+    },
+    {
+      "key": "architecture",
+      "title": "System Architecture",
+      "order": 2,
+      "instructions": "Describe the architecture in detail: component breakdown and responsibilities, how components interact, the data flow for key use cases, deployment topology (cloud, on-prem, hybrid), infrastructure components (load balancer, CDN, cache, queue, database), and the architectural patterns used (CQRS, event sourcing, API gateway, etc.). Reference architecture diagrams from the source document and describe what they show.",
+      "target_words": 500
+    },
+    {
+      "key": "data_model",
+      "title": "Data Model",
+      "order": 3,
+      "instructions": "Define the data model: key entities and their attributes, relationships between entities (one-to-many, many-to-many), primary and foreign keys, indexes needed for performance, and any data partitioning strategy. Present as Entity-Relationship description. Include sample JSON schema or SQL DDL in code blocks for the most important entities. Reference tables from the source document.",
+      "target_words": 400
+    },
+    {
+      "key": "api_design",
+      "title": "API Design",
+      "order": 4,
+      "instructions": "Define the API contract. For each endpoint: HTTP method, path, request body schema (JSON), response schema, status codes and error formats, authentication mechanism, and rate limits. Use REST conventions. Group endpoints by resource/domain. Include at least one curl example per endpoint group. If event-driven, define the event schema and topic names instead.",
+      "target_words": 500
+    },
+    {
+      "key": "integrations",
+      "title": "Integrations",
+      "order": 5,
+      "instructions": "Describe each external system integration: system name and purpose, integration pattern (REST API, message queue, file transfer, webhook), authentication method, data mapping (what fields map to what), error handling and retry strategy, and frequency/trigger. Reference any integration diagrams from the source document.",
+      "target_words": 350
+    },
+    {
+      "key": "security",
+      "title": "Security Design",
+      "order": 6,
+      "instructions": "Document the security architecture: authentication mechanism (OAuth2, JWT, SAML, API keys), authorisation model (RBAC, ABAC), data encryption (at rest and in transit — specify algorithms and key management), secrets management approach, audit logging requirements, vulnerability management (SAST, DAST, dependency scanning), and compliance requirements (OWASP Top 10, SOC2, ISO 27001, GDPR).",
+      "target_words": 400
+    },
+    {
+      "key": "performance",
+      "title": "Performance & Scalability",
+      "order": 7,
+      "instructions": "Define performance targets and how the architecture achieves them: response time SLAs per endpoint type, throughput targets (requests per second), concurrent user capacity, database query performance targets, caching strategy (what is cached, where, TTL), horizontal scaling approach, and auto-scaling trigger thresholds. Include load testing acceptance criteria.",
+      "target_words": 300
+    },
+    {
+      "key": "deployment",
+      "title": "Deployment & DevOps",
+      "order": 8,
+      "instructions": "Describe the deployment pipeline and infrastructure: CI/CD toolchain, environment strategy (dev/staging/prod), containerisation approach (Docker, Kubernetes), infrastructure-as-code tools, deployment strategy (blue-green, canary, rolling), monitoring and alerting stack, log aggregation, and disaster recovery approach (RTO/RPO targets).",
+      "target_words": 300
+    },
+    {
+      "key": "error_handling",
+      "title": "Error Handling & Observability",
+      "order": 9,
+      "instructions": "Define the error handling strategy: error classification (client errors, server errors, transient failures), retry and circuit breaker patterns, dead letter queue handling, user-facing error messages vs internal logs, structured logging format (fields to include in every log entry), distributed tracing approach, and alerting thresholds.",
+      "target_words": 250
+    },
+    {
+      "key": "open_issues",
+      "title": "Open Questions & Decisions",
+      "order": 10,
+      "instructions": "List any technical decisions not yet made, open architecture questions, technology choices under evaluation, and known risks. For each item: the question/issue, the options being considered, the decision criteria, the owner, and the target decision date. This section tracks what needs to be resolved before development begins.",
+      "target_words": 200
+    }
+  ]
+}

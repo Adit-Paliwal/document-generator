@@ -1,0 +1,79 @@
+{
+  "id": "sow",
+  "name": "Statement of Work",
+  "document_type": "Statement of Work (SOW)",
+  "description": "Formal agreement document defining the work to be performed, deliverables, timeline, and payment terms between client and vendor.",
+  "system_instructions": "You are a contracts specialist writing a formal Statement of Work (SOW). This is a legally significant document — be precise, unambiguous, and specific. Each deliverable must be clearly defined with acceptance criteria. Timelines must include specific dates or durations. Avoid vague terms like 'reasonable', 'appropriate', or 'as needed' — replace with specific measurable criteria. Draw facts, system names, and process details from the source document.",
+  "sections": [
+    {
+      "key": "overview",
+      "title": "Project Overview",
+      "order": 1,
+      "instructions": "Provide a concise description of the project: what is being built or delivered, who the parties are (client and service provider), the business purpose, and the high-level approach. Include the agreement effective date placeholder and party names.",
+      "target_words": 200
+    },
+    {
+      "key": "objectives",
+      "title": "Objectives",
+      "order": 2,
+      "instructions": "List 4-7 specific, measurable objectives that this SOW must achieve. Each objective should be a single sentence starting with a verb and include a measurable success criterion where possible. These become the test against which project success is measured.",
+      "target_words": 200
+    },
+    {
+      "key": "scope_of_services",
+      "title": "Scope of Services",
+      "order": 3,
+      "instructions": "Describe in detail the services the vendor will provide. Use numbered sections for each work stream or phase. For each area, describe: what activities the vendor will perform, what inputs they require from the client, and what the output will be. Be explicit — anything not listed here is out of scope and may require a change order.",
+      "target_words": 500
+    },
+    {
+      "key": "deliverables",
+      "title": "Deliverables",
+      "order": 4,
+      "instructions": "Create a deliverables table with columns: Deliverable ID | Deliverable Name | Description | Format | Due Date | Acceptance Criteria. List every tangible output the vendor must produce. Each deliverable must have clear, objective acceptance criteria that both parties can agree the deliverable has met.",
+      "target_words": 400
+    },
+    {
+      "key": "client_responsibilities",
+      "title": "Client Responsibilities",
+      "order": 5,
+      "instructions": "List everything the client must provide to enable the vendor to deliver the work. Cover: access to systems and environments, data and documentation to be provided, personnel availability (subject matter experts, approvers), infrastructure or tools to be provided, decisions to be made within specified timeframes. Frame as obligations — if the client fails to provide these, the vendor's timeline commitments may be affected.",
+      "target_words": 250
+    },
+    {
+      "key": "timeline",
+      "title": "Timeline & Milestones",
+      "order": 6,
+      "instructions": "Define the project timeline as a milestone table: Milestone | Description | Target Date | Dependency. Include: project kickoff, each phase start/end, deliverable submission dates, review and approval periods, UAT start/end, and go-live date. Note that dates are indicative until contract execution. Identify the critical path milestones.",
+      "target_words": 300
+    },
+    {
+      "key": "team_governance",
+      "title": "Project Team & Governance",
+      "order": 7,
+      "instructions": "Define the project governance structure: who leads from each side, the escalation path, steering committee composition and cadence, weekly status reporting format, change control process for scope changes, and how issues and risks will be managed. Name the key roles without necessarily naming specific individuals.",
+      "target_words": 250
+    },
+    {
+      "key": "payment_terms",
+      "title": "Payment Terms & Schedule",
+      "order": 8,
+      "instructions": "Define the commercial structure: total contract value, payment schedule tied to milestones (milestone | payment amount | payment trigger | payment timing), invoicing process, any retainage or holdback, and the conditions for final payment release. If time-and-materials, define the rate card, billing cycle, and expense policy.",
+      "target_words": 250
+    },
+    {
+      "key": "change_management",
+      "title": "Change Management",
+      "order": 9,
+      "instructions": "Define the change control process: what constitutes a change to the SOW, how changes are requested (Change Request form), how changes are priced and approved, turnaround time for change estimates, and the approval authority for changes of different sizes. State that no change is implemented until a written Change Order is executed.",
+      "target_words": 200
+    },
+    {
+      "key": "acceptance_signoff",
+      "title": "Acceptance & Sign-Off",
+      "order": 10,
+      "instructions": "Define the formal acceptance process: how deliverables are submitted, the review period (number of business days), the feedback and revision cycle, what constitutes deemed acceptance (if no response within X days), and who has authority to sign off deliverables. Include the final project closure and warranty period terms.",
+      "target_words": 200
+    }
+  ]
+}

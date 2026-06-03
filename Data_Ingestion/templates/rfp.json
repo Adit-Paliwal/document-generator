@@ -1,0 +1,79 @@
+{
+  "id": "rfp",
+  "name": "Request for Proposal",
+  "document_type": "Request for Proposal (RFP)",
+  "description": "Formal solicitation document inviting vendors to submit proposals for a solution or service.",
+  "system_instructions": "You are a procurement specialist writing a formal Request for Proposal (RFP). The document must be precise, fair, and unambiguous so that vendors can submit comparable proposals. Use formal procurement language. All requirements must be clearly stated as mandatory (MUST) or desirable (SHOULD). Include evaluation criteria so vendors understand how proposals will be scored. Draw from the source document for technical and business context.",
+  "sections": [
+    {
+      "key": "introduction",
+      "title": "Introduction & Background",
+      "order": 1,
+      "instructions": "Introduce the issuing organisation, provide background on the business context, describe the business problem or opportunity that has led to this RFP, and state the overall objective of the procurement. Include any relevant history (e.g., existing systems being replaced, prior phases completed).",
+      "target_words": 300
+    },
+    {
+      "key": "scope_of_work",
+      "title": "Scope of Work",
+      "order": 2,
+      "instructions": "Define in detail what the selected vendor must deliver. Cover: (1) functional scope — what the solution must do; (2) implementation scope — what services must be provided (design, development, testing, training, support); (3) integration scope — what systems must be integrated; (4) exclusions — what is explicitly out of scope. Be specific enough that vendors can accurately price their proposals.",
+      "target_words": 500
+    },
+    {
+      "key": "technical_requirements",
+      "title": "Technical Requirements",
+      "order": 3,
+      "instructions": "List mandatory and desirable technical requirements. Use MUST for mandatory, SHOULD for desirable. Cover: architecture requirements, technology stack preferences/constraints, security requirements, performance benchmarks, scalability requirements, integration protocols (APIs, data formats), hosting/deployment requirements, and compliance standards (ISO, SOC2, GDPR, etc.).",
+      "target_words": 450
+    },
+    {
+      "key": "vendor_qualifications",
+      "title": "Vendor Qualifications",
+      "order": 4,
+      "instructions": "Specify the minimum qualifications vendors must demonstrate to be considered. Cover: years of experience in relevant domain, number of similar implementations completed, certifications and partnerships required, financial stability requirements, references required (number and type), key personnel qualifications, and any local presence or geographic requirements.",
+      "target_words": 250
+    },
+    {
+      "key": "proposal_requirements",
+      "title": "Proposal Requirements",
+      "order": 5,
+      "instructions": "Specify exactly what vendors must include in their response. Structure this as a checklist covering: executive summary, company background, solution description, technical architecture, implementation approach and timeline, project team and CVs, pricing breakdown (one-time and recurring), references, SLA commitments, and any required certifications or accreditations. State the proposal format (page limits, font, etc.) and submission deadline.",
+      "target_words": 300
+    },
+    {
+      "key": "evaluation_criteria",
+      "title": "Evaluation Criteria & Scoring",
+      "order": 6,
+      "instructions": "Define how proposals will be evaluated. Present as a scoring table with: Criteria | Weight (%) | Description. Total weights must sum to 100%. Typical criteria: Technical solution fit, Vendor experience, Proposed methodology, Total cost of ownership, Support and SLAs, References. Describe the evaluation process (scoring rounds, shortlisting, demos, BAFO).",
+      "target_words": 300
+    },
+    {
+      "key": "commercial_requirements",
+      "title": "Commercial & Pricing Requirements",
+      "order": 7,
+      "instructions": "Specify how vendors must structure their pricing. Cover: required pricing breakdown (implementation, licences, support, training), pricing period (how many years to quote), payment milestones, any price caps or budget guidance, total cost of ownership requirements, and any penalties or SLA credits. Request both fixed-price and time-and-materials options if applicable.",
+      "target_words": 250
+    },
+    {
+      "key": "timeline",
+      "title": "Timeline & Milestones",
+      "order": 8,
+      "instructions": "Provide the procurement timeline: RFP issue date, Q&A period, proposal submission deadline, evaluation period, shortlisting notification, vendor presentations, final selection, contract signature, and expected project start date. Also specify the desired implementation timeline and any hard deadlines the vendor must commit to.",
+      "target_words": 200
+    },
+    {
+      "key": "terms_conditions",
+      "title": "Terms & Conditions",
+      "order": 9,
+      "instructions": "Outline the key contractual terms that will apply. Cover: IP ownership, confidentiality obligations, payment terms, warranty period, support and maintenance terms, termination clauses, liability limits, governing law, and dispute resolution. State that the issuing organisation reserves the right to reject any or all proposals.",
+      "target_words": 250
+    },
+    {
+      "key": "contact_submission",
+      "title": "Contact & Submission Details",
+      "order": 10,
+      "instructions": "Provide: the point of contact for RFP queries (name, title, email), the Q&A process (how/when vendors should submit questions), the submission format (email/portal/physical), the submission address or system, and any required labelling or subject lines. Include a disclaimer about communications protocol (all queries via official channel only).",
+      "target_words": 150
+    }
+  ]
+}

@@ -1,0 +1,997 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IntelliDraft API Reference</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f4f5f7;color:#1a1a2e;display:flex;min-height:100vh}
+
+/* ── Sidebar ── */
+.sidebar{width:250px;min-width:250px;background:#16213e;position:sticky;top:0;height:100vh;overflow-y:auto;padding-bottom:30px}
+.sidebar-logo{padding:20px 18px 16px;border-bottom:1px solid #2d3a5e}
+.sidebar-logo h2{color:#c77dff;font-size:1rem;letter-spacing:.3px}
+.sidebar-logo p{color:#8899aa;font-size:.72rem;margin-top:3px}
+.sidebar-group{padding:16px 18px 4px;color:#6677aa;font-size:.62rem;text-transform:uppercase;letter-spacing:1.2px;font-weight:700}
+.sidebar a{display:flex;align-items:center;gap:7px;padding:5px 18px;color:#b0bec5;text-decoration:none;font-size:.78rem;border-left:2px solid transparent;transition:all .15s}
+.sidebar a:hover{color:#fff;background:rgba(142,39,143,.2);border-left-color:#8E278F}
+.mb{display:inline-block;padding:1px 5px;border-radius:3px;font-size:.6rem;font-weight:800;min-width:40px;text-align:center}
+
+/* ── Main ── */
+.main{flex:1;padding:36px 44px;overflow-x:hidden}
+.page-title{font-size:1.8rem;font-weight:800;color:#16213e}
+.page-subtitle{color:#666;margin-top:5px;font-size:.9rem}
+.version-badge{display:inline-block;background:#8E278F;color:#fff;border-radius:20px;padding:2px 12px;font-size:.72rem;font-weight:700;margin-left:10px;vertical-align:middle}
+
+/* base url box */
+.base-url-box{background:#fff;border:1px solid #e0e0e0;border-radius:10px;padding:18px 22px;margin:22px 0 36px;display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.base-url-box h4{font-size:.7rem;text-transform:uppercase;color:#888;letter-spacing:1px;margin-bottom:5px}
+.base-url-box .url-line{font-family:'Courier New',monospace;font-size:.82rem;background:#f8f8f8;border-radius:5px;padding:6px 10px;color:#8E278F}
+.base-url-box .auth-note{font-size:.78rem;color:#555;margin-top:8px;line-height:1.5}
+.base-url-box .auth-note code{background:#f0f0f0;padding:1px 5px;border-radius:3px;font-size:.78rem}
+
+/* group header */
+.group-header{margin:44px 0 18px;padding-bottom:10px;border-bottom:2px solid #8E278F;display:flex;align-items:center;gap:10px}
+.group-header h2{font-size:1.05rem;font-weight:800;color:#16213e}
+.group-header .ui-hint{font-size:.75rem;color:#888;background:#f0f0f0;padding:2px 10px;border-radius:20px}
+
+/* endpoint card */
+.ep{background:#fff;border:1px solid #e5e5e5;border-radius:10px;margin-bottom:18px;overflow:hidden;transition:box-shadow .2s}
+.ep:hover{box-shadow:0 4px 20px rgba(0,0,0,.08)}
+.ep-head{display:flex;align-items:flex-start;gap:12px;padding:14px 18px}
+.method{display:inline-block;padding:3px 10px;border-radius:5px;font-size:.68rem;font-weight:800;letter-spacing:.5px;min-width:58px;text-align:center;white-space:nowrap}
+.GET{background:#dcfce7;color:#166534}
+.POST{background:#dbeafe;color:#1e3a8a}
+.PUT{background:#fef9c3;color:#854d0e}
+.PATCH{background:#f3e8ff;color:#6b21a8}
+.DELETE{background:#fee2e2;color:#991b1b}
+.ep-info{flex:1}
+.ep-path{font-family:'Courier New',monospace;font-size:.9rem;color:#16213e;font-weight:700}
+.ep-desc{font-size:.78rem;color:#666;margin-top:3px;line-height:1.4}
+.ep-body{padding:0 18px 18px;border-top:1px solid #f5f5f5;padding-top:14px}
+.ep-body h5{font-size:.68rem;text-transform:uppercase;color:#888;letter-spacing:.8px;margin:12px 0 6px;font-weight:700}
+.ep-body h5:first-child{margin-top:0}
+
+/* tables */
+.tbl{width:100%;border-collapse:collapse;font-size:.78rem;margin-top:4px}
+.tbl th{text-align:left;padding:6px 10px;background:#f8f9fa;color:#444;font-weight:700;border:1px solid #e8e8e8}
+.tbl td{padding:6px 10px;border:1px solid #e8e8e8;color:#333;vertical-align:top}
+.req{color:#dc2626;font-weight:700}
+.opt{color:#888}
+.tag{display:inline-block;background:#f0f0f0;border-radius:3px;padding:1px 5px;font-size:.7rem;color:#555;margin:1px;font-family:monospace}
+
+/* code blocks */
+pre{background:#1e1e2e;color:#cdd6f4;border-radius:7px;padding:13px 16px;font-size:.76rem;overflow-x:auto;line-height:1.65;position:relative;margin-top:4px}
+.copy-btn{position:absolute;top:7px;right:8px;background:#313244;color:#bbb;border:none;border-radius:4px;padding:2px 8px;font-size:.65rem;cursor:pointer;transition:all .15s}
+.copy-btn:hover{background:#45475a;color:#fff}
+.copy-btn.copied{background:#a6e3a1;color:#1e1e2e}
+.kw{color:#cba6f7}
+.str{color:#a6e3a1}
+.num{color:#fab387}
+.key{color:#89dceb}
+.cmt{color:#6c7086;font-style:italic}
+
+/* alerts */
+.alert{border-radius:7px;padding:10px 14px;font-size:.78rem;line-height:1.5;margin:10px 0}
+.alert.warn{background:#fef9c3;border:1px solid #fde047;color:#713f12}
+.alert.info{background:#dbeafe;border:1px solid #93c5fd;color:#1e3a8a}
+.alert.tip{background:#dcfce7;border:1px solid #86efac;color:#14532d}
+
+/* journey */
+.journey{background:#fff;border:1px solid #e5e5e5;border-radius:10px;padding:22px 24px;margin:0 0 36px}
+.journey h3{font-size:.95rem;font-weight:800;color:#16213e;margin-bottom:16px}
+.j-step{display:flex;gap:14px;align-items:flex-start;margin-bottom:14px}
+.j-num{background:#8E278F;color:#fff;border-radius:50%;width:24px;height:24px;min-width:24px;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:800;margin-top:2px}
+.j-txt strong{display:block;font-size:.83rem;color:#16213e}
+.j-txt span{font-size:.76rem;color:#555}
+.j-txt code{background:#f0f0f0;padding:1px 5px;border-radius:3px;font-size:.74rem;font-family:monospace}
+.j-arr{color:#8E278F;font-weight:700;margin:0 4px}
+
+/* error table */
+.errors{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+.err-badge{background:#fee2e2;color:#991b1b;border-radius:5px;padding:2px 9px;font-size:.72rem;font-weight:700}
+.err-badge span{font-weight:400;color:#666;margin-left:4px}
+
+/* summary table */
+.summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:22px 0 36px}
+.sum-card{background:#fff;border:1px solid #e5e5e5;border-radius:8px;padding:16px 18px;text-align:center}
+.sum-card .num{font-size:2rem;font-weight:800;color:#8E278F;display:block}
+.sum-card .lbl{font-size:.72rem;color:#888;margin-top:2px}
+
+footer{margin-top:50px;padding-top:20px;border-top:1px solid #e5e5e5;font-size:.75rem;color:#aaa;text-align:center}
+</style>
+</head>
+<body>
+
+<!-- ════════════════════════ SIDEBAR ════════════════════════ -->
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <h2>IntelliDraft API</h2>
+    <p>v1.0 &nbsp;·&nbsp; 25 endpoints</p>
+  </div>
+
+  <div class="sidebar-group">Document Ingestion</div>
+  <a href="#upload"><span class="mb POST">POST</span>Upload Document</a>
+  <a href="#get-doc"><span class="mb GET">GET</span>Get Document</a>
+  <a href="#doc-status"><span class="mb GET">GET</span>Document Status</a>
+  <a href="#form-fields"><span class="mb GET">GET</span>Form Fields</a>
+
+  <div class="sidebar-group">Project Management</div>
+  <a href="#create-project"><span class="mb POST">POST</span>Create Project</a>
+  <a href="#list-projects"><span class="mb GET">GET</span>List Projects</a>
+  <a href="#get-project"><span class="mb GET">GET</span>Get Project</a>
+  <a href="#update-project"><span class="mb PUT">PUT</span>Update Project</a>
+  <a href="#patch-project"><span class="mb PATCH">PATCH</span>Autosave</a>
+  <a href="#delete-project"><span class="mb DELETE">DEL</span>Delete Project</a>
+  <a href="#get-data"><span class="mb GET">GET</span>Project Data Page</a>
+  <a href="#put-ingested"><span class="mb PUT">PUT</span>Save Ingested</a>
+  <a href="#put-derived"><span class="mb PUT">PUT</span>Save Derived</a>
+
+  <div class="sidebar-group">AI Auto-Populate</div>
+  <a href="#extract"><span class="mb POST">POST</span>Extract Fields</a>
+
+  <div class="sidebar-group">Document Generation</div>
+  <a href="#gen-project"><span class="mb POST">POST</span>Start (Project)</a>
+  <a href="#gen-start"><span class="mb POST">POST</span>Start (Direct)</a>
+  <a href="#gen-poll"><span class="mb GET">GET</span>Poll Status</a>
+  <a href="#gen-section"><span class="mb GET">GET</span>Get Section</a>
+  <a href="#gen-comment"><span class="mb POST">POST</span>Add Comment</a>
+  <a href="#gen-regen"><span class="mb POST">POST</span>Regenerate</a>
+  <a href="#gen-accept"><span class="mb POST">POST</span>Accept Version</a>
+  <a href="#gen-export"><span class="mb GET">GET</span>Export Document</a>
+
+  <div class="sidebar-group">Templates</div>
+  <a href="#list-templates"><span class="mb GET">GET</span>List Templates</a>
+  <a href="#create-template"><span class="mb POST">POST</span>Create Template</a>
+</nav>
+
+<!-- ════════════════════════ MAIN ════════════════════════ -->
+<div class="main">
+
+  <div class="page-title">IntelliDraft API Reference <span class="version-badge">v1.0</span></div>
+  <div class="page-subtitle">GenAI Document Generation Platform &mdash; Backend API for Adani Energy Solutions Limited (AESL)</div>
+
+  <!-- Base URLs -->
+  <div class="base-url-box">
+    <div>
+      <h4>Development (Local)</h4>
+      <div class="url-line">http://localhost:7071/api</div>
+      <div class="auth-note">No auth key needed in local dev.</div>
+    </div>
+    <div>
+      <h4>Production (Azure)</h4>
+      <div class="url-line">https://&lt;function-app&gt;.azurewebsites.net/api</div>
+      <div class="auth-note">Header: <code>x-functions-key: &lt;key&gt;</code></div>
+    </div>
+    <div>
+      <h4>Content-Type</h4>
+      <div class="url-line">application/json</div>
+      <div class="auth-note">All POST / PUT / PATCH bodies must be JSON.<br>Exception: <code>/api/upload</code> uses <code>multipart/form-data</code>.</div>
+    </div>
+    <div>
+      <h4>CORS</h4>
+      <div class="url-line">All origins allowed (*)</div>
+      <div class="auth-note">No special browser config needed.<br>All methods: GET, POST, PUT, PATCH, DELETE.</div>
+    </div>
+  </div>
+
+  <!-- Summary counts -->
+  <div class="summary-grid">
+    <div class="sum-card"><span class="num">4</span><div class="lbl">Ingestion APIs</div></div>
+    <div class="sum-card"><span class="num">9</span><div class="lbl">Project APIs</div></div>
+    <div class="sum-card"><span class="num">8</span><div class="lbl">Generation APIs</div></div>
+    <div class="sum-card"><span class="num">3</span><div class="lbl">Other APIs</div></div>
+  </div>
+
+  <!-- Journey -->
+  <div class="journey">
+    <h3>Typical API Call Sequence</h3>
+    <div class="j-step"><div class="j-num">1</div><div class="j-txt"><strong>Upload document(s)</strong><span><code>POST /api/upload</code> <span class="j-arr">→</span> save returned <code>document_id</code></span></div></div>
+    <div class="j-step"><div class="j-num">2</div><div class="j-txt"><strong>Auto-populate form (optional)</strong><span><code>POST /api/extract-project-data</code> with <code>document_ids</code> <span class="j-arr">→</span> fill form fields</span></div></div>
+    <div class="j-step"><div class="j-num">3</div><div class="j-txt"><strong>Save project (Step 1+2 submit)</strong><span><code>POST /api/projects</code> <span class="j-arr">→</span> save returned <code>project_id</code></span></div></div>
+    <div class="j-step"><div class="j-num">4</div><div class="j-txt"><strong>Load Project Data sub-page</strong><span><code>GET /api/projects/{id}/data</code> <span class="j-arr">→</span> populate Ingested + Derived tabs</span></div></div>
+    <div class="j-step"><div class="j-num">5</div><div class="j-txt"><strong>Start document generation</strong><span><code>POST /api/generate/project/{id}</code> <span class="j-arr">→</span> save returned <code>job_id</code></span></div></div>
+    <div class="j-step"><div class="j-num">6</div><div class="j-txt"><strong>Poll for progress (every 3-5 seconds)</strong><span><code>GET /api/generate/{job_id}</code> until <code>status === "completed"</code></span></div></div>
+    <div class="j-step"><div class="j-num">7</div><div class="j-txt"><strong>Refine sections (chatbot panel)</strong><span><code>POST /api/generate/{job_id}/section/{id}/comment</code> <span class="j-arr">→</span> <code>POST .../regenerate</code></span></div></div>
+    <div class="j-step"><div class="j-num">8</div><div class="j-txt"><strong>Export final document</strong><span><code>GET /api/generate/{job_id}/export?format=docx</code></span></div></div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       GROUP 1 — DOCUMENT INGESTION
+  ══════════════════════════════════════════════════════════════ -->
+  <div class="group-header">
+    <h2>Document Ingestion</h2>
+    <span class="ui-hint">Create Project → Upload Area</span>
+  </div>
+
+  <!-- Upload -->
+  <div class="ep" id="upload">
+    <div class="ep-head">
+      <span class="method POST">POST</span>
+      <div class="ep-info">
+        <div class="ep-path">/api/upload</div>
+        <div class="ep-desc">Upload and parse a document. Supported: PDF, DOCX, PPTX, XLSX (max 50 MB). Returns a <code>document_id</code> to use in all subsequent calls.</div>
+      </div>
+    </div>
+    <div class="ep-body">
+      <h5>Request — multipart/form-data</h5>
+      <table class="tbl">
+        <tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr>
+        <tr><td><code>file</code></td><td>File</td><td class="req">YES</td><td>Document binary (PDF / DOCX / PPTX / XLSX)</td></tr>
+      </table>
+      <h5>Response 201</h5>
+      <pre><button class="copy-btn" onclick="cp(this)">Copy</button>{
+  <span class="key">"document_id"</span>: <span class="str">"23863838-aea7-402c-b53c-c270188b58d0"</span>,
+  <span class="key">"filename"</span>: <span class="str">"smart-grid-brief.pdf"</span>,
+  <span class="key">"file_type"</span>: <span class="str">"pdf"</span>,
+  <span class="key">"summary"</span>: {
+    <span class="key">"total_text_elements"</span>: <span class="num">42</span>,
+    <span class="key">"total_images"</span>: <span class="num">5</span>,
+    <span class="key">"images_analyzed"</span>: <span class="num">5</span>,
+    <span class="key">"total_tables"</span>: <span class="num">3</span>
+  },
+  <span class="key">"message"</span>: <span class="str">"Document parsed successfully. Found 42 text blocks, 5 images, 3 tables."</span>
+}</pre>
+      <div class="errors">
+        <span class="err-badge">400<span>No file provided</span></span>
+        <span class="err-badge">413<span>File too large (&gt;50 MB)</span></span>
+        <span class="err-badge">415<span>Unsupported file type</span></span>
+        <span class="err-badge">500<span>Parsing failed</span></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Get Document -->
+  <div class="ep" id="get-doc">
+    <div class="ep-head">
+      <span class="method GET">GET</span>
+      <div class="ep-info">
+        <div class="ep-path">/api/document/{document_id}</div>
+        <div class="ep-desc">Get full parsed content of a document including text blocks, tables, and AI-captioned images.</div>
+      </div>
+    </div>
+    <div class="ep-body">
+      <h5>Response 200</h5>
+      <pre><button class="copy-btn" onclick="cp(this)">Copy</button>{
+  <span class="key">"document_id"</span>: <span class="str">"uuid"</span>,
+  <span class="key">"source_filename"</span>: <span class="str">"smart-grid-brief.pdf"</span>,
+  <span class="key">"file_type"</span>: <span class="str">"pdf"</span>,
+  <span class="key">"summary"</span>: { <span class="cmt">/* ...counts... */</span> },
+  <span class="key">"text_elements"</span>: [ <span class="cmt">/* text blocks with page numbers */</span> ],
+  <span class="key">"tables"</span>: [ <span class="cmt">/* table rows as arrays */</span> ],
+  <span class="key">"images"</span>: [
+    { <span class="key">"image_id"</span>: <span class="str">"img_001"</span>, <span class="key">"ai_description"</span>: <span class="str">"Network topology diagram..."</span> }
+  ]
+}</pre>
+    </div>
+  </div>
+
+  <!-- Document Status -->
+  <div class="ep" id="doc-status">
+    <div class="ep-head">
+      <span class="method GET">GET</span>
+      <div class="ep-info">
+        <div class="ep-path">/api/document/{document_id}/status</div>
+        <div class="ep-desc">Lightweight status check — use for polling after upload.</div>
+      </div>
+    </div>
+    <div class="ep-body">
+      <h5>Response 200</h5>
+      <pre><button class="copy-btn" onclick="cp(this)">Copy</button>{ <span class="key">"document_id"</span>: <span class="str">"uuid"</span>, <span class="key">"status"</span>: <span class="str">"ready"</span>, <span class="key">"filename"</span>: <span class="str">"smart-grid-brief.pdf"</span> }</pre>
+    </div>
+  </div>
+
+  <!-- Form Fields -->
+  <div class="ep" id="form-fields">
+    <div class="ep-head">
+      <span class="method GET">GET</span>
+      <div class="ep-info">
+        <div class="ep-path">/api/form-fields</div>
+        <div class="ep-desc">Get dynamic form field definitions (labels, types, placeholders) for the Create Project form.</div>
+      </div>
+    </div>
+    <div class="ep-body">
+      <h5>Response 200</h5>
+      <pre><button class="copy-btn" onclick="cp(this)">Copy</button>{
+  <span class="key">"fields"</span>: [
+    { <span class="key">"name"</span>: <span class="str">"project_name"</span>, <span class="key">"label"</span>: <span class="str">"Project Name"</span>, <span class="key">"type"</span>: <span class="str">"text"</span>, <span class="key">"required"</span>: <span class="kw">true</span> },
+    { <span class="key">"name"</span>: <span class="str">"business_unit"</span>, <span class="key">"label"</span>: <span class="str">"Business Unit"</span>, <span class="key">"type"</span>: <span class="str">"text"</span>, <span class="key">"required"</span>: <span class="kw">false</span> }
+  ]
+}</pre>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       GROUP 2 — PROJECT MANAGEMENT
+  ══════════════════════════════════════════════════════════════ -->
+  <div class="group-header">
+    <h2>Project Management</h2>
+    <span class="ui-hint">Dashboard · Create Project · Project Data sub-page</span>
+  </div>
+
+  <!-- Create Project -->
+  <div class="ep" id="create-project">
+    <div class="ep-head">
+      <span class="method POST">POST</span>
+      <div class="ep-info">
+        <div class="ep-path">/api/projects</div>
+        <div class="ep-desc">Save a new project from the Create Project wizard (Steps 1 + 2). Returns ONLY a <code>project_id</code> — no form data is echoed back.</div>
+      </div>
+    </div>
+    <div class="ep-body">
+      <div class="alert warn">⚠️ <strong>Do NOT read form values from this response.</strong> Always call <code>GET /api/projects/{id}/data</code> to fetch back saved data.</div>
+      <h5>Request Body</h5>
+      <pre><button class="copy-btn" onclick="cp(this)">Copy</button>{
+  <span class="key">"project_name"</span>: <span class="str">"Smart Grid Phase 2"</span>,
+  <span class="key">"project_code"</span>: <span class="str">"AESL-SG-002"</span>,
+  <span class="key">"business_unit"</span>: <span class="str">"T&amp;D"</span>,
+  <span class="key">"business_priority"</span>: <span class="str">"Critical"</span>,
+  <span class="key">"problem_statement"</span>: <span class="str">"Legacy SCADA systems lack real-time visibility..."</span>,
+  <span class="key">"project_objective"</span>: <span class="str">"Deploy AI-driven smart grid management system..."</span>,
+  <span class="key">"as_is_processes"</span>: <span class="str">"Manual monitoring, 4-hour reporting cycles..."</span>,
+  <span class="key">"proposed_solution"</span>: <span class="str">"Implement IoT sensor network with ML analytics..."</span>,
+  <span class="key">"technical_landscape"</span>: <span class="str">"Azure IoT Hub, Power BI, existing SAP ERP..."</span>,
+  <span class="key">"constraints"</span>: <span class="str">"Must comply with CERC regulations..."</span>,
+  <span class="key">"risks"</span>: <span class="str">"Integration complexity with legacy PLCs..."</span>,
+  <span class="key">"estimated_cost_crores"</span>: <span class="str">"45.5"</span>,
+  <span class="key">"stakeholders"</span>: [
+    { <span class="key">"name"</span>: <span class="str">"Dhairya Chawda"</span>, <span class="key">"designation"</span>: <span class="str">"Project Manager"</span> },
+    { <span class="key">"name"</span>: <span class="str">"Srinivas Gutta"</span>, <span class="key">"designation"</span>: <span class="str">"Technical Lead"</span> }
+  ],
+  <span class="key">"start_date"</span>: <span class="str">"2026-07-01"</span>,
+  <span class="key">"end_date"</span>: <span class="str">"2027-03-31"</span>,
+  <span class="key">"document_type"</span>: <span class="str">"BRD"</span>,
+  <span class="key">"output_format"</span>: <span class="str">"Word (.docx)"</span>,
+  <span class="key">"additional_instructions"</span>: <span class="str">"Include CERC compliance section"</span>,
+  <span class="key">"document_ids"</span>: [<span class="str">"23863838-aea7-402c-b53c-c270188b58d0"</span>],
+  <span class="key">"template_id"</span>: <span class="kw">null</span>
+}</pre>
+      <h5>Response 201</h5>
+      <pre><button class="copy-btn" onclick="cp(this)">Copy</button>{
+  <span class="key">"project_id"</span>: <span class="str">"a1b2c3d4-e5f6-7890-abcd-ef1234567890"</span>,
+  <span class="key">"status"</span>: <span class="str">"ready"</span>,
+  <span class="key">"message"</span>: <span class="str">"Project 'Smart Grid Phase 2' saved."</span>
+}</pre>
+      <h5>Field Reference</h5>
+      <table class="tbl">
+        <tr><th>Field</th><th>Type</th><th>Required</th><th>Notes</th></tr>
+        <tr><td><code>project_name</code></td><td>string</td><td class="req">YES</td><td>Sets status to "ready" if non-empty, else "draft"</td></tr>
+        <tr><td><code>project_code</code></td><td>string</td><td class="opt">no</td><td>e.g. "AESL-SG-002"</td></tr>
+        <tr><td><code>business_unit</code></td><td>string</td><td class="opt">no</td><td>T&amp;D, Generation, etc.</td></tr>
+        <tr><td><code>business_priority</code></td><td>string</td><td class="opt">no</td><td>Critical | High | Medium | Low</td></tr>
+        <tr><td><code>problem_statement</code></td><td>string</td><td class="opt">no</td><td></td></tr>
+        <tr><td><code>project_objective</code></td><td>string</td><td class="opt">no</td><td></td></tr>
+        <tr><td><code>as_is_processes</code></td><td>string</td><td class="opt">no</td><td></td></tr>
+        <tr><td><code>proposed_solution</code></td><td>string</td><td class="opt">no</td><td></td></tr>
+        <tr><td><code>technical_landscape</code></td><td>string</td><td class="opt">no</td><td></td></tr>
+        <tr><td><code>constraints</code></td><td>string</td><td class="opt">no</td><td></td></tr>
+        <tr><td><code>risks</code></td><td>string</td><td class="opt">no</td><td></td></tr>
+        <tr><td><code>estimated_cost_crores</code></td><td>string</td><td class="opt">no</td><td>Store as string e.g. "45.5"</td></tr>
+        <tr><td><code>stakeholders</code></td><td>array</td><td class="opt">no</td><td><code>[{name, designation}]</code></td></tr>
+        <tr><td><code>start_date</code></td><td>string</td><td class="opt">no</td><td>ISO format: YYYY-MM-DD</td></tr>
+        <tr><td><code>end_date</code></td><td>string</td><td class="opt">no</td><td>ISO format: YYYY-MM-DD</td></tr>
+        <tr><td><code>document_type</code></td><td>string</td><td class="opt">no</td><td>BRD | RFP | SOW | TER | NFA | PIR | NIT (default: BRD)</td></tr>
+        <tr><td><code>output_format</code></td><td>string</td><td class="opt">no</td><td>Word (.docx) | PDF | Markdown</td></tr>
+        <tr><td><code>additional_instructions</code></td><td>string</td><td class="opt">no</td><td>Extra generation instructions</td></tr>
+        <tr><td><code>document_ids</code></td><td>string[]</td><td class="opt">no</td><td>UUIDs from <code>/api/upload</code></td></tr>
+        <tr><td><code>template_id</code></td><td>string|null</td><td class="opt">no</td><td>UUID from <code>/api/templates</code></td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- List Projects -->
+  <div class="ep" id="list-projects">
+    <div class="ep-head">
+      <span class="method GET">GET</span>
+      <div class="ep-info">
+        <div class="ep-path">/api/projects</div>
+        <div class="ep-desc">List all projects for the Dashboard table. Returns lightweight summaries, most recent first.</div>
+      </div>
+    </div>
+    <div class="ep-body">
+      <h5>Query Parameters (optional)</h5>
+      <table class="tbl">
+        <tr><th>Param</th><th>Type</th><th>Description</th></tr>
+        <tr><td><code>q</code></td><td>string</td><td>Search by project name or project code (case-insensitive)</td></tr>
+        <tr><td><code>status</code></td><td>string</td><td>Filter: <span class="tag">draft</span><span class="tag">ready</span><span class="tag">generating</span><span class="tag">completed</span></td></tr>
+      </table>
+      <h5>Response 200</h5>
+      <pre><button class="copy-btn" onclick="cp(this)">Copy</button>{
+  <span class="key">"projects"</span>: [
+    {
+      <span class="key">"project_id"</span>: <span class="str">"uuid"</span>,
+      <span class="key">"project_name"</span>: <span class="str">"Smart Grid Phase 2"</span>,
+      <span class="key">"project_code"</span>: <span class="str">"AESL-SG-002"</span>,
+      <span class="key">"business_unit"</span>: <span class="str">"T&amp;D"</span>,
+      <span class="key">"document_type"</span>: <span class="str">"BRD"</span>,
+      <span class="key">"status"</span>: <span class="str">"ready"</span>,
+      <span class="key">"job_id"</span>: <span class="kw">null</span>,
+      <span class="key">"created_at"</span>: <span class="str">"2026-06-03T10:00:00"</span>,
+      <span class="key">"updated_at"</span>: <span class="str">"2026-06-03T10:00:00"</span>
+    }
+  ],
+  <span class="key">"count"</span>: <span class="num">1</span>
+}</pre>
+    </div>
+  </div>
+
+  <!-- Get Single Project -->
+  <div class="ep" id="get-project">
+    <div class="ep-head">
+      <span class="method GET">GET</span>
+      <div class="ep-info">
+        <div class="ep-path">/api/projects/{project_id}</div>
+        <div class="ep-desc">Get full project including all form fields and lifecycle metadata.</div>
+      </div>
+    </div>
+    <div class="ep-body">
+      <h5>Response 200 — all 21 fields</h5>
+      <pre><button class="copy-btn" onclick="cp(this)">Copy</button>{
+  <span class="key">"project_id"</span>: <span class="str">"uuid"</span>,
+  <span class="key">"project_name"</span>: <span class="str">"Smart Grid Phase 2"</span>,
+  <span class="key">"project_code"</span>: <span class="str">"AESL-SG-002"</span>,
+  <span class="key">"business_unit"</span>: <span class="str">"T&amp;D"</span>,
+  <span class="key">"business_priority"</span>: <span class="str">"Critical"</span>,
+  <span class="key">"problem_statement"</span>: <span class="str">"..."</span>,
+  <span class="key">"project_objective"</span>: <span class="str">"..."</span>,
+  <span class="key">"as_is_processes"</span>: <span class="str">"..."</span>,
+  <span class="key">"proposed_solution"</span>: <span class="str">"..."</span>,
+  <span class="key">"technical_landscape"</span>: <span class="str">"..."</span>,
+  <span class="key">"constraints"</span>: <span class="str">"..."</span>,
+  <span class="key">"risks"</span>: <span class="str">"..."</span>,
+  <span class="key">"estimated_cost_crores"</span>: <span class="str">"45.5"</span>,
+  <span class="key">"stakeholders"</span>: [{ <span class="key">"name"</span>: <span class="str">"Dhairya Chawda"</span>, <span class="key">"designation"</span>: <span class="str">"PM"</span> }],
+  <span class="key">"start_date"</span>: <span class="str">"2026-07-01"</span>,
+  <span class="key">"end_date"</span>: <span class="str">"2027-03-31"</span>,
+  <span class="key">"document_type"</span>: <span class="str">"BRD"</span>,
+  <span class="key">"output_format"</span>: <span class="str">"Word (.docx)"</span>,
+  <span class="key">"additional_instructions"</span>: <span class="str">"..."</span>,
+  <span class="key">"document_ids"</span>: [<span class="str">"uuid"</span>],
+  <span class="key">"template_id"</span>: <span class="kw">null</span>,
+  <span class="key">"status"</span>: <span class="str">"ready"</span>,
+  <span class="key">"job_id"</span>: <span class="kw">null</span>,
+  <span class="key">"created_at"</span>: <span class="str">"2026-06-03T10:00:00"</span>,
+  <span class="key">"updated_at"</span>: <span class="str">"2026-06-03T10:00:00"</span>
+}</pre>
+    </div>
+  </div>
+
+  <!-- Update Project -->
+  <div class="ep" id="update-project">
+    <div class="ep-head">
+      <span class="method PUT">PUT</span>
+      <div class="ep-info">
+        <div class="ep-path">/api/projects/{project_id}</div>
+        <div class="ep-desc">Full replace-update. Use when user explicitly edits and re-saves the complete project form.</div>
+      </div>
+    </div>
+    <div class="ep-body">
+      <h5>Request Body</h5>
+      <p style="font-size:.78rem;color:#555">Same shape as <code>POST /api/projects</code>. All fields optional — omitted fields are left unchanged.</p>
+      <h5>Response 200</h5>
+      <pre><button class="copy-btn" onclick="cp(this)">Copy</button">{ <span class="key">"project_id"</span>: <span class="str">"uuid"</span>, <span class="key">"updated_at"</span>: <span class="str">"2026-06-03T11:00:00"</span> }</pre>
+    </div>
+  </div>
+
+  <!-- Autosave -->
+  <div class="ep" id="patch-project">
+    <div class="ep-head">
+      <span class="method PATCH">PATCH</span>
+      <div class="ep-info">
+        <div class="ep-path">/api/projects/{project_id}</div>
+        <div class="ep-desc">Partial autosave — only fields present in the body are written. Use for 30-second autosave while user is filling the form.</div>
+      </div>
+    </div>
+    <div class="ep-body">
+      <h5>Request Body — any subset of project fields</h5>
+      <pre><button class="copy-btn" onclick="cp(this)">Copy</button">{ <span class="key">"project_name"</span>: <span class="str">"Updated Name"</span>, <span class="key">"constraints"</span>: <span class="str">"New text..."</span> }</pre>
+      <h5>Response 200</h5>
+      <pre><button class="copy-btn" onclick="cp(this)">Copy</button">{ <span class="key">"project_id"</span>: <span class="str">"uuid"</span>, <span class="key">"updated_at"</span>: <span class="str">"2026-06-03T11:05:00"</span> }</pre>
+    </div>
+  </div>
+
+  <!-- Delete Project -->
+  <div class="ep" id="delete-project">
+    <div class="ep-head">
+      <span class="method DELETE">DELETE</span>
+      <div class="ep-info">
+        <div class="ep-path">/api/projects/{project_id}</div>
+        <div class="ep-desc">Permanently delete a project and all its derived AI data. Used by Dashboard trash icon.</div>
+      </div>
+    </div>
+    <div class="ep-body">
+      <div class="alert warn">⚠️ This is a <strong>hard delete</strong>. No recovery possible. Show a confirmation dialog before calling.</div>
+      <h5>Response</h5>
+      <p style="font-size:.78rem;color:#555"><strong>204 No Content</strong> — empty body on success.</p>
+      <div class="errors">
+        <span class="err-badge">404<span>Project not found</span></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Project Data Page -->
+  <div class="ep" id="get-data">
+    <div class="ep-head">
+      <span class="method GET">GET</span>
+      <div class="ep-info">
+        <div class="ep-path">/api/projects/{project_id}/data</div>
+        <div class="ep-desc">Load the Project Data sub-page. Returns both Ingested Details (user-entered) and Derived Details (AI-generated) in one call.</div>
+      </div>
+    </div>
+    <div class="ep-body">
+      <div class="alert tip">✅ Use this endpoint on every page load of the Project Data sub-page. Do NOT use <code>GET /api/projects/{id}</code> for this page.</div>
+      <h5>Response 200</h5>
+      <pre><button class="copy-btn" onclick="cp(this)">Copy</button">{
+  <span class="key">"project_id"</span>: <span class="str">"uuid"</span>,
+  <span class="key">"ingested"</span>: {
+    <span class="key">"project_name"</span>: <span class="str">"Smart Grid Phase 2"</span>,
+    <span class="key">"project_code"</span>: <span class="str">"AESL-SG-002"</span>,
+    <span class="key">"business_unit"</span>: <span class="str">"T&amp;D"</span>,
+    <span class="key">"business_priority"</span>: <span class="str">"Critical"</span>,
+    <span class="key">"problem_statement"</span>: <span class="str">"..."</span>,
+    <span class="key">"project_objective"</span>: <span class="str">"..."</span>,
+    <span class="key">"as_is_processes"</span>: <span class="str">"..."</span>,
+    <span class="key">"proposed_solution"</span>: <span class="str">"..."</span>,
+    <span class="key">"technical_landscape"</span>: <span class="str">"..."</span>,
+    <span class="key">"constraints"</span>: <span class="str">"..."</span>,
+    <span class="key">"risks"</span>: <span class="str">"..."</span>,
+    <span class="key">"estimated_cost_crores"</span>: <span class="str">"45.5"</span>,
+    <span class="key">"stakeholders"</span>: [{ <span class="key">"name"</span>: <span class="str">"Dhairya Chawda"</span>, <span class="key">"designation"</span>: <span class="str">"PM"</span> }],
+    <span class="key">"start_date"</span>: <span class="str">"2026-07-01"</span>,
+    <span class="key">"end_date"</span>: <span class="str">"2027-03-31"</span>
+  },
+  <span class="key">"derived"</span>: {
+    <span class="key">"current_challenges"</span>: <span class="str">""</span>,
+    <span class="key">"to_be_process"</span>: <span class="str">""</span>,
+    <span class="key">"success_criteria"</span>: <span class="str">""</span>,
+    <span class="key">"business_requirements"</span>: <span class="str">""</span>,
+    <span class="key">"functional_requirements"</span>: <span class="str">""</span>,
+    <span class="key">"non_functional_requirements"</span>: <span class="str">""</span>,
+    <span class="key">"industry_benchmarks"</span>: <span class="str">""</span>,
+    <span class="key">"workflow"</span>: <span class="str">""</span>,
+    <span class="key">"analytics_requirements"</span>: <span class="str">""</span>,
+    <span class="key">"systems_involved"</span>: <span class="str">""</span>,
+    <span class="key">"data_sources"</span>: <span class="str">""</span>,
+    <span class="key">"constraints_dependencies"</span>: <span class="str">""</span>
+  },
+  <span class="key">"derived_generated_at"</span>: <span class="kw">null</span>
+}</pre>
+      <div class="alert info">ℹ️ Derived fields are empty strings (<code>""</code>) until AI derivation is run. <code>derived_generated_at</code> is <code>null</code> until then — use this to show "AI data not yet generated" state.</div>
+    </div>
+  </div>
+
+  <!-- Save Ingested -->
+  <div class="ep" id="put-ingested">
+    <div class="ep-head">
+      <span class="method PUT">PUT</span>
+      <div class="ep-info">
+        <div class="ep-path">/api/projects/{project_id}/data/ingested</div>
+        <div class="ep-desc">Save user edits on the Ingested Details tab. Called on "Save" button click.</div>
+      </div>
+    </div>
+    <div class="ep-body">
+      <h5>Request Body — any subset of the 15 ingested fields</h5>
+      <pre><button class="copy-btn" onclick="cp(this)">Copy</button">{
+  <span class="key">"project_name"</span>: <span class="str">"Smart Grid Phase 2 (Revised)"</span>,
+  <span class="key">"estimated_cost_crores"</span>: <span class="str">"50.0"</span>,
+  <span class="key">"stakeholders"</span>: [
+    { <span class="key">"name"</span>: <span class="str">"Dhairya Chawda"</span>, <span class="key">"designation"</span>: <span class="str">"Project Manager"</span> }
+  ]
+}</pre>
+      <div class="alert warn">⚠️ These fields are <strong>silently ignored</strong> even if sent: <code>status</code>, <code>job_id</code>, <code>document_type</code>, <code>output_format</code>, <code>additional_instructions</code>, <code>document_ids</code>, <code>template_id</code></div>
+      <h5>Response 200</h5>
+      <pre><button class="copy-btn" onclick="cp(this)">Copy</button">{ <span class="key">"project_id"</span>: <span class="str">"uuid"</span>, <span class="key">"updated_at"</span>: <span class="str">"2026-06-03T11:30:00"</span> }</pre>
+    </div>
+  </div>
+
+  <!-- Save Derived -->
+  <div class="ep" id="put-derived">
+    <div class="ep-head">
+      <span class="method PUT">PUT</span>
+      <div class="ep-info">
+        <div class="ep-path">/api/projects/{project_id}/data/derived</div>
+        <div class="ep-desc">Save user edits on the Derived Details tab. Also called internally when AI populates all 12 fields.</div>
+      </div>
+    </div>
+    <div class="ep-body">
+      <h5>Request Body</h5>
+      <pre><button class="copy-btn" onclick="cp(this)">Copy</button">{
+  <span class="key">"current_challenges"</span>: <span class="str">"Legacy SCADA systems lack real-time analytics..."</span>,
+  <span class="key">"functional_requirements"</span>: <span class="str">"System shall support 10,000 concurrent sensors..."</span>,
+  <span class="key">"mark_as_generated"</span>: <span class="kw">false</span>
+}</pre>
+      <table class="tbl">
+        <tr><th>Field</th><th>Description</th></tr>
+        <tr><td><code>current_challenges</code></td><td>AI-derived challenge analysis</td></tr>
+        <tr><td><code>to_be_process</code></td><td>Future state process description</td></tr>
+        <tr><td><code>success_criteria</code></td><td>Measurable success metrics</td></tr>
+        <tr><td><code>business_requirements</code></td><td>High-level business needs</td></tr>
+        <tr><td><code>functional_requirements</code></td><td>System functional specs</td></tr>
+        <tr><td><code>non_functional_requirements</code></td><td>Performance, security, scalability</td></tr>
+        <tr><td><code>industry_benchmarks</code></td><td>Comparable industry standards</td></tr>
+        <tr><td><code>workflow</code></td><td>Process workflow description</td></tr>
+        <tr><td><code>analytics_requirements</code></td><td>Reporting &amp; analytics needs</td></tr>
+        <tr><td><code>systems_involved</code></td><td>Integrated systems list</td></tr>
+        <tr><td><code>data_sources</code></td><td>Input data sources</td></tr>
+        <tr><td><code>constraints_dependencies</code></td><td>AI-expanded constraints</td></tr>
+        <tr><td><code>mark_as_generated</code></td><td><strong>bool</strong> — set <code>true</code> when AI populates all 12 at once. Sets <code>derived_generated_at = now</code>.</td></tr>
+      </table>
+      <h5>Response 200</h5>
+      <pre><button class="copy-btn" onclick="cp(this)">Copy</button">{ <span class="key">"project_id"</span>: <span class="str">"uuid"</span>, <span class="key">"updated_at"</span>: <span class="str">"2026-06-03T12:00:00"</span> }</pre>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       GROUP 3 — AI AUTO-POPULATE
+  ══════════════════════════════════════════════════════════════ -->
+  <div class="group-header">
+    <h2>AI Auto-Populate</h2>
+    <span class="ui-hint">Create Project → "Auto-Populate" button</span>
+  </div>
+
+  <div class="ep" id="extract">
+    <div class="ep-head">
+      <span class="method POST">POST</span>
+      <div class="ep-info">
+        <div class="ep-path">/api/extract-project-data</div>
+        <div class="ep-desc">Use AI to extract project form fields from uploaded documents. Returns pre-filled values for the form.</div>
+      </div>
+    </div>
+    <div class="ep-body">
+      <h5>Request Body</h5>
+      <pre><button class="copy-btn" onclick="cp(this)">Copy</button">{ <span class="key">"document_ids"</span>: [<span class="str">"uuid-1"</span>, <span class="str">"uuid-2"</span>] }</pre>
+      <h5>Response 200</h5>
+      <pre><button class="copy-btn" onclick="cp(this)">Copy</button">{
+  <span class="key">"extracted"</span>: {
+    <span class="key">"project_name"</span>: <span class="str">"Smart Grid Phase 2"</span>,
+    <span class="key">"problem_statement"</span>: <span class="str">"..."</span>,
+    <span class="key">"project_objective"</span>: <span class="str">"..."</span>,
+    <span class="key">"technical_landscape"</span>: <span class="str">"..."</span>,
+    <span class="key">"stakeholders"</span>: [{ <span class="key">"name"</span>: <span class="str">"..."</span>, <span class="key">"designation"</span>: <span class="str">"..."</span> }],
+    <span class="key">"estimated_cost_crores"</span>: <span class="kw">null</span>
+  },
+  <span class="key">"document_count"</span>: <span class="num">2</span>,
+  <span class="key">"message"</span>: <span class="str">"Extracted project data from 2 document(s)."</span>
+}</pre>
+      <div class="alert info">ℹ️ Fields the AI couldn't determine will be <code>null</code>. Keep existing user input for <code>null</code> fields — do not overwrite with null.</div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       GROUP 4 — GENERATION
+  ══════════════════════════════════════════════════════════════ -->
+  <div class="group-header">
+    <h2>Document Generation</h2>
+    <span class="ui-hint">Project Workspace — Generate, Section Edit, Version History, Export</span>
+  </div>
+
+  <!-- Generate from Project -->
+  <div class="ep" id="gen-project">
+    <div class="ep-head">
+      <span class="method POST">POST</span>
+      <div class="ep-info">
+        <div class="ep-path">/api/generate/project/{project_id}</div>
+        <div class="ep-desc"><strong>Primary generation endpoint.</strong> Reads all project fields from DB — no request body needed. Use this for the project-based flow.</div>
+      </div>
+    </div>
+    <div class="ep-body">
+      <div class="alert tip">✅ Preferred over <code>POST /api/generate/start</code>. Automatically uses all saved project data.</div>
+      <h5>Request Body</h5>
+      <p style="font-size:.78rem;color:#555">Empty body — all data is read from DB.</p>
+      <h5>Response 201</h5>
+      <pre><button class="copy-btn" onclick="cp(this)">Copy</button">{
+  <span class="key">"job_id"</span>: <span class="str">"job-uuid"</span>,
+  <span class="key">"status"</span>: <span class="str">"in_progress"</span>,
+  <span class="key">"sections"</span>: [
+    { <span class="key">"section_id"</span>: <span class="str">"s-uuid-1"</span>, <span class="key">"section_title"</span>: <span class="str">"Executive Summary"</span>, <span class="key">"status"</span>: <span class="str">"pending"</span> },
+    { <span class="key">"section_id"</span>: <span class="str">"s-uuid-2"</span>, <span class="key">"section_title"</span>: <span class="str">"Problem Statement"</span>, <span class="key">"status"</span>: <span class="str">"pending"</span> }
+  ],
+  <span class="key">"message"</span>: <span class="str">"Generation started for 'Smart Grid Phase 2'. 8 sections queued."</span>
+}</pre>
+      <div class="alert warn">⚠️ Project must have at least one <code>document_id</code> attached, otherwise returns 400.</div>
+    </div>
+  </div>
+
+  <!-- Generate Direct -->
+  <div class="ep" id="gen-start">
+    <div class="ep-head">
+      <span class="method POST">POST</span>
+      <div class="ep-info">
+        <div class="ep-path">/api/generate/start</div>
+        <div class="ep-desc">Start generation with raw document_id + user_inputs (direct flow, without a saved project).</div>
+      </div>
+    </div>
+    <div class="ep-body">
+      <h5>Request Body</h5>
+      <pre><button class="copy-btn" onclick="cp(this)">Copy</button">{
+  <span class="key">"document_id"</span>: <span class="str">"uuid"</span>,
+  <span class="key">"user_inputs"</span>: {
+    <span class="key">"document_type"</span>: <span class="str">"BRD"</span>,
+    <span class="key">"project_name"</span>: <span class="str">"Smart Grid Phase 2"</span>,
+    <span class="key">"output_format"</span>: <span class="str">"Word (.docx)"</span>,
+    <span class="key">"stakeholders"</span>: <span class="str">"Dhairya Chawda (PM), Srinivas Gutta (Tech)"</span>,
+    <span class="key">"project_description"</span>: <span class="str">"..."</span>,
+    <span class="key">"business_problem"</span>: <span class="str">"..."</span>,
+    <span class="key">"expected_outcome"</span>: <span class="str">"..."</span>,
+    <span class="key">"additional_instructions"</span>: <span class="str">"Include CERC compliance section"</span>
+  },
+  <span class="key">"template_id"</span>: <span class="kw">null</span>
+}</pre>
+      <h5>Response 201</h5>
+      <p style="font-size:.78rem;color:#555">Same shape as <code>POST /api/generate/project/{id}</code></p>
+    </div>
+  </div>
+
+  <!-- Poll Status -->
+  <div class="ep" id="gen-poll">
+    <div class="ep-head">
+      <span class="method GET">GET</span>
+      <div class="ep-info">
+        <div class="ep-path">/api/generate/{job_id}</div>
+        <div class="ep-desc">Poll job status. Returns all sections with current Markdown content. Call every 3–5 seconds until <code>status === "completed"</code>.</div>
+      </div>
+    </div>
+    <div class="ep-body">
+      <h5>Response 200</h5>
+      <pre><button class="copy-btn" onclick="cp(this)">Copy</button">{
+  <span class="key">"job_id"</span>: <span class="str">"job-uuid"</span>,
+  <span class="key">"status"</span>: <span class="str">"in_progress"</span>,
+  <span class="key">"document_type"</span>: <span class="str">"BRD"</span>,
+  <span class="key">"total_sections"</span>: <span class="num">8</span>,
+  <span class="key">"completed_sections"</span>: <span class="num">3</span>,
+  <span class="key">"sections"</span>: [
+    {
+      <span class="key">"section_id"</span>: <span class="str">"s-uuid"</span>,
+      <span class="key">"section_title"</span>: <span class="str">"Executive Summary"</span>,
+      <span class="key">"order_index"</span>: <span class="num">0</span>,
+      <span class="key">"status"</span>: <span class="str">"completed"</span>,
+      <span class="key">"current_version"</span>: <span class="num">1</span>,
+      <span class="key">"current_content"</span>: <span class="str">"## Executive Summary\n\nThis document..."</span>,
+      <span class="key">"version_count"</span>: <span class="num">1</span>
+    }
+  ],
+  <span class="key">"created_at"</span>: <span class="str">"2026-06-03T10:00:00"</span>,
+  <span class="key">"completed_at"</span>: <span class="kw">null</span>
+}</pre>
+      <div class="alert info">ℹ️ <code>status</code> values: <span class="tag">pending</span><span class="tag">in_progress</span><span class="tag">completed</span><span class="tag">failed</span><br>Section-level <code>status</code>: <span class="tag">pending</span><span class="tag">generating</span><span class="tag">completed</span><span class="tag">failed</span></div>
+    </div>
+  </div>
+
+  <!-- Get Section -->
+  <div class="ep" id="gen-section">
+    <div class="ep-head">
+      <span class="method GET">GET</span>
+      <div class="ep-info">
+        <div class="ep-path">/api/generate/{job_id}/section/{section_id}</div>
+        <div class="ep-desc">Get a single section with ALL versions and ALL comments. Use for the version history panel.</div>
+      </div>
+    </div>
+    <div class="ep-body">
+      <h5>Response 200</h5>
+      <pre><button class="copy-btn" onclick="cp(this)">Copy</button">{
+  <span class="key">"section_id"</span>: <span class="str">"s-uuid"</span>,
+  <span class="key">"section_title"</span>: <span class="str">"Executive Summary"</span>,
+  <span class="key">"status"</span>: <span class="str">"completed"</span>,
+  <span class="key">"current_version"</span>: <span class="num">2</span>,
+  <span class="key">"versions"</span>: [
+    { <span class="key">"version_number"</span>: <span class="num">1</span>, <span class="key">"content"</span>: <span class="str">"..."</span>, <span class="key">"created_at"</span>: <span class="str">"..."</span>, <span class="key">"is_accepted"</span>: <span class="kw">false</span> },
+    { <span class="key">"version_number"</span>: <span class="num">2</span>, <span class="key">"content"</span>: <span class="str">"..."</span>, <span class="key">"created_at"</span>: <span class="str">"..."</span>, <span class="key">"is_accepted"</span>: <span class="kw">true</span> }
+  ],
+  <span class="key">"comments"</span>: [
+    { <span class="key">"comment_id"</span>: <span class="str">"c-uuid"</span>, <span class="key">"comment_text"</span>: <span class="str">"Add CERC compliance reference"</span>, <span class="key">"comment_type"</span>: <span class="str">"edit_request"</span>, <span class="key">"status"</span>: <span class="str">"addressed"</span>, <span class="key">"created_at"</span>: <span class="str">"..."</span> }
+  ]
+}</pre>
+    </div>
+  </div>
+
+  <!-- Add Comment -->
+  <div class="ep" id="gen-comment">
+    <div class="ep-head">
+      <span class="method POST">POST</span>
+      <div class="ep-info">
+        <div class="ep-path">/api/generate/{job_id}/section/{section_id}/comment</div>
+        <div class="ep-desc">Add a user edit request or note via the chatbot panel.</div>
+      </div>
+    </div>
+    <div class="ep-body">
+      <h5>Request Body</h5>
+      <pre><button class="copy-btn" onclick="cp(this)">Copy</button">{
+  <span class="key">"comment_text"</span>: <span class="str">"Make this section more concise and add CERC regulatory references"</span>,
+  <span class="key">"comment_type"</span>: <span class="str">"edit_request"</span>
+}</pre>
+      <table class="tbl">
+        <tr><th>comment_type</th><th>When to use</th></tr>
+        <tr><td><code>edit_request</code></td><td>User wants the section changed (default)</td></tr>
+        <tr><td><code>approval</code></td><td>User approves the current version</td></tr>
+        <tr><td><code>rejection</code></td><td>User rejects the section</td></tr>
+        <tr><td><code>note</code></td><td>General note, no action needed</td></tr>
+      </table>
+      <h5>Response 201</h5>
+      <pre><button class="copy-btn" onclick="cp(this)">Copy</button">{ <span class="key">"comment"</span>: { <span class="key">"comment_id"</span>: <span class="str">"c-uuid"</span>, <span class="cmt">/* ... */</span> }, <span class="key">"message"</span>: <span class="str">"Comment saved."</span> }</pre>
+    </div>
+  </div>
+
+  <!-- Regenerate -->
+  <div class="ep" id="gen-regen">
+    <div class="ep-head">
+      <span class="method POST">POST</span>
+      <div class="ep-info">
+        <div class="ep-path">/api/generate/{job_id}/section/{section_id}/regenerate</div>
+        <div class="ep-desc">Regenerate a section, optionally incorporating a specific comment's edit instruction.</div>
+      </div>
+    </div>
+    <div class="ep-body">
+      <h5>Request Body</h5>
+      <pre><button class="copy-btn" onclick="cp(this)">Copy</button">{ <span class="key">"comment_id"</span>: <span class="str">"c-uuid"</span> }</pre>
+      <p style="font-size:.78rem;color:#555;margin-top:6px">Omit <code>comment_id</code> to regenerate from scratch without any edit instruction.</p>
+      <h5>Response 200</h5>
+      <pre><button class="copy-btn" onclick="cp(this)">Copy</button">{
+  <span class="key">"new_version"</span>: { <span class="key">"version_number"</span>: <span class="num">3</span>, <span class="key">"content"</span>: <span class="str">"..."</span>, <span class="key">"created_at"</span>: <span class="str">"..."</span> },
+  <span class="key">"message"</span>: <span class="str">"Section regenerated — version 3."</span>
+}</pre>
+    </div>
+  </div>
+
+  <!-- Accept Version -->
+  <div class="ep" id="gen-accept">
+    <div class="ep-head">
+      <span class="method POST">POST</span>
+      <div class="ep-info">
+        <div class="ep-path">/api/generate/{job_id}/section/{section_id}/accept</div>
+        <div class="ep-desc">Mark a specific version as accepted (locks it in the final document).</div>
+      </div>
+    </div>
+    <div class="ep-body">
+      <h5>Request Body</h5>
+      <pre><button class="copy-btn" onclick="cp(this)">Copy</button">{ <span class="key">"version_number"</span>: <span class="num">2</span> }</pre>
+      <h5>Response 200</h5>
+      <pre><button class="copy-btn" onclick="cp(this)">Copy</button">{ <span class="key">"accepted_version"</span>: { <span class="key">"version_number"</span>: <span class="num">2</span>, <span class="key">"is_accepted"</span>: <span class="kw">true</span> }, <span class="key">"message"</span>: <span class="str">"Version 2 accepted."</span> }</pre>
+    </div>
+  </div>
+
+  <!-- Export -->
+  <div class="ep" id="gen-export">
+    <div class="ep-head">
+      <span class="method GET">GET</span>
+      <div class="ep-info">
+        <div class="ep-path">/api/generate/{job_id}/export</div>
+        <div class="ep-desc">Export the fully assembled document as DOCX, PDF, or Markdown. Returns a binary file download.</div>
+      </div>
+    </div>
+    <div class="ep-body">
+      <h5>Query Parameters</h5>
+      <table class="tbl">
+        <tr><th>Param</th><th>Values</th><th>Default</th></tr>
+        <tr><td><code>format</code></td><td><span class="tag">docx</span><span class="tag">pdf</span><span class="tag">md</span></td><td>Uses format set when job was created</td></tr>
+      </table>
+      <h5>Response 200 — Binary file download</h5>
+      <pre><button class="copy-btn" onclick="cp(this)">Copy</button"><span class="cmt">Content-Type: application/vnd.openxmlformats-officedocument.wordprocessingml.document</span>
+<span class="cmt">Content-Disposition: attachment; filename="BRD_Smart_Grid_Phase2.docx"</span>
+<span class="cmt">[Binary file data]</span></pre>
+      <h5>Frontend download snippet</h5>
+      <pre><button class="copy-btn" onclick="cp(this)">Copy</button"><span class="kw">const</span> res = <span class="kw">await</span> fetch(<span class="str">`/api/generate/${jobId}/export?format=docx`</span>);
+<span class="kw">const</span> blob = <span class="kw">await</span> res.blob();
+<span class="kw">const</span> url = URL.createObjectURL(blob);
+<span class="kw">const</span> a = document.createElement(<span class="str">'a'</span>);
+a.href = url; a.download = <span class="str">'document.docx'</span>; a.click();</pre>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       GROUP 5 — TEMPLATES
+  ══════════════════════════════════════════════════════════════ -->
+  <div class="group-header">
+    <h2>Templates</h2>
+    <span class="ui-hint">Create Project Step 2 → Template Selection</span>
+  </div>
+
+  <div class="ep" id="list-templates">
+    <div class="ep-head">
+      <span class="method GET">GET</span>
+      <div class="ep-info">
+        <div class="ep-path">/api/templates</div>
+        <div class="ep-desc">List all available templates (6 built-in system templates + any user-created). Call on page load of Step 2.</div>
+      </div>
+    </div>
+    <div class="ep-body">
+      <h5>Query Parameters (optional)</h5>
+      <table class="tbl">
+        <tr><th>Param</th><th>Description</th></tr>
+        <tr><td><code>document_type</code></td><td>Filter e.g. <code>BRD</code>, <code>RFP</code>, <code>SOW</code></td></tr>
+      </table>
+      <h5>Response 200</h5>
+      <pre><button class="copy-btn" onclick="cp(this)">Copy</button">{
+  <span class="key">"templates"</span>: [
+    {
+      <span class="key">"template_id"</span>: <span class="str">"brd"</span>,
+      <span class="key">"name"</span>: <span class="str">"Standard BRD Template"</span>,
+      <span class="key">"document_type"</span>: <span class="str">"BRD"</span>,
+      <span class="key">"description"</span>: <span class="str">"Standard business requirements document..."</span>,
+      <span class="key">"is_system"</span>: <span class="kw">true</span>,
+      <span class="key">"sections"</span>: [
+        { <span class="key">"key"</span>: <span class="str">"executive_summary"</span>, <span class="key">"title"</span>: <span class="str">"Executive Summary"</span>, <span class="key">"instructions"</span>: <span class="str">"..."</span> }
+      ]
+    }
+  ]
+}</pre>
+      <h5>Available Built-in Templates</h5>
+      <table class="tbl">
+        <tr><th>template_id</th><th>document_type</th><th>Name</th></tr>
+        <tr><td><code>brd</code></td><td>BRD</td><td>Standard BRD Template</td></tr>
+        <tr><td><code>rfp</code></td><td>RFP</td><td>Standard RFP Template</td></tr>
+        <tr><td><code>sow</code></td><td>SOW</td><td>Statement of Work Template</td></tr>
+        <tr><td><code>proposal</code></td><td>Project Proposal</td><td>Project Proposal Template</td></tr>
+        <tr><td><code>tech_spec</code></td><td>Technical Specification</td><td>Technical Specification Template</td></tr>
+        <tr><td><code>scope</code></td><td>Scope Document</td><td>Scope Document Template</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="ep" id="create-template">
+    <div class="ep-head">
+      <span class="method POST">POST</span>
+      <div class="ep-info">
+        <div class="ep-path">/api/templates</div>
+        <div class="ep-desc">Create a custom user-defined template with custom sections and instructions.</div>
+      </div>
+    </div>
+    <div class="ep-body">
+      <h5>Request Body</h5>
+      <pre><button class="copy-btn" onclick="cp(this)">Copy</button">{
+  <span class="key">"name"</span>: <span class="str">"AESL Custom BRD"</span>,
+  <span class="key">"document_type"</span>: <span class="str">"BRD"</span>,
+  <span class="key">"description"</span>: <span class="str">"Internal AESL template with CERC compliance section"</span>,
+  <span class="key">"sections"</span>: [
+    { <span class="key">"key"</span>: <span class="str">"overview"</span>, <span class="key">"title"</span>: <span class="str">"Project Overview"</span>, <span class="key">"instructions"</span>: <span class="str">"Summarize the project in 300 words..."</span> },
+    { <span class="key">"key"</span>: <span class="str">"compliance"</span>, <span class="key">"title"</span>: <span class="str">"CERC Compliance"</span>, <span class="key">"instructions"</span>: <span class="str">"List all applicable CERC regulations..."</span> }
+  ],
+  <span class="key">"system_instructions"</span>: <span class="str">"Always follow AESL tone guidelines. Use formal language."</span>
+}</pre>
+      <h5>Response 201</h5>
+      <pre><button class="copy-btn" onclick="cp(this)">Copy</button">{ <span class="key">"template"</span>: { <span class="key">"template_id"</span>: <span class="str">"uuid"</span>, <span class="cmt">/* ...full template... */</span> }, <span class="key">"message"</span>: <span class="str">"Template saved."</span> }</pre>
+    </div>
+  </div>
+
+  <footer>
+    IntelliDraft API Reference v1.0 &mdash; Adani Energy Solutions Limited &mdash; Generated 2026-06-03
+    <br>Backend: Azure Functions + SQLAlchemy + GPT-5 &mdash; 25 endpoints
+  </footer>
+</div>
+
+<script>
+function cp(btn){
+  const pre=btn.parentElement;
+  const txt=pre.innerText.replace('Copy','').replace('Copied!','').trim();
+  navigator.clipboard.writeText(txt).then(()=>{
+    btn.textContent='Copied!';btn.classList.add('copied');
+    setTimeout(()=>{btn.textContent='Copy';btn.classList.remove('copied')},1800);
+  });
+}
+// Smooth scroll for sidebar links
+document.querySelectorAll('.sidebar a').forEach(a=>{
+  a.addEventListener('click',e=>{
+    e.preventDefault();
+    const id=a.getAttribute('href').slice(1);
+    document.getElementById(id)?.scrollIntoView({behavior:'smooth',block:'start'});
+    document.querySelectorAll('.sidebar a').forEach(x=>x.style.background='');
+    a.style.background='rgba(142,39,143,.25)';
+  });
+});
+// Highlight active section on scroll
+const observer=new IntersectionObserver(entries=>{
+  entries.forEach(en=>{
+    if(en.isIntersecting){
+      const id=en.target.id;
+      document.querySelectorAll('.sidebar a').forEach(a=>{
+        a.style.background=a.getAttribute('href')==='#'+id?'rgba(142,39,143,.25)':'';
+        a.style.borderLeftColor=a.getAttribute('href')==='#'+id?'#8E278F':'transparent';
+        a.style.color=a.getAttribute('href')==='#'+id?'#fff':'';
+      });
+    }
+  });
+},{threshold:0.3});
+document.querySelectorAll('.ep[id]').forEach(el=>observer.observe(el));
+</script>
+</body>
+</html>

@@ -1,0 +1,79 @@
+{
+  "id": "proposal",
+  "name": "Project Proposal",
+  "document_type": "Project Proposal",
+  "description": "Persuasive document proposing a project, solution, or initiative to decision-makers for approval and funding.",
+  "system_instructions": "You are a business development consultant writing a compelling project proposal. The tone should be persuasive but professional — you are selling a solution and building confidence that this project will succeed. Lead with business value. Support claims with data from the source document. Anticipate objections and address them. Make it easy for the reader to say yes by showing a clear plan, realistic estimates, and a credible team.",
+  "sections": [
+    {
+      "key": "executive_summary",
+      "title": "Executive Summary",
+      "order": 1,
+      "instructions": "Write a compelling one-page summary that stands alone. Cover: the business opportunity or problem, the proposed solution, the key benefits and ROI, the investment required, and the recommended next step. This should motivate a busy executive to read the rest of the proposal.",
+      "target_words": 300
+    },
+    {
+      "key": "problem_statement",
+      "title": "Problem Statement",
+      "order": 2,
+      "instructions": "Clearly articulate the business problem or opportunity. Quantify the pain where possible (cost of inaction, missed revenue, operational inefficiency). Show you understand the current situation in depth — reference specific processes, systems, or data from the source document. The reader should feel that NOT proceeding has a cost.",
+      "target_words": 300
+    },
+    {
+      "key": "proposed_solution",
+      "title": "Proposed Solution",
+      "order": 3,
+      "instructions": "Describe the proposed solution clearly. Cover: what it is, how it works at a conceptual level, how it addresses each pain point raised in the problem statement, why this approach is the right one (vs alternatives), and what makes it unique or particularly suited to this organisation. Include any relevant architecture or workflow diagrams from the source document.",
+      "target_words": 400
+    },
+    {
+      "key": "benefits_roi",
+      "title": "Benefits & Return on Investment",
+      "order": 4,
+      "instructions": "Articulate the business benefits in two categories: (1) Quantifiable benefits — cost savings, revenue increase, time savings, error reduction with estimated values; (2) Qualitative benefits — improved customer experience, compliance, competitive advantage, staff morale. Present a simple ROI or payback period calculation if numbers are available. Benefits should directly address the pain points from the problem statement.",
+      "target_words": 300
+    },
+    {
+      "key": "approach_methodology",
+      "title": "Approach & Methodology",
+      "order": 5,
+      "instructions": "Describe HOW the project will be delivered: the methodology (Agile, waterfall, hybrid), the phases and what happens in each, key design decisions and their rationale, risk management approach, quality assurance approach, and change management plan for end-user adoption.",
+      "target_words": 350
+    },
+    {
+      "key": "scope",
+      "title": "Scope",
+      "order": 6,
+      "instructions": "Define what is included in this proposal and what is not. Use clear in-scope and out-of-scope sub-sections. Be specific — vague scope leads to scope creep disputes. Note any dependencies on third parties or client actions that could affect scope.",
+      "target_words": 250
+    },
+    {
+      "key": "timeline",
+      "title": "Proposed Timeline",
+      "order": 7,
+      "instructions": "Present a high-level timeline showing phases, key milestones, and estimated durations. Use a simple table or Gantt-style description. Highlight the go-live date and any critical path items. Note assumptions that the timeline is based on (e.g., timely client resource availability, no major scope changes).",
+      "target_words": 200
+    },
+    {
+      "key": "investment",
+      "title": "Investment Summary",
+      "order": 8,
+      "instructions": "Present the proposed investment. Break it down by: one-time project costs (by phase or category), ongoing licence/subscription costs (annual), support and maintenance costs. If possible, show multiple options (e.g., phased vs all-at-once). Frame the investment in the context of the ROI — total cost vs total benefit over 3 years.",
+      "target_words": 200
+    },
+    {
+      "key": "team_experience",
+      "title": "Team & Experience",
+      "order": 9,
+      "instructions": "Introduce the team that will deliver this project. Highlight relevant experience, similar projects delivered, and key credentials. Include brief bios (2-3 sentences) for lead roles. Reference any client logos, case studies, or metrics from similar engagements if available in the source document.",
+      "target_words": 250
+    },
+    {
+      "key": "next_steps",
+      "title": "Next Steps",
+      "order": 10,
+      "instructions": "End with a clear call to action. Define the next steps the client needs to take to proceed: e.g., schedule a workshop, sign a LOI, provide data access, nominate a project sponsor. Include a proposed decision timeline. Make it easy to say yes.",
+      "target_words": 150
+    }
+  ]
+}
