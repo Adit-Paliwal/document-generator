@@ -1,38 +1,157 @@
-# ── requirements.txt ──────────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
+# IntelliDraft — Python Dependencies (frozen)
+# Generated from: pip freeze (env, Python 3.x, Windows)
+# Install:  pip install -r requirements.txt
+#
+# WINDOWS NOTE: enable Long Paths before installing (litellm needs it):
+#   Run as Administrator in PowerShell:
+#   New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" \
+#     -Name "LongPathsEnabled" -Value 1 -PropertyType DWORD -Force
+#   Then restart your terminal.
+# ══════════════════════════════════════════════════════════════════════════════
 
-# Document parsers
-pymupdf>=1.24.0              # PDF (fitz)
-python-docx>=1.1.0           # Word DOCX
-python-pptx>=0.6.23          # PowerPoint PPTX
-openpyxl>=3.1.0              # Excel XLSX
+# ── Document parsers ─────────────────────────────────────────────────────────
+PyMuPDF==1.27.2.3           # PDF → text / images (import fitz)
+python-docx==1.2.0          # Word DOCX
+python-pptx==1.0.2          # PowerPoint PPTX
+openpyxl==3.1.5             # Excel XLSX
+lxml==6.1.1                 # XML/HTML (used by DOCX image extraction)
+pillow==12.2.0              # Image handling (vision + export)
+striprtf==0.0.26            # RTF parsing
 
-# Data / schema
-pydantic>=2.0.0
-python-dotenv>=1.0.0
+# ── Data / schema / config ───────────────────────────────────────────────────
+pydantic==2.12.5
+pydantic_core==2.41.5
+python-dotenv==1.0.1
+SQLAlchemy==2.0.49
+greenlet==3.5.1             # SQLAlchemy async support
 
-# Azure
-azure-functions>=1.19.0
-azure-storage-blob>=12.20.0
-azure-cosmos>=4.6.0
-azure-identity>=1.16.0
-azure-keyvault-secrets>=4.8.0
+# ── Azure ────────────────────────────────────────────────────────────────────
+azure-functions==2.1.0
+azure-storage-blob==12.29.0
+azure-cosmos==4.15.0
+azure-identity==1.25.3
+azure-keyvault-secrets==4.11.0
+azure-core==1.41.0
+msal==1.36.0
+msal-extensions==1.3.1
+cryptography==48.0.0
 
-# Google ADK + LiteLLM
-google-adk[extensions]>=1.0.0
-litellm>=1.75.5
-google-auth>=2.29.0
-google-auth-httplib2>=0.2.0
+# ── Google ADK + LLM ─────────────────────────────────────────────────────────
+google-adk==2.0.0
+litellm==1.83.7             # Unified LLM interface (Azure GPT-5 / Gemini)
+openai==2.30.0              # Used by litellm for Azure OpenAI calls
+google-genai==1.75.0        # Gemini SDK
+google-auth==2.53.0
+google-auth-httplib2==0.4.0
+google-auth-oauthlib==1.4.0
+google-api-core==2.30.3
+googleapis-common-protos==1.75.0
+grpcio==1.80.0
+grpcio-status==1.80.0
+proto-plus==1.28.0
+protobuf==6.33.6
 
-# HTTP
-requests>=2.31.0
-httpx>=0.27.0
+# ── HTTP / networking ────────────────────────────────────────────────────────
+requests==2.34.2
+httpx==0.28.1
+httpcore==1.0.9
+httplib2==0.31.2
+aiohttp==3.13.5
+aiohappyeyeballs==2.6.2
+aiosignal==1.4.0
+frozenlist==1.8.0
+yarl==1.24.2
+multidict==6.7.1
+propcache==0.5.2
+urllib3==2.7.0
+certifi==2026.5.20
+charset-normalizer==3.4.7
+idna==3.16
 
-# XML / HTML parsing (used by DOCX inline image extraction)
-lxml>=5.0.0
+# ── Async ────────────────────────────────────────────────────────────────────
+anyio==4.13.0
+sniffio==1.3.1
+nest-asyncio==1.6.0
+aiosqlite==0.22.1
 
-# Generation module — database ORM
-sqlalchemy>=2.0.0
+# ── Web framework (ADK web UI) ───────────────────────────────────────────────
+fastapi==0.136.1
+uvicorn==0.47.0
+starlette==0.52.1
+Flask==3.1.3
+Werkzeug==3.1.8
+Jinja2==3.1.6
+MarkupSafe==3.0.3
+itsdangerous==2.2.0
+click==8.1.8
 
-# Document export
-markdown2>=2.4.0       # Markdown → HTML (used in PDF export)
-# weasyprint>=60.0     # HTML → PDF (optional; uncomment for PDF support)
+# ── Document export / generation ─────────────────────────────────────────────
+markdown2==2.5.5            # Markdown → HTML
+xlsxwriter==3.2.9           # Excel export
+
+# ── Utilities ────────────────────────────────────────────────────────────────
+python-dateutil==2.9.0.post0
+pytz==2026.2
+tzdata==2026.2
+tzlocal==5.3.1
+colorama==0.4.6
+rich==15.0.0
+tqdm==4.67.3
+typing_extensions==4.15.0
+annotated-types==0.7.0
+packaging==26.2
+six==1.17.0
+orjson==3.11.9
+PyYAML==6.0.3
+tenacity==9.1.4
+filelock==3.29.0
+fsspec==2026.4.0
+watchdog==6.0.0
+Deprecated==1.3.1
+wrapt==2.2.0
+
+# ── LlamaIndex (used by google-adk for document loading) ────────────────────
+llama-index-core==0.14.22
+llama-index-readers-file==0.6.0
+llama-index-embeddings-google-genai==0.5.1
+
+# ── Tokenization / embeddings ────────────────────────────────────────────────
+tiktoken==0.12.0
+tokenizers==0.22.2
+huggingface_hub==1.16.1
+numpy==2.4.6
+pandas==2.3.3
+
+# ── JSON / schema ────────────────────────────────────────────────────────────
+jsonschema==4.23.0
+jsonschema-specifications==2025.9.1
+jsonpatch==1.33
+jsonpointer==3.1.1
+referencing==0.37.0
+rpds-py==0.30.0
+dirtyjson==1.0.8
+
+# ── Auth / security ──────────────────────────────────────────────────────────
+PyJWT==2.12.1
+oauthlib==3.3.1
+requests-oauthlib==2.0.0
+Authlib==1.7.2
+joserfc==1.6.5
+pyOpenSSL==26.2.0
+pyasn1==0.6.3
+pyasn1_modules==0.4.2
+
+# ── Windows ──────────────────────────────────────────────────────────────────
+pywin32==311               # Windows only — remove on Linux/Mac
+
+# ── Misc ─────────────────────────────────────────────────────────────────────
+setuptools==82.0.1
+opentelemetry-api==1.41.1
+opentelemetry-sdk==1.41.1
+opentelemetry-semantic-conventions==0.62b1
+isodate==0.7.2
+regex==2026.5.9
+beautifulsoup4==4.14.3
+soupsieve==2.8.3
+nltk==3.9.4
