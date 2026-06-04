@@ -141,6 +141,10 @@
   <div class="sidebar-section">Frontend Flow</div>
   <a href="#flow">🗺 Page-by-Page Guide</a>
 
+  <div class="sidebar-section">System</div>
+  <a href="#health"><span class="badge get">GET</span>/health</a>
+  <a href="#api-docs"><span class="badge get">GET</span>/docs</a>
+
   <div class="sidebar-section">Ingestion</div>
   <a href="#form-fields"><span class="badge get">GET</span>/form-fields</a>
   <a href="#upload"><span class="badge post">POST</span>/upload</a>
@@ -388,6 +392,43 @@
     <div class="flow-note">Template controls which sections get generated (Executive Summary, Scope, etc.)</div>
   </div>
 
+</div>
+
+<!-- ══════════════ SYSTEM ══════════════ -->
+<div class="section-heading">⚙️ System</div>
+
+<div class="endpoint" id="health">
+  <div class="ep-header" onclick="toggle(this)">
+    <span class="ep-method get">GET</span>
+    <span class="ep-path">/health</span>
+    <span class="ep-desc">Liveness probe — is the server up?</span>
+    <span class="ep-arrow">▼</span>
+  </div>
+  <div class="ep-body">
+    <p class="ep-desc-text">Zero-cost health check. Returns immediately with no DB access. Used by Docker HEALTHCHECK, load balancers, and monitoring tools. Use this to verify the container is running before making any other API call.</p>
+    <div class="ep-section">
+      <div class="ep-section-title">Response 200</div>
+      <div class="responses"><span class="resp-badge r200">200 OK</span></div>
+      <pre>{ <span class="key">"status"</span>: <span class="str">"ok"</span>, <span class="key">"version"</span>: <span class="str">"1.0"</span> }</pre>
+    </div>
+  </div>
+</div>
+
+<div class="endpoint" id="api-docs">
+  <div class="ep-header" onclick="toggle(this)">
+    <span class="ep-method get">GET</span>
+    <span class="ep-path">/docs</span>
+    <span class="ep-desc">This API reference page</span>
+    <span class="ep-arrow">▼</span>
+  </div>
+  <div class="ep-body">
+    <p class="ep-desc-text">Serves this interactive API documentation page. Open in any browser while the container is running.</p>
+    <div class="ep-section">
+      <div class="ep-section-title">Response 200</div>
+      <div class="responses"><span class="resp-badge r200">200 HTML</span></div>
+      <pre><span class="comment">→ Returns this HTML page</span></pre>
+    </div>
+  </div>
 </div>
 
 <!-- ══════════════ INGESTION ══════════════ -->
