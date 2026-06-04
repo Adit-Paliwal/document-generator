@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>IntelliDraft — API Reference</title>
+<style>
+  :root {
+    --bg:       #0f1117;
+    --surface:  #1a1d27;
+    --card:     #20232f;
+    --border:   #2e3144;
+    --purple:   #7c3aed;
+    --purple2:  #a78bfa;
+    --green:    #22c55e;
+    --blue:     #38bdf8;
+    --orange:   #fb923c;
+    --red:      #f87171;
+    --yellow:   #fbbf24;
+    --text:     #e2e8f0;
+    --muted:    #94a3b8;
+    --code-bg:  #0d1117;
+    --radius:   10px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 14px; line-height: 1.6; }
+
+  /* ── Layout ── */
+  .layout { display: flex; min-height: 100vh; }
+  .sidebar { width: 260px; min-width: 260px; background: var(--surface); border-right: 1px solid var(--border); position: sticky; top: 0; height: 100vh; overflow-y: auto; padding: 24px 0; }
+  .main { flex: 1; padding: 40px 48px; max-width: 900px; }
+
+  /* ── Sidebar ── */
+  .sidebar-logo { padding: 0 20px 20px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+  .sidebar-logo h2 { font-size: 15px; font-weight: 700; color: var(--purple2); }
+  .sidebar-logo p  { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .sidebar-section { padding: 8px 20px 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+  .sidebar a { display: flex; align-items: center; gap: 8px; padding: 6px 20px; font-size: 12.5px; color: var(--muted); text-decoration: none; transition: all .15s; }
+  .sidebar a:hover { color: var(--text); background: rgba(124,58,237,.1); }
+  .sidebar a .badge { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 4px; }
+  .get    { background: rgba(34,197,94,.15);  color: var(--green);  }
+  .post   { background: rgba(56,189,248,.15); color: var(--blue);   }
+  .put    { background: rgba(251,191,36,.15); color: var(--yellow); }
+  .patch  { background: rgba(251,146,60,.15); color: var(--orange); }
+  .delete { background: rgba(248,113,113,.15);color: var(--red);    }
+
+  /* ── Header ── */
+  .page-header { margin-bottom: 40px; padding-bottom: 24px; border-bottom: 1px solid var(--border); }
+  .page-header h1 { font-size: 28px; font-weight: 800; background: linear-gradient(135deg, var(--purple2), var(--blue)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .page-header p  { color: var(--muted); margin-top: 8px; font-size: 14px; }
+  .base-url { display: inline-flex; align-items: center; gap: 8px; margin-top: 12px; background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 8px 14px; font-family: monospace; font-size: 13px; }
+  .base-url span { color: var(--purple2); font-weight: 600; }
+
+  /* ── Section heading ── */
+  .section-heading { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: var(--purple2); margin: 40px 0 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+
+  /* ── Endpoint card ── */
+  .endpoint { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 12px; overflow: hidden; }
+  .ep-header { display: flex; align-items: center; gap: 12px; padding: 14px 18px; cursor: pointer; user-select: none; }
+  .ep-header:hover { background: rgba(255,255,255,.02); }
+  .ep-method { font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 5px; min-width: 54px; text-align: center; }
+  .ep-path { font-family: monospace; font-size: 13px; font-weight: 600; color: var(--text); }
+  .ep-desc { font-size: 12px; color: var(--muted); margin-left: auto; }
+  .ep-arrow { color: var(--muted); font-size: 11px; transition: transform .2s; }
+  .ep-body { display: none; padding: 0 18px 18px; border-top: 1px solid var(--border); }
+  .ep-body.open { display: block; }
+  .ep-arrow.open { transform: rotate(180deg); }
+
+  /* ── Within endpoint body ── */
+  .ep-section { margin-top: 14px; }
+  .ep-section-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: 6px; }
+  .ep-desc-text { font-size: 13px; color: var(--text); margin-top: 14px; line-height: 1.7; }
+
+  /* ── Tables ── */
+  table { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 12.5px; }
+  th { text-align: left; color: var(--muted); font-weight: 600; padding: 6px 10px; background: rgba(255,255,255,.03); border-bottom: 1px solid var(--border); }
+  td { padding: 7px 10px; border-bottom: 1px solid rgba(255,255,255,.05); vertical-align: top; }
+  td code { background: rgba(124,58,237,.15); color: var(--purple2); padding: 1px 5px; border-radius: 4px; font-size: 11.5px; }
+  .req { color: var(--red); font-size: 10px; font-weight: 700; }
+  .opt { color: var(--muted); font-size: 10px; }
+
+  /* ── Code block ── */
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; overflow-x: auto; font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 12px; line-height: 1.6; color: #c9d1d9; margin-top: 6px; }
+  pre .key    { color: #79c0ff; }
+  pre .str    { color: #a5d6ff; }
+  pre .num    { color: #f0883e; }
+  pre .bool   { color: #ff7b72; }
+  pre .method { color: var(--purple2); font-weight: 700; }
+  pre .url    { color: var(--green); }
+  pre .comment{ color: #6e7681; font-style: italic; }
+
+  /* ── Response badges ── */
+  .responses { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .resp-badge { font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 5px; }
+  .r200 { background: rgba(34,197,94,.15);  color: var(--green);  }
+  .r201 { background: rgba(56,189,248,.15); color: var(--blue);   }
+  .r204 { background: rgba(148,163,184,.15);color: var(--muted);  }
+  .r400 { background: rgba(251,191,36,.15); color: var(--yellow); }
+  .r404 { background: rgba(251,146,60,.15); color: var(--orange); }
+  .r500 { background: rgba(248,113,113,.15);color: var(--red);    }
+
+  /* ── Scrollbar ── */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  @media (max-width: 768px) {
+    .sidebar { display: none; }
+    .main { padding: 24px 20px; }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+
+<!-- ════════════════════ SIDEBAR ════════════════════ -->
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <h2>IntelliDraft API</h2>
+    <p>v1.0 · Base: /api</p>
+  </div>
+
+  <div class="sidebar-section">Ingestion</div>
+  <a href="#form-fields"><span class="badge get">GET</span>/form-fields</a>
+  <a href="#upload"><span class="badge post">POST</span>/upload</a>
+  <a href="#submit-inputs"><span class="badge post">POST</span>/submit-inputs</a>
+  <a href="#get-document"><span class="badge get">GET</span>/document/{id}</a>
+  <a href="#doc-status"><span class="badge get">GET</span>/document/{id}/status</a>
+
+  <div class="sidebar-section">Projects</div>
+  <a href="#extract"><span class="badge post">POST</span>/extract-project-data</a>
+  <a href="#create-project"><span class="badge post">POST</span>/projects</a>
+  <a href="#list-projects"><span class="badge get">GET</span>/projects</a>
+  <a href="#get-project"><span class="badge get">GET</span>/projects/{id}</a>
+  <a href="#update-project"><span class="badge put">PUT</span>/projects/{id}</a>
+  <a href="#patch-project"><span class="badge patch">PATCH</span>/projects/{id}</a>
+  <a href="#delete-project"><span class="badge delete">DELETE</span>/projects/{id}</a>
+  <a href="#project-data"><span class="badge get">GET</span>/projects/{id}/data</a>
+  <a href="#save-ingested"><span class="badge put">PUT</span>/projects/{id}/data/ingested</a>
+  <a href="#save-derived"><span class="badge put">PUT</span>/projects/{id}/data/derived</a>
+  <a href="#derive-fields"><span class="badge post">POST</span>/projects/{id}/derive-fields</a>
+
+  <div class="sidebar-section">Generation</div>
+  <a href="#gen-start"><span class="badge post">POST</span>/generate/start</a>
+  <a href="#gen-project"><span class="badge post">POST</span>/generate/project/{id}</a>
+  <a href="#gen-job"><span class="badge get">GET</span>/generate/{job_id}</a>
+  <a href="#gen-section"><span class="badge get">GET</span>/generate/{job}/section/{sec}</a>
+  <a href="#gen-comment"><span class="badge post">POST</span>/…/comment</a>
+  <a href="#gen-regen"><span class="badge post">POST</span>/…/regenerate</a>
+  <a href="#gen-accept"><span class="badge post">POST</span>/…/accept</a>
+  <a href="#gen-export"><span class="badge get">GET</span>/generate/{job}/export</a>
+
+  <div class="sidebar-section">Templates</div>
+  <a href="#list-templates"><span class="badge get">GET</span>/templates</a>
+  <a href="#create-template"><span class="badge post">POST</span>/templates</a>
+</nav>
+
+<!-- ════════════════════ MAIN ════════════════════ -->
+<main class="main">
+
+<div class="page-header">
+  <h1>IntelliDraft API Reference</h1>
+  <p>REST API for document ingestion, project management, AI field derivation, and document generation.</p>
+  <div class="base-url">Base URL: <span>http://localhost:7071/api</span></div>
+</div>
+
+<!-- ══════════════ INGESTION ══════════════ -->
+<div class="section-heading">📄 Ingestion</div>
+
+<!-- 1 -->
+<div class="endpoint" id="form-fields">
+  <div class="ep-header" onclick="toggle(this)">
+    <span class="ep-method get">GET</span>
+    <span class="ep-path">/form-fields</span>
+    <span class="ep-desc">Get all form field definitions</span>
+    <span class="ep-arrow">▼</span>
+  </div>
+  <div class="ep-body">
+    <p class="ep-desc-text">Returns the list of all input fields shown in the "Create Project" form, including labels, types, placeholders, and required flags. Use this to render the form dynamically.</p>
+    <div class="ep-section">
+      <div class="ep-section-title">Response 200</div>
+      <div class="responses"><span class="resp-badge r200">200 OK</span></div>
+      <pre>{ <span class="key">"fields"</span>: [ { <span class="key">"id"</span>: <span class="str">"project_name"</span>, <span class="key">"label"</span>: <span class="str">"Project Name"</span>, <span class="key">"type"</span>: <span class="str">"text"</span>, <span class="key">"required"</span>: <span class="bool">true</span> }, ... ] }</pre>
+    </div>
+  </div>
+</div>
+
+<!-- 2 -->
+<div class="endpoint" id="upload">
+  <div class="ep-header" onclick="toggle(this)">
+    <span class="ep-method post">POST</span>
+    <span class="ep-path">/upload</span>
+    <span class="ep-desc">Upload a document for parsing</span>
+    <span class="ep-arrow">▼</span>
+  </div>
+  <div class="ep-body">
+    <p class="ep-desc-text">Uploads and parses a document. Returns a <code>document_id</code> used in all subsequent calls. Supported formats: <strong>.pptx, .docx, .pdf, .xlsx</strong>. Max size: <strong>50 MB</strong>.</p>
+    <div class="ep-section">
+      <div class="ep-section-title">Request — multipart/form-data</div>
+      <table><tr><th>Field</th><th>Type</th><th></th></tr>
+        <tr><td><code>file</code></td><td>File</td><td><span class="req">required</span></td></tr>
+      </table>
+    </div>
+    <div class="ep-section">
+      <div class="ep-section-title">Example — fetch</div>
+      <pre><span class="key">const</span> form = <span class="key">new</span> FormData();
+form.append(<span class="str">'file'</span>, fileInput.files[<span class="num">0</span>]);
+
+<span class="key">const</span> res = <span class="key">await</span> fetch(<span class="str">'http://localhost:7071/api/upload'</span>, {
+  method: <span class="str">'POST'</span>,
+  body: form
+});
+<span class="key">const</span> { document_id } = <span class="key">await</span> res.json();</pre>
+    </div>
+    <div class="ep-section">
+      <div class="ep-section-title">Response 201</div>
+      <div class="responses"><span class="resp-badge r201">201 Created</span><span class="resp-badge r400">400</span><span class="resp-badge r413">413 Too Large</span><span class="resp-badge r415">415 Unsupported</span></div>
+      <pre>{
+  <span class="key">"document_id"</span>: <span class="str">"abc123"</span>,
+  <span class="key">"filename"</span>:    <span class="str">"MyDeck.pptx"</span>,
+  <span class="key">"file_type"</span>:   <span class="str">"pptx"</span>,
+  <span class="key">"summary"</span>: { <span class="key">"total_text_elements"</span>: <span class="num">101</span>, <span class="key">"total_images"</span>: <span class="num">12</span>, <span class="key">"total_tables"</span>: <span class="num">5</span> },
+  <span class="key">"message"</span>:     <span class="str">"Document parsed. 101 text blocks, 12 images, 5 tables."</span>
+}</pre>
+    </div>
+  </div>
+</div>
+
+<!-- 3 -->
+<div class="endpoint" id="submit-inputs">
+  <div class="ep-header" onclick="toggle(this)">
+    <span class="ep-method post">POST</span>
+    <span class="ep-path">/submit-inputs</span>
+    <span class="ep-desc">Save user inputs against an uploaded document</span>
+    <span class="ep-arrow">▼</span>
+  </div>
+  <div class="ep-body">
+    <p class="ep-desc-text">Attaches user-provided metadata (project name, doc type, stakeholders, etc.) to an already-uploaded document. Used in the legacy single-document flow.</p>
+    <div class="ep-section">
+      <div class="ep-section-title">Request Body — application/json</div>
+      <table><tr><th>Field</th><th>Type</th><th></th></tr>
+        <tr><td><code>document_id</code></td><td>string</td><td><span class="req">required</span></td></tr>
+        <tr><td><code>project_name</code></td><td>string</td><td><span class="req">required</span></td></tr>
+        <tr><td><code>document_type</code></td><td>string</td><td><span class="req">required</span> BRD / RFP / SOW / Proposal / TechSpec / ScopeDoc</td></tr>
+        <tr><td><code>output_format</code></td><td>string</td><td><span class="opt">optional</span> Word (.docx) / PDF / Markdown</td></tr>
+        <tr><td><code>stakeholders</code></td><td>string</td><td><span class="opt">optional</span></td></tr>
+        <tr><td><code>additional_instructions</code></td><td>string</td><td><span class="opt">optional</span></td></tr>
+      </table>
+    </div>
+    <div class="ep-section">
+      <div class="ep-section-title">Response 200</div>
+      <div class="responses"><span class="resp-badge r200">200 OK</span><span class="resp-badge r404">404</span></div>
+      <pre>{ <span class="key">"document_id"</span>: <span class="str">"abc123"</span>, <span class="key">"message"</span>: <span class="str">"Inputs saved. Ready for generation."</span> }</pre>
+    </div>
+  </div>
+</div>
+
+<!-- 4 -->
+<div class="endpoint" id="get-document">
+  <div class="ep-header" onclick="toggle(this)">
+    <span class="ep-method get">GET</span>
+    <span class="ep-path">/document/{doc_id}</span>
+    <span class="ep-desc">Get full parsed document metadata</span>
+    <span class="ep-arrow">▼</span>
+  </div>
+  <div class="ep-body">
+    <p class="ep-desc-text">Returns the full parsed document object including all extracted text, images, tables, and any user inputs previously saved.</p>
+    <div class="ep-section">
+      <div class="ep-section-title">Path Parameters</div>
+      <table><tr><th>Param</th><th>Type</th><th></th></tr>
+        <tr><td><code>doc_id</code></td><td>string</td><td><span class="req">required</span></td></tr>
+      </table>
+    </div>
+    <div class="ep-section">
+      <div class="ep-section-title">Response 200</div>
+      <div class="responses"><span class="resp-badge r200">200 OK</span><span class="resp-badge r404">404</span></div>
+      <pre>{ <span class="key">"document_id"</span>: <span class="str">"abc123"</span>, <span class="key">"source_filename"</span>: <span class="str">"deck.pptx"</span>, <span class="key">"file_type"</span>: <span class="str">"pptx"</span>, ... }</pre>
+    </div>
+  </div>
+</div>
+
+<!-- 5 -->
+<div class="endpoint" id="doc-status">
+  <div class="ep-header" onclick="toggle(this)">
+    <span class="ep-method get">GET</span>
+    <span class="ep-path">/document/{doc_id}/status</span>
+    <span class="ep-desc">Get document index/status</span>
+    <span class="ep-arrow">▼</span>
+  </div>
+  <div class="ep-body">
+    <p class="ep-desc-text">Returns a lightweight status object for a document — useful for polling after upload.</p>
+    <div class="ep-section">
+      <div class="ep-section-title">Response 200</div>
+      <div class="responses"><span class="resp-badge r200">200 OK</span><span class="resp-badge r404">404</span></div>
+      <pre>{ <span class="key">"document_id"</span>: <span class="str">"abc123"</span>, <span class="key">"status"</span>: <span class="str">"ready"</span>, <span class="key">"filename"</span>: <span class="str">"deck.pptx"</span> }</pre>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ PROJECTS ══════════════ -->
+<div class="section-heading">🗂 Projects</div>
+
+<!-- extract -->
+<div class="endpoint" id="extract">
+  <div class="ep-header" onclick="toggle(this)">
+    <span class="ep-method post">POST</span>
+    <span class="ep-path">/extract-project-data</span>
+    <span class="ep-desc">AI-extract 15 project fields from uploaded documents</span>
+    <span class="ep-arrow">▼</span>
+  </div>
+  <div class="ep-body">
+    <p class="ep-desc-text">Sends uploaded document content to the LLM and extracts all 15 project fields (project name, business unit, problem statement, etc.). Returns pre-filled form data ready to save as a project. <strong>Requires valid Azure API key in .env.</strong></p>
+    <div class="ep-section">
+      <div class="ep-section-title">Request Body</div>
+      <pre>{ <span class="key">"document_ids"</span>: [<span class="str">"abc123"</span>, <span class="str">"def456"</span>] }</pre>
+    </div>
+    <div class="ep-section">
+      <div class="ep-section-title">Response 200</div>
+      <div class="responses"><span class="resp-badge r200">200 OK</span><span class="resp-badge r400">400</span><span class="resp-badge r500">500</span></div>
+      <pre>{
+  <span class="key">"project_name"</span>:       <span class="str">"Smart Meter Analytics"</span>,
+  <span class="key">"business_unit"</span>:      <span class="str">"AESL Distribution"</span>,
+  <span class="key">"project_code"</span>:       <span class="str">"AESL-2025-042"</span>,
+  <span class="key">"business_priority"</span>:  <span class="str">"High"</span>,
+  <span class="key">"problem_statement"</span>:  <span class="str">"..."</span>,
+  <span class="key">"project_objective"</span>:  <span class="str">"..."</span>,
+  <span class="key">"proposed_solution"</span>:  <span class="str">"..."</span>,
+  <span class="key">"as_is_processes"</span>:    <span class="str">"..."</span>,
+  <span class="key">"technical_landscape"</span>:<span class="str">"..."</span>,
+  <span class="key">"constraints"</span>:        <span class="str">"..."</span>,
+  <span class="key">"risks"</span>:              <span class="str">"..."</span>,
+  <span class="key">"stakeholders"</span>:       [{ <span class="key">"name"</span>: <span class="str">"Ravi Kumar"</span>, <span class="key">"designation"</span>: <span class="str">"PM"</span> }],
+  <span class="key">"start_date"</span>:         <span class="str">"2025-04-01"</span>,
+  <span class="key">"end_date"</span>:           <span class="str">"2025-12-31"</span>,
+  <span class="key">"estimated_cost_crores"</span>: <span class="str">"4.5"</span>,
+  <span class="key">"filled_count"</span>:       <span class="num">15</span>,
+  <span class="key">"message"</span>:            <span class="str">"All fields populated from 1 document(s)."</span>
+}</pre>
+    </div>
+  </div>
+</div>
+
+<!-- create project -->
+<div class="endpoint" id="create-project">
+  <div class="ep-header" onclick="toggle(this)">
+    <span class="ep-method post">POST</span>
+    <span class="ep-path">/projects</span>
+    <span class="ep-desc">Create a new project</span>
+    <span class="ep-arrow">▼</span>
+  </div>
+  <div class="ep-body">
+    <p class="ep-desc-text">Creates and persists a project in the database. Pass the fields returned by <code>/extract-project-data</code> directly, or fill them manually. Returns a <code>project_id</code> for all future operations.</p>
+    <div class="ep-section">
+      <div class="ep-section-title">Request Body</div>
+      <table><tr><th>Field</th><th>Type</th><th></th></tr>
+        <tr><td><code>project_name</code></td><td>string</td><td><span class="req">required</span></td></tr>
+        <tr><td><code>document_ids</code></td><td>array</td><td><span class="req">required</span> doc IDs from /upload</td></tr>
+        <tr><td><code>document_type</code></td><td>string</td><td><span class="opt">optional</span> BRD / RFP / SOW / Proposal / TechSpec / ScopeDoc</td></tr>
+        <tr><td><code>project_code</code></td><td>string</td><td><span class="opt">optional</span></td></tr>
+        <tr><td><code>business_unit</code></td><td>string</td><td><span class="opt">optional</span></td></tr>
+        <tr><td><code>business_priority</code></td><td>string</td><td><span class="opt">optional</span></td></tr>
+        <tr><td><code>problem_statement</code></td><td>string</td><td><span class="opt">optional</span></td></tr>
+        <tr><td><code>project_objective</code></td><td>string</td><td><span class="opt">optional</span></td></tr>
+        <tr><td><code>proposed_solution</code></td><td>string</td><td><span class="opt">optional</span></td></tr>
+        <tr><td><code>as_is_processes</code></td><td>string</td><td><span class="opt">optional</span></td></tr>
+        <tr><td><code>technical_landscape</code></td><td>string</td><td><span class="opt">optional</span></td></tr>
+        <tr><td><code>constraints</code></td><td>string</td><td><span class="opt">optional</span></td></tr>
+        <tr><td><code>risks</code></td><td>string</td><td><span class="opt">optional</span></td></tr>
+        <tr><td><code>stakeholders</code></td><td>array</td><td><span class="opt">optional</span> <code>[{"name":"…","designation":"…"}]</code></td></tr>
+        <tr><td><code>start_date</code></td><td>string</td><td><span class="opt">optional</span> YYYY-MM-DD</td></tr>
+        <tr><td><code>end_date</code></td><td>string</td><td><span class="opt">optional</span> YYYY-MM-DD</td></tr>
+        <tr><td><code>estimated_cost_crores</code></td><td>string</td><td><span class="opt">optional</span></td></tr>
+        <tr><td><code>template_id</code></td><td>string</td><td><span class="opt">optional</span></td></tr>
+      </table>
+    </div>
+    <div class="ep-section">
+      <div class="ep-section-title">Response 201</div>
+      <div class="responses"><span class="resp-badge r201">201 Created</span><span class="resp-badge r400">400</span></div>
+      <pre>{ <span class="key">"project_id"</span>: <span class="str">"uuid-here"</span>, <span class="key">"status"</span>: <span class="str">"ready"</span>, <span class="key">"message"</span>: <span class="str">"Project 'Smart Meter Analytics' saved."</span> }</pre>
+    </div>
+  </div>
+</div>
+
+<!-- list projects -->
+<div class="endpoint" id="list-projects">
+  <div class="ep-header" onclick="toggle(this)">
+    <span class="ep-method get">GET</span>
+    <span class="ep-path">/projects</span>
+    <span class="ep-desc">List all projects</span>
+    <span class="ep-arrow">▼</span>
+  </div>
+  <div class="ep-body">
+    <div class="ep-section">
+      <div class="ep-section-title">Query Parameters</div>
+      <table><tr><th>Param</th><th>Type</th><th></th></tr>
+        <tr><td><code>q</code></td><td>string</td><td><span class="opt">optional</span> search by name or code</td></tr>
+        <tr><td><code>status</code></td><td>string</td><td><span class="opt">optional</span> draft / ready / generating / done</td></tr>
+      </table>
+    </div>
+    <div class="ep-section">
+      <div class="ep-section-title">Response 200</div>
+      <div class="responses"><span class="resp-badge r200">200 OK</span></div>
+      <pre>{
+  <span class="key">"projects"</span>: [
+    { <span class="key">"project_id"</span>: <span class="str">"uuid"</span>, <span class="key">"project_name"</span>: <span class="str">"Smart Meter"</span>, <span class="key">"project_code"</span>: <span class="str">"AESL-042"</span>,
+      <span class="key">"status"</span>: <span class="str">"ready"</span>, <span class="key">"created_at"</span>: <span class="str">"2025-06-01T10:00:00"</span> }
+  ],
+  <span class="key">"count"</span>: <span class="num">1</span>
+}</pre>
+    </div>
+  </div>
+</div>
+
+<!-- get project -->
+<div class="endpoint" id="get-project">
+  <div class="ep-header" onclick="toggle(this)">
+    <span class="ep-method get">GET</span>
+    <span class="ep-path">/projects/{project_id}</span>
+    <span class="ep-desc">Get full project details</span>
+    <span class="ep-arrow">▼</span>
+  </div>
+  <div class="ep-body">
+    <p class="ep-desc-text">Returns all fields of the project including stakeholders array (parsed from JSON), document IDs, and timestamps.</p>
+    <div class="ep-section">
+      <div class="ep-section-title">Response 200</div>
+      <div class="responses"><span class="resp-badge r200">200 OK</span><span class="resp-badge r404">404</span></div>
+      <pre>{ <span class="key">"project_id"</span>: <span class="str">"uuid"</span>, <span class="key">"project_name"</span>: <span class="str">"..."</span>, <span class="key">"stakeholders"</span>: [...], <span class="key">"document_ids"</span>: [...], ... }</pre>
+    </div>
+  </div>
+</div>
+
+<!-- update project -->
+<div class="endpoint" id="update-project">
+  <div class="ep-header" onclick="toggle(this)">
+    <span class="ep-method put">PUT</span>
+    <span class="ep-path">/projects/{project_id}</span>
+    <span class="ep-desc">Full update a project</span>
+    <span class="ep-arrow">▼</span>
+  </div>
+  <div class="ep-body">
+    <p class="ep-desc-text">Replaces all provided fields. Any field not sent retains its existing value.</p>
+    <div class="ep-section">
+      <div class="ep-section-title">Response 200</div>
+      <div class="responses"><span class="resp-badge r200">200 OK</span><span class="resp-badge r404">404</span></div>
+      <pre>{ <span class="key">"project_id"</span>: <span class="str">"uuid"</span>, <span class="key">"updated_at"</span>: <span class="str">"2025-06-01T12:00:00"</span> }</pre>
+    </div>
+  </div>
+</div>
+
+<!-- patch project -->
+<div class="endpoint" id="patch-project">
+  <div class="ep-header" onclick="toggle(this)">
+    <span class="ep-method patch">PATCH</span>
+    <span class="ep-path">/projects/{project_id}</span>
+    <span class="ep-desc">Partial update / autosave</span>
+    <span class="ep-arrow">▼</span>
+  </div>
+  <div class="ep-body">
+    <p class="ep-desc-text">Update only the fields you send. Ideal for autosave — send only the changed fields. Same request/response shape as PUT.</p>
+    <div class="ep-section">
+      <div class="ep-section-title">Example</div>
+      <pre>PATCH /api/projects/uuid
+{ <span class="key">"business_priority"</span>: <span class="str">"Critical"</span>, <span class="key">"end_date"</span>: <span class="str">"2026-03-31"</span> }</pre>
+    </div>
+    <div class="ep-section">
+      <div class="ep-section-title">Response 200</div>
+      <div class="responses"><span class="resp-badge r200">200 OK</span><span class="resp-badge r404">404</span></div>
+      <pre>{ <span class="key">"project_id"</span>: <span class="str">"uuid"</span>, <span class="key">"updated_at"</span>: <span class="str">"2025-06-01T12:00:00"</span> }</pre>
+    </div>
+  </div>
+</div>
+
+<!-- delete -->
+<div class="endpoint" id="delete-project">
+  <div class="ep-header" onclick="toggle(this)">
+    <span class="ep-method delete">DELETE</span>
+    <span class="ep-path">/projects/{project_id}</span>
+    <span class="ep-desc">Delete a project</span>
+    <span class="ep-arrow">▼</span>
+  </div>
+  <div class="ep-body">
+    <p class="ep-desc-text">Permanently deletes the project and its derived data. Returns 204 No Content on success.</p>
+    <div class="ep-section">
+      <div class="ep-section-title">Response</div>
+      <div class="responses"><span class="resp-badge r204">204 No Content</span><span class="resp-badge r404">404</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- project data -->
+<div class="endpoint" id="project-data">
+  <div class="ep-header" onclick="toggle(this)">
+    <span class="ep-method get">GET</span>
+    <span class="ep-path">/projects/{project_id}/data</span>
+    <span class="ep-desc">Get ingested + derived data combined</span>
+    <span class="ep-arrow">▼</span>
+  </div>
+  <div class="ep-body">
+    <p class="ep-desc-text">Returns both the 15 ingested fields and the 12 AI-derived fields in one response. Use this to populate the Project Details page (both tabs).</p>
+    <div class="ep-section">
+      <div class="ep-section-title">Response 200</div>
+      <div class="responses"><span class="resp-badge r200">200 OK</span><span class="resp-badge r404">404</span></div>
+      <pre>{
+  <span class="key">"project_id"</span>: <span class="str">"uuid"</span>,
+  <span class="key">"ingested"</span>: {
+    <span class="key">"project_name"</span>: <span class="str">"Smart Meter"</span>, <span class="key">"business_unit"</span>: <span class="str">"AESL"</span>,
+    <span class="key">"project_code"</span>: <span class="str">"AESL-042"</span>, <span class="key">"stakeholders"</span>: [...],
+    <span class="comment">// + 11 more ingested fields</span>
+  },
+  <span class="key">"derived"</span>: {
+    <span class="key">"current_challenges"</span>: <span class="str">"..."</span>, <span class="key">"to_be_process"</span>: <span class="str">"..."</span>,
+    <span class="key">"success_criteria"</span>: <span class="str">"..."</span>, <span class="key">"business_requirements"</span>: <span class="str">"..."</span>,
+    <span class="key">"functional_requirements"</span>: <span class="str">"..."</span>, <span class="key">"non_functional_requirements"</span>: <span class="str">"..."</span>,
+    <span class="key">"industry_benchmarks"</span>: <span class="str">"..."</span>, <span class="key">"workflow"</span>: <span class="str">"..."</span>,
+    <span class="key">"analytics_requirements"</span>: <span class="str">"..."</span>, <span class="key">"systems_involved"</span>: <span class="str">"..."</span>,
+    <span class="key">"data_sources"</span>: <span class="str">"..."</span>, <span class="key">"constraints_dependencies"</span>: <span class="str">"..."</span>
+  },
+  <span class="key">"derived_generated_at"</span>: <span class="str">"2025-06-01T12:00:00"</span> <span class="comment">// null if not yet derived</span>
+}</pre>
+    </div>
+  </div>
+</div>
+
+<!-- save ingested -->
+<div class="endpoint" id="save-ingested">
+  <div class="ep-header" onclick="toggle(this)">
+    <span class="ep-method put">PUT</span>
+    <span class="ep-path">/projects/{project_id}/data/ingested</span>
+    <span class="ep-desc">Save edits to ingested fields (Tab 1)</span>
+    <span class="ep-arrow">▼</span>
+  </div>
+  <div class="ep-body">
+    <p class="ep-desc-text">Saves user edits to the 15 ingested fields. Send only the fields that changed — partial update is safe. Called when user clicks "Save Ingested Changes".</p>
+    <div class="ep-section">
+      <div class="ep-section-title">Request Body (any subset of ingested fields)</div>
+      <pre>{
+  <span class="key">"project_name"</span>:       <span class="str">"Updated Name"</span>,
+  <span class="key">"stakeholders"</span>:       [{ <span class="key">"name"</span>: <span class="str">"Ravi"</span>, <span class="key">"designation"</span>: <span class="str">"PM"</span> }],
+  <span class="key">"estimated_cost_crores"</span>: <span class="str">"5.2"</span>
+}</pre>
+    </div>
+    <div class="ep-section">
+      <div class="ep-section-title">Response 200</div>
+      <div class="responses"><span class="resp-badge r200">200 OK</span><span class="resp-badge r404">404</span></div>
+      <pre>{ <span class="key">"project_id"</span>: <span class="str">"uuid"</span>, <span class="key">"updated_at"</span>: <span class="str">"2025-06-01T12:00:00"</span> }</pre>
+    </div>
+  </div>
+</div>
+
+<!-- save derived -->
+<div class="endpoint" id="save-derived">
+  <div class="ep-header" onclick="toggle(this)">
+    <span class="ep-method put">PUT</span>
+    <span class="ep-path">/projects/{project_id}/data/derived</span>
+    <span class="ep-desc">Save edits to AI-derived fields (Tab 2)</span>
+    <span class="ep-arrow">▼</span>
+  </div>
+  <div class="ep-body">
+    <p class="ep-desc-text">Saves user edits to the 12 derived fields. Called when user clicks "Save Derived Changes". Pass <code>mark_as_generated: true</code> to timestamp when derivation was last run.</p>
+    <div class="ep-section">
+      <div class="ep-section-title">Derived Fields</div>
+      <table><tr><th>Field key</th><th>Description</th></tr>
+        <tr><td><code>current_challenges</code></td><td>Current pain points / as-is issues</td></tr>
+        <tr><td><code>to_be_process</code></td><td>Future state / to-be process</td></tr>
+        <tr><td><code>success_criteria</code></td><td>KPIs and success metrics</td></tr>
+        <tr><td><code>business_requirements</code></td><td>High-level business needs</td></tr>
+        <tr><td><code>functional_requirements</code></td><td>What the system must do</td></tr>
+        <tr><td><code>non_functional_requirements</code></td><td>Performance, security, scalability</td></tr>
+        <tr><td><code>industry_benchmarks</code></td><td>Comparable industry standards</td></tr>
+        <tr><td><code>workflow</code></td><td>Step-by-step process flow</td></tr>
+        <tr><td><code>analytics_requirements</code></td><td>Reporting and data needs</td></tr>
+        <tr><td><code>systems_involved</code></td><td>Integrations and external systems</td></tr>
+        <tr><td><code>data_sources</code></td><td>Input data sources</td></tr>
+        <tr><td><code>constraints_dependencies</code></td><td>Technical / regulatory constraints</td></tr>
+      </table>
+    </div>
+    <div class="ep-section">
+      <div class="ep-section-title">Response 200</div>
+      <div class="responses"><span class="resp-badge r200">200 OK</span><span class="resp-badge r404">404</span></div>
+      <pre>{ <span class="key">"project_id"</span>: <span class="str">"uuid"</span>, <span class="key">"updated_at"</span>: <span class="str">"2025-06-01T12:00:00"</span> }</pre>
+    </div>
+  </div>
+</div>
+
+<!-- derive fields -->
+<div class="endpoint" id="derive-fields">
+  <div class="ep-header" onclick="toggle(this)">
+    <span class="ep-method post">POST</span>
+    <span class="ep-path">/projects/{project_id}/derive-fields</span>
+    <span class="ep-desc">AI-generate all 12 derived fields</span>
+    <span class="ep-arrow">▼</span>
+  </div>
+  <div class="ep-body">
+    <p class="ep-desc-text">Triggers the LLM to read the project's ingested data + uploaded documents and generate all 12 derived fields. Called when user clicks "Run AI Derive". <strong>Takes ~30-60 seconds.</strong> Saves results to DB automatically.</p>
+    <div class="ep-section">
+      <div class="ep-section-title">Request Body</div>
+      <pre><span class="comment">// No body required. POST to the URL is sufficient.</span>
+{}</pre>
+    </div>
+    <div class="ep-section">
+      <div class="ep-section-title">Response 200</div>
+      <div class="responses"><span class="resp-badge r200">200 OK</span><span class="resp-badge r404">404</span><span class="resp-badge r500">502</span></div>
+      <pre>{ <span class="key">"project_id"</span>: <span class="str">"uuid"</span>, <span class="key">"status"</span>: <span class="str">"ok"</span>, <span class="key">"fields_populated"</span>: <span class="num">12</span>, <span class="key">"message"</span>: <span class="str">"12 fields derived by AI."</span> }</pre>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ GENERATION ══════════════ -->
+<div class="section-heading">⚡ Generation</div>
+
+<!-- gen start -->
+<div class="endpoint" id="gen-start">
+  <div class="ep-header" onclick="toggle(this)">
+    <span class="ep-method post">POST</span>
+    <span class="ep-path">/generate/start</span>
+    <span class="ep-desc">Start generation from a document (legacy flow)</span>
+    <span class="ep-arrow">▼</span>
+  </div>
+  <div class="ep-body">
+    <p class="ep-desc-text">Starts document generation using an uploaded document ID and user inputs directly. For the project-based flow, use <code>POST /generate/project/{id}</code> instead.</p>
+    <div class="ep-section">
+      <div class="ep-section-title">Request Body</div>
+      <pre>{
+  <span class="key">"document_id"</span>: <span class="str">"abc123"</span>,         <span class="comment">// required</span>
+  <span class="key">"user_inputs"</span>: {
+    <span class="key">"project_name"</span>:    <span class="str">"Smart Meter"</span>,  <span class="comment">// required</span>
+    <span class="key">"document_type"</span>:   <span class="str">"BRD"</span>,          <span class="comment">// required</span>
+    <span class="key">"output_format"</span>:   <span class="str">"Word (.docx)"</span>,
+    <span class="key">"stakeholders"</span>:    <span class="str">"Ravi Kumar (PM), Priya (BA)"</span>,
+    <span class="key">"project_description"</span>: <span class="str">"..."</span>,
+    <span class="key">"business_problem"</span>:    <span class="str">"..."</span>,
+    <span class="key">"expected_outcome"</span>:    <span class="str">"..."</span>,
+    <span class="key">"additional_instructions"</span>: <span class="str">"..."</span>
+  },
+  <span class="key">"template_id"</span>: <span class="str">"brd-standard"</span>  <span class="comment">// optional</span>
+}</pre>
+    </div>
+    <div class="ep-section">
+      <div class="ep-section-title">Response 201</div>
+      <div class="responses"><span class="resp-badge r201">201 Created</span><span class="resp-badge r400">400</span></div>
+      <pre>{
+  <span class="key">"job_id"</span>: <span class="str">"job-uuid"</span>,
+  <span class="key">"status"</span>: <span class="str">"running"</span>,
+  <span class="key">"sections"</span>: [
+    { <span class="key">"section_id"</span>: <span class="str">"sec-1"</span>, <span class="key">"section_title"</span>: <span class="str">"Executive Summary"</span>, <span class="key">"status"</span>: <span class="str">"pending"</span> },
+    ...
+  ],
+  <span class="key">"message"</span>: <span class="str">"8 sections queued."</span>
+}</pre>
+    </div>
+  </div>
+</div>
+
+<!-- gen from project -->
+<div class="endpoint" id="gen-project">
+  <div class="ep-header" onclick="toggle(this)">
+    <span class="ep-method post">POST</span>
+    <span class="ep-path">/generate/project/{project_id}</span>
+    <span class="ep-desc">Start generation from a saved project ✨ recommended</span>
+    <span class="ep-arrow">▼</span>
+  </div>
+  <div class="ep-body">
+    <p class="ep-desc-text">Starts document generation using all data already saved in the project (ingested + derived fields, stakeholders, document IDs). No body needed. The project must have at least one <code>document_id</code> attached.</p>
+    <div class="ep-section">
+      <div class="ep-section-title">Request Body</div>
+      <pre><span class="comment">// No body required.</span>
+{}</pre>
+    </div>
+    <div class="ep-section">
+      <div class="ep-section-title">Response 201</div>
+      <div class="responses"><span class="resp-badge r201">201 Created</span><span class="resp-badge r400">400 no docs</span><span class="resp-badge r404">404</span></div>
+      <pre>{
+  <span class="key">"job_id"</span>:   <span class="str">"job-uuid"</span>,
+  <span class="key">"status"</span>:   <span class="str">"running"</span>,
+  <span class="key">"sections"</span>: [...],
+  <span class="key">"message"</span>:  <span class="str">"Generation started. 8 sections queued."</span>
+}</pre>
+    </div>
+  </div>
+</div>
+
+<!-- get job -->
+<div class="endpoint" id="gen-job">
+  <div class="ep-header" onclick="toggle(this)">
+    <span class="ep-method get">GET</span>
+    <span class="ep-path">/generate/{job_id}</span>
+    <span class="ep-desc">Poll generation job status</span>
+    <span class="ep-arrow">▼</span>
+  </div>
+  <div class="ep-body">
+    <p class="ep-desc-text">Poll this endpoint every 3-5 seconds to track generation progress. Each section has its own <code>status</code>. Job is complete when all sections are <code>done</code>.</p>
+    <div class="ep-section">
+      <div class="ep-section-title">Section status values</div>
+      <table><tr><th>Status</th><th>Meaning</th></tr>
+        <tr><td><code>pending</code></td><td>Waiting to start</td></tr>
+        <tr><td><code>running</code></td><td>LLM currently generating</td></tr>
+        <tr><td><code>done</code></td><td>Content ready — read <code>current_content</code></td></tr>
+        <tr><td><code>error</code></td><td>This section failed</td></tr>
+      </table>
+    </div>
+    <div class="ep-section">
+      <div class="ep-section-title">Response 200</div>
+      <div class="responses"><span class="resp-badge r200">200 OK</span><span class="resp-badge r404">404</span></div>
+      <pre>{
+  <span class="key">"job_id"</span>: <span class="str">"job-uuid"</span>, <span class="key">"status"</span>: <span class="str">"running"</span>,
+  <span class="key">"sections"</span>: [
+    { <span class="key">"section_id"</span>: <span class="str">"sec-1"</span>, <span class="key">"section_title"</span>: <span class="str">"Executive Summary"</span>,
+      <span class="key">"status"</span>: <span class="str">"done"</span>, <span class="key">"current_content"</span>: <span class="str">"## Executive Summary\n..."</span>, <span class="key">"version_count"</span>: <span class="num">1</span> },
+    { <span class="key">"section_id"</span>: <span class="str">"sec-2"</span>, <span class="key">"section_title"</span>: <span class="str">"Problem Statement"</span>,
+      <span class="key">"status"</span>: <span class="str">"running"</span>, <span class="key">"current_content"</span>: <span class="bool">null</span> }
+  ]
+}</pre>
+    </div>
+  </div>
+</div>
+
+<!-- get section -->
+<div class="endpoint" id="gen-section">
+  <div class="ep-header" onclick="toggle(this)">
+    <span class="ep-method get">GET</span>
+    <span class="ep-path">/generate/{job_id}/section/{section_id}</span>
+    <span class="ep-desc">Get a single section with all versions</span>
+    <span class="ep-arrow">▼</span>
+  </div>
+  <div class="ep-body">
+    <p class="ep-desc-text">Returns full section detail including all previous versions (version history) and comments.</p>
+    <div class="ep-section">
+      <div class="ep-section-title">Response 200</div>
+      <div class="responses"><span class="resp-badge r200">200 OK</span><span class="resp-badge r404">404</span></div>
+      <pre>{ <span class="key">"section_id"</span>: <span class="str">"sec-1"</span>, <span class="key">"section_title"</span>: <span class="str">"Executive Summary"</span>, <span class="key">"status"</span>: <span class="str">"done"</span>,
+  <span class="key">"current_version"</span>: <span class="num">2</span>, <span class="key">"versions"</span>: [...], <span class="key">"comments"</span>: [...] }</pre>
+    </div>
+  </div>
+</div>
+
+<!-- add comment -->
+<div class="endpoint" id="gen-comment">
+  <div class="ep-header" onclick="toggle(this)">
+    <span class="ep-method post">POST</span>
+    <span class="ep-path">/generate/{job_id}/section/{section_id}/comment</span>
+    <span class="ep-desc">Add edit comment to a section</span>
+    <span class="ep-arrow">▼</span>
+  </div>
+  <div class="ep-body">
+    <p class="ep-desc-text">Saves a review comment on a section. Use the returned <code>comment_id</code> when calling regenerate to tie the regeneration to this feedback.</p>
+    <div class="ep-section">
+      <div class="ep-section-title">Request Body</div>
+      <pre>{ <span class="key">"comment_text"</span>: <span class="str">"Make this section more concise"</span>, <span class="key">"comment_type"</span>: <span class="str">"edit_request"</span> }</pre>
+    </div>
+    <div class="ep-section">
+      <div class="ep-section-title">Response 201</div>
+      <div class="responses"><span class="resp-badge r201">201 Created</span><span class="resp-badge r404">404</span></div>
+      <pre>{ <span class="key">"comment"</span>: { <span class="key">"comment_id"</span>: <span class="str">"cmt-uuid"</span>, <span class="key">"comment_text"</span>: <span class="str">"..."</span> }, <span class="key">"message"</span>: <span class="str">"Comment saved."</span> }</pre>
+    </div>
+  </div>
+</div>
+
+<!-- regenerate -->
+<div class="endpoint" id="gen-regen">
+  <div class="ep-header" onclick="toggle(this)">
+    <span class="ep-method post">POST</span>
+    <span class="ep-path">/generate/{job_id}/section/{section_id}/regenerate</span>
+    <span class="ep-desc">Regenerate a section with feedback</span>
+    <span class="ep-arrow">▼</span>
+  </div>
+  <div class="ep-body">
+    <p class="ep-desc-text">Regenerates a section's content using the LLM, optionally incorporating a specific comment. Creates a new version while preserving the old one.</p>
+    <div class="ep-section">
+      <div class="ep-section-title">Request Body</div>
+      <pre>{ <span class="key">"comment_id"</span>: <span class="str">"cmt-uuid"</span> }  <span class="comment">// optional — omit to regenerate without specific feedback</span></pre>
+    </div>
+    <div class="ep-section">
+      <div class="ep-section-title">Response 200</div>
+      <div class="responses"><span class="resp-badge r200">200 OK</span><span class="resp-badge r404">404</span></div>
+      <pre>{ <span class="key">"new_version"</span>: { <span class="key">"version_number"</span>: <span class="num">2</span>, <span class="key">"content"</span>: <span class="str">"..."</span> }, <span class="key">"message"</span>: <span class="str">"Regenerated — version 2."</span> }</pre>
+    </div>
+  </div>
+</div>
+
+<!-- accept -->
+<div class="endpoint" id="gen-accept">
+  <div class="ep-header" onclick="toggle(this)">
+    <span class="ep-method post">POST</span>
+    <span class="ep-path">/generate/{job_id}/section/{section_id}/accept</span>
+    <span class="ep-desc">Accept a specific section version</span>
+    <span class="ep-arrow">▼</span>
+  </div>
+  <div class="ep-body">
+    <p class="ep-desc-text">Marks a specific version of a section as accepted. The accepted version will be used in the final exported document.</p>
+    <div class="ep-section">
+      <div class="ep-section-title">Request Body</div>
+      <pre>{ <span class="key">"version_number"</span>: <span class="num">2</span> }</pre>
+    </div>
+    <div class="ep-section">
+      <div class="ep-section-title">Response 200</div>
+      <div class="responses"><span class="resp-badge r200">200 OK</span><span class="resp-badge r404">404</span></div>
+      <pre>{ <span class="key">"accepted_version"</span>: { <span class="key">"version_number"</span>: <span class="num">2</span> }, <span class="key">"message"</span>: <span class="str">"Version 2 accepted."</span> }</pre>
+    </div>
+  </div>
+</div>
+
+<!-- export -->
+<div class="endpoint" id="gen-export">
+  <div class="ep-header" onclick="toggle(this)">
+    <span class="ep-method get">GET</span>
+    <span class="ep-path">/generate/{job_id}/export</span>
+    <span class="ep-desc">Download generated document</span>
+    <span class="ep-arrow">▼</span>
+  </div>
+  <div class="ep-body">
+    <p class="ep-desc-text">Exports and downloads the generated document. Assembles all accepted section versions into a single file. Returns the file directly as a download.</p>
+    <div class="ep-section">
+      <div class="ep-section-title">Query Parameters</div>
+      <table><tr><th>Param</th><th>Values</th><th></th></tr>
+        <tr><td><code>format</code></td><td>docx / pdf / md</td><td><span class="opt">optional</span> defaults to project's output_format</td></tr>
+      </table>
+    </div>
+    <div class="ep-section">
+      <div class="ep-section-title">Example</div>
+      <pre>GET /api/generate/job-uuid/export?format=docx
+<span class="comment">→ Downloads: SmartMeter_BRD.docx</span></pre>
+    </div>
+    <div class="ep-section">
+      <div class="ep-section-title">Response</div>
+      <div class="responses"><span class="resp-badge r200">200 File Download</span><span class="resp-badge r404">404</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ TEMPLATES ══════════════ -->
+<div class="section-heading">📐 Templates</div>
+
+<!-- list templates -->
+<div class="endpoint" id="list-templates">
+  <div class="ep-header" onclick="toggle(this)">
+    <span class="ep-method get">GET</span>
+    <span class="ep-path">/templates</span>
+    <span class="ep-desc">List all document templates</span>
+    <span class="ep-arrow">▼</span>
+  </div>
+  <div class="ep-body">
+    <p class="ep-desc-text">Returns built-in and user-created templates. Filter by document type using the query parameter.</p>
+    <div class="ep-section">
+      <div class="ep-section-title">Query Parameters</div>
+      <table><tr><th>Param</th><th>Values</th><th></th></tr>
+        <tr><td><code>document_type</code></td><td>BRD / RFP / SOW / Proposal / TechSpec / ScopeDoc</td><td><span class="opt">optional</span></td></tr>
+      </table>
+    </div>
+    <div class="ep-section">
+      <div class="ep-section-title">Response 200</div>
+      <div class="responses"><span class="resp-badge r200">200 OK</span></div>
+      <pre>{
+  <span class="key">"templates"</span>: [
+    { <span class="key">"template_id"</span>: <span class="str">"brd-standard"</span>, <span class="key">"name"</span>: <span class="str">"BRD Standard"</span>,
+      <span class="key">"document_type"</span>: <span class="str">"BRD"</span>, <span class="key">"is_builtin"</span>: <span class="bool">true</span>,
+      <span class="key">"sections"</span>: [<span class="str">"Executive Summary"</span>, <span class="str">"Problem Statement"</span>, ...] }
+  ]
+}</pre>
+    </div>
+  </div>
+</div>
+
+<!-- create template -->
+<div class="endpoint" id="create-template">
+  <div class="ep-header" onclick="toggle(this)">
+    <span class="ep-method post">POST</span>
+    <span class="ep-path">/templates</span>
+    <span class="ep-desc">Create a custom template</span>
+    <span class="ep-arrow">▼</span>
+  </div>
+  <div class="ep-body">
+    <p class="ep-desc-text">Creates a user-defined template with custom sections and optional system instructions for the LLM.</p>
+    <div class="ep-section">
+      <div class="ep-section-title">Request Body</div>
+      <pre>{
+  <span class="key">"name"</span>:          <span class="str">"AESL Custom BRD"</span>,     <span class="comment">// required</span>
+  <span class="key">"document_type"</span>: <span class="str">"BRD"</span>,                 <span class="comment">// required</span>
+  <span class="key">"sections"</span>: [<span class="str">"Executive Summary"</span>, <span class="str">"Scope"</span>, <span class="str">"Requirements"</span>], <span class="comment">// required</span>
+  <span class="key">"description"</span>:   <span class="str">"AESL internal format"</span>,<span class="comment">// optional</span>
+  <span class="key">"system_instructions"</span>: <span class="str">"Always use formal tone..."</span> <span class="comment">// optional</span>
+}</pre>
+    </div>
+    <div class="ep-section">
+      <div class="ep-section-title">Response 201</div>
+      <div class="responses"><span class="resp-badge r201">201 Created</span><span class="resp-badge r400">400</span></div>
+      <pre>{ <span class="key">"template"</span>: { <span class="key">"template_id"</span>: <span class="str">"user-uuid"</span>, <span class="key">"name"</span>: <span class="str">"AESL Custom BRD"</span>, ... }, <span class="key">"message"</span>: <span class="str">"Template saved."</span> }</pre>
+    </div>
+  </div>
+</div>
+
+</main>
+</div>
+
+<script>
+function toggle(header) {
+  const body  = header.nextElementSibling;
+  const arrow = header.querySelector('.ep-arrow');
+  const open  = body.classList.toggle('open');
+  arrow.classList.toggle('open', open);
+}
+</script>
+</body>
+</html>
