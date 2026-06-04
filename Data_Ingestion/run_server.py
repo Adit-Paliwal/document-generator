@@ -437,11 +437,20 @@ def create_project():
     try:
         from generation.db import Project as _P, DerivedData as _D, get_session
         from models.project_schema import ProjectFormData
+        from pydantic import ValidationError
         body = request.get_json() or {}
-        form = ProjectFormData(**body)
+        try:
+            form = ProjectFormData(**body)
+        except ValidationError as ve:
+            # Return each missing/blank field as a clear error message
+            errors = [
+                {"field": e["loc"][0] if e["loc"] else "unknown", "message": e["msg"]}
+                for e in ve.errors()
+            ]
+            return json_resp({"error": "Validation failed", "fields": errors}, 422)
         pid  = str(uuid4())
         proj = _P(project_id=pid)
-        proj.status = "ready" if form.project_name.strip() else "draft"
+        proj.status = "ready"
         _apply_fields(proj, form.model_dump())
         with get_session() as s:
             s.add(proj)

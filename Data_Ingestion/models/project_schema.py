@@ -12,7 +12,7 @@ from datetime import datetime
 from typing import List, Optional
 from uuid import uuid4
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class StakeholderEntry(BaseModel):
@@ -25,40 +25,41 @@ class ProjectFormData(BaseModel):
     """
     All fields captured across the Create New Project wizard.
 
-    Step 1 — Project Details
+    REQUIRED (marked * in Figma):
       business_unit, project_name, project_code,
       problem_statement, project_objective,
-      stakeholders, start_date, end_date,
+      stakeholders (min 1), start_date, end_date,
       as_is_processes, proposed_solution,
-      constraints, risks,
-      technical_landscape, estimated_cost_crores, business_priority
+      technical_landscape, business_priority
 
-    Step 2 — Generation Settings
-      document_type, output_format, additional_instructions
+    OPTIONAL:
+      constraints, risks, estimated_cost_crores,
+      document_type, output_format, additional_instructions,
+      document_ids, template_id
     """
 
-    # ── Identity ──────────────────────────────────────────────────────────────
-    business_unit: str = ""
-    project_name:  str = ""
-    project_code:  str = ""
+    # ── Required — Identity ───────────────────────────────────────────────────
+    business_unit:     str
+    project_name:      str
+    project_code:      str
 
-    # ── Core content (required in UI) ─────────────────────────────────────────
-    problem_statement:  str = ""
-    project_objective:  str = ""
-    as_is_processes:    str = ""
-    proposed_solution:  str = ""
-    technical_landscape: str = ""
+    # ── Required — Core content ───────────────────────────────────────────────
+    problem_statement:   str
+    project_objective:   str
+    as_is_processes:     str   # "As-Is Processes and Challenges"
+    proposed_solution:   str   # "Proposed Solution Overview"
+    technical_landscape: str   # "Technical Landscape and Integrations"
+
+    # ── Required — Structured fields ──────────────────────────────────────────
+    stakeholders:      List[StakeholderEntry]   # min 1 entry enforced below
+    start_date:        str                       # ISO date YYYY-MM-DD  (Timeline)
+    end_date:          str                       # ISO date YYYY-MM-DD  (Timeline)
+    business_priority: str                       # Critical | High | Medium | Low
 
     # ── Optional content ──────────────────────────────────────────────────────
     constraints:           Optional[str] = None
     risks:                 Optional[str] = None
-    estimated_cost_crores: Optional[str] = None   # stored as string e.g. "12.5"
-
-    # ── Structured fields ─────────────────────────────────────────────────────
-    stakeholders:     List[StakeholderEntry] = Field(default_factory=list)
-    start_date:       Optional[str] = None    # ISO date  YYYY-MM-DD
-    end_date:         Optional[str] = None
-    business_priority: Optional[str] = None   # Critical | High | Medium | Low
+    estimated_cost_crores: Optional[str] = None  # stored as string e.g. "12.5"
 
     # ── Generation settings (Step 2) ──────────────────────────────────────────
     document_type:           str           = "BRD"
@@ -66,8 +67,28 @@ class ProjectFormData(BaseModel):
     additional_instructions: Optional[str] = None
 
     # ── Source documents + template ───────────────────────────────────────────
-    document_ids: List[str]   = Field(default_factory=list)
-    template_id:  Optional[str] = None    # UUID of selected template (Step 2)
+    document_ids: List[str]    = Field(default_factory=list)
+    template_id:  Optional[str] = None   # UUID of selected template (Step 2)
+
+    # ── Validators ────────────────────────────────────────────────────────────
+    @field_validator("business_unit", "project_name", "project_code",
+                     "problem_statement", "project_objective",
+                     "as_is_processes", "proposed_solution",
+                     "technical_landscape", "business_priority",
+                     "start_date", "end_date")
+    @classmethod
+    def must_not_be_blank(cls, v: str, info) -> str:
+        if not v or not v.strip():
+            raise ValueError(f"'{info.field_name}' is required and cannot be blank.")
+        return v.strip()
+
+    @field_validator("stakeholders")
+    @classmethod
+    def stakeholders_not_empty(cls, v: List[StakeholderEntry]) -> List[StakeholderEntry]:
+        filled = [s for s in v if s.name.strip()]
+        if not filled:
+            raise ValueError("At least one stakeholder with a name is required.")
+        return v
 
 
 class Project(BaseModel):
