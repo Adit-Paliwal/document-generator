@@ -80,6 +80,15 @@ def options_handler(p):
 # INGESTION ENDPOINTS
 # ═════════════════════════════════════════════════════════════════════════════
 
+# 0. GET /api/docs  — interactive API reference
+@app.route("/api/docs", methods=["GET"])
+def api_docs():
+    docs_path = _BASE / "api-docs.html"
+    if docs_path.exists():
+        return send_file(str(docs_path), mimetype="text/html")
+    return json_resp({"error": "API docs not found."}, 404)
+
+
 # 1. GET /api/form-fields
 @app.route("/api/form-fields", methods=["GET"])
 def get_form_fields():
@@ -751,8 +760,7 @@ if __name__ == "__main__":
     print("  Intellidraft API Server")
     print("  -----------------------")
     print("  API   ->  http://localhost:7071/api")
-    print("  Docs  ->  open frontend/index.html in browser")
-    print("            OR run: python frontend/serve.py")
+    print("  Docs  ->  http://localhost:7071/api/docs")
     print("  Stop  ->  Ctrl+C")
     print()
     app.run(host="0.0.0.0", port=7071, debug=False, use_reloader=False)
