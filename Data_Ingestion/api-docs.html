@@ -99,6 +99,24 @@
   .r404 { background: rgba(251,146,60,.15); color: var(--orange); }
   .r500 { background: rgba(248,113,113,.15);color: var(--red);    }
 
+  /* ── Flow cards ── */
+  .flow-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 32px; }
+  .flow-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 20px; }
+  .flow-card h3 { font-size: 13px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+  .flow-step { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 10px; font-size: 12.5px; }
+  .flow-num { min-width: 20px; height: 20px; background: var(--purple); color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; flex-shrink: 0; margin-top: 1px; }
+  .flow-step-body { flex: 1; }
+  .flow-step-body .action { color: var(--muted); font-size: 11px; margin-bottom: 2px; }
+  .flow-step-body .api-call { font-family: monospace; font-size: 11.5px; display: inline-flex; align-items: center; gap: 5px; }
+  .flow-step-body .api-call .m { font-weight: 700; }
+  .flow-note { font-size: 11px; color: var(--muted); margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+  .flow-step-body .m { font-size: 10px; font-weight: 800; padding: 1px 6px; border-radius: 4px; }
+  .flow-step-body .m.get    { background:rgba(34,197,94,.15);  color:var(--green);  }
+  .flow-step-body .m.post   { background:rgba(56,189,248,.15); color:var(--blue);   }
+  .flow-step-body .m.put    { background:rgba(251,191,36,.15); color:var(--yellow); }
+  .flow-step-body .m.delete { background:rgba(248,113,113,.15);color:var(--red);    }
+  @media (max-width: 900px) { .flow-grid { grid-template-columns: 1fr; } }
+
   /* ── Scrollbar ── */
   ::-webkit-scrollbar { width: 6px; height: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
@@ -119,6 +137,9 @@
     <h2>IntelliDraft API</h2>
     <p>v1.0 · Base: /api</p>
   </div>
+
+  <div class="sidebar-section">Frontend Flow</div>
+  <a href="#flow">🗺 Page-by-Page Guide</a>
 
   <div class="sidebar-section">Ingestion</div>
   <a href="#form-fields"><span class="badge get">GET</span>/form-fields</a>
@@ -162,6 +183,211 @@
   <h1>IntelliDraft API Reference</h1>
   <p>REST API for document ingestion, project management, AI field derivation, and document generation.</p>
   <div class="base-url">Base URL: <span>http://localhost:7071/api</span></div>
+</div>
+
+<!-- ══════════════ FRONTEND FLOW ══════════════ -->
+<div class="section-heading" id="flow">🗺 Frontend Page-by-Page API Guide</div>
+
+<div class="flow-grid">
+
+  <!-- Card 1: Home -->
+  <div class="flow-card">
+    <h3>🏠 Home — Projects List</h3>
+    <div class="flow-step">
+      <div class="flow-num">1</div>
+      <div class="flow-step-body">
+        <div class="action">On page load — fetch all projects</div>
+        <div class="api-call"><span class="m get">GET</span> <code>/api/projects</code></div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-num">2</div>
+      <div class="flow-step-body">
+        <div class="action">Search / filter projects</div>
+        <div class="api-call"><span class="m get">GET</span> <code>/api/projects?q=meter&status=ready</code></div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-num">3</div>
+      <div class="flow-step-body">
+        <div class="action">Delete a project (trash icon)</div>
+        <div class="api-call"><span class="m delete">DELETE</span> <code>/api/projects/{id}</code></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Card 2: Create Project -->
+  <div class="flow-card">
+    <h3>➕ Create Project (Step-by-Step)</h3>
+    <div class="flow-step">
+      <div class="flow-num">1</div>
+      <div class="flow-step-body">
+        <div class="action">User uploads PPTX / DOCX / PDF / XLSX</div>
+        <div class="api-call"><span class="m post">POST</span> <code>/api/upload</code> <small>(multipart)</small></div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-num">2</div>
+      <div class="flow-step-body">
+        <div class="action">AI reads doc and fills form fields</div>
+        <div class="api-call"><span class="m post">POST</span> <code>/api/extract-project-data</code></div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-num">3</div>
+      <div class="flow-step-body">
+        <div class="action">User reviews fields, clicks Save</div>
+        <div class="api-call"><span class="m post">POST</span> <code>/api/projects</code></div>
+      </div>
+    </div>
+    <div class="flow-note">Save the returned <code>project_id</code> — used in every step after this.</div>
+  </div>
+
+  <!-- Card 3: Project Details Tab 1 -->
+  <div class="flow-card">
+    <h3>📋 Project Details — Tab 1 (Ingested)</h3>
+    <div class="flow-step">
+      <div class="flow-num">1</div>
+      <div class="flow-step-body">
+        <div class="action">On page open — load all fields</div>
+        <div class="api-call"><span class="m get">GET</span> <code>/api/projects/{id}/data</code></div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-num">2</div>
+      <div class="flow-step-body">
+        <div class="action">Render <code>response.ingested</code> fields in Tab 1</div>
+        <div class="api-call" style="color:var(--muted)">15 fields: name, code, unit, dates, cost, stakeholders…</div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-num">3</div>
+      <div class="flow-step-body">
+        <div class="action">User edits and clicks "Save Changes"</div>
+        <div class="api-call"><span class="m put">PUT</span> <code>/api/projects/{id}/data/ingested</code></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Card 4: Project Details Tab 2 -->
+  <div class="flow-card">
+    <h3>🤖 Project Details — Tab 2 (Derived)</h3>
+    <div class="flow-step">
+      <div class="flow-num">1</div>
+      <div class="flow-step-body">
+        <div class="action">On page open — same call as Tab 1</div>
+        <div class="api-call"><span class="m get">GET</span> <code>/api/projects/{id}/data</code></div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-num">2</div>
+      <div class="flow-step-body">
+        <div class="action">Render <code>response.derived</code> fields in Tab 2</div>
+        <div class="api-call" style="color:var(--muted)">12 fields: challenges, requirements, workflow…</div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-num">3</div>
+      <div class="flow-step-body">
+        <div class="action">User clicks "Run AI Derive" (~30-60s)</div>
+        <div class="api-call"><span class="m post">POST</span> <code>/api/projects/{id}/derive-fields</code></div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-num">4</div>
+      <div class="flow-step-body">
+        <div class="action">User edits and clicks "Save Changes"</div>
+        <div class="api-call"><span class="m put">PUT</span> <code>/api/projects/{id}/data/derived</code></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Card 5: Generate Document -->
+  <div class="flow-card">
+    <h3>⚡ Generate Document</h3>
+    <div class="flow-step">
+      <div class="flow-num">1</div>
+      <div class="flow-step-body">
+        <div class="action">User clicks "Generate Document"</div>
+        <div class="api-call"><span class="m post">POST</span> <code>/api/generate/project/{id}</code></div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-num">2</div>
+      <div class="flow-step-body">
+        <div class="action">Save <code>job_id</code>, show sections list with spinners</div>
+        <div class="api-call" style="color:var(--muted)">Each section: pending → running → done</div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-num">3</div>
+      <div class="flow-step-body">
+        <div class="action">Poll every 3s until all sections are done</div>
+        <div class="api-call"><span class="m get">GET</span> <code>/api/generate/{job_id}</code></div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-num">4</div>
+      <div class="flow-step-body">
+        <div class="action">User clicks Download</div>
+        <div class="api-call"><span class="m get">GET</span> <code>/api/generate/{job_id}/export?format=docx</code></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Card 6: Review & Regenerate -->
+  <div class="flow-card">
+    <h3>✏️ Review &amp; Regenerate Sections</h3>
+    <div class="flow-step">
+      <div class="flow-num">1</div>
+      <div class="flow-step-body">
+        <div class="action">User opens a section to review</div>
+        <div class="api-call"><span class="m get">GET</span> <code>/api/generate/{job_id}/section/{sec_id}</code></div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-num">2</div>
+      <div class="flow-step-body">
+        <div class="action">User types feedback and submits</div>
+        <div class="api-call"><span class="m post">POST</span> <code>/api/…/section/{sec_id}/comment</code></div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-num">3</div>
+      <div class="flow-step-body">
+        <div class="action">Regenerate with that feedback</div>
+        <div class="api-call"><span class="m post">POST</span> <code>/api/…/section/{sec_id}/regenerate</code></div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-num">4</div>
+      <div class="flow-step-body">
+        <div class="action">User approves a version</div>
+        <div class="api-call"><span class="m post">POST</span> <code>/api/…/section/{sec_id}/accept</code></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Card 7: Templates -->
+  <div class="flow-card">
+    <h3>📐 Templates Dropdown</h3>
+    <div class="flow-step">
+      <div class="flow-num">1</div>
+      <div class="flow-step-body">
+        <div class="action">Populate template dropdown on create form</div>
+        <div class="api-call"><span class="m get">GET</span> <code>/api/templates?document_type=BRD</code></div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-num">2</div>
+      <div class="flow-step-body">
+        <div class="action">Pass selected <code>template_id</code> when saving project</div>
+        <div class="api-call"><span class="m post">POST</span> <code>/api/projects</code> → <code>{ template_id }</code></div>
+      </div>
+    </div>
+    <div class="flow-note">Template controls which sections get generated (Executive Summary, Scope, etc.)</div>
+  </div>
+
 </div>
 
 <!-- ══════════════ INGESTION ══════════════ -->
