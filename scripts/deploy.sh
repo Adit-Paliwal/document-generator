@@ -51,7 +51,7 @@ echo ""
 # ── 6. Wait for health check ──────────────────────────────────────────────────
 echo "Waiting for API to be ready..."
 MAX=30; COUNT=0
-until curl -sf http://localhost:7071/api/templates > /dev/null 2>&1; do
+until curl -sf http://localhost:7071/api/health > /dev/null 2>&1; do
     COUNT=$((COUNT+1))
     if [ $COUNT -ge $MAX ]; then
         echo -e "${RED}[✗] API did not start in time. Check logs: docker-compose logs${NC}"
@@ -66,7 +66,7 @@ echo ""
 echo -e "${GREEN}  ✅  IntelliDraft API is running!${NC}"
 echo ""
 echo "  API base URL  →  http://localhost:7071/api"
-echo "  Health check  →  http://localhost:7071/api/templates"
+echo "  Health check  →  http://localhost:7071/api/health"
 echo ""
 echo "  Useful commands:"
 echo "    docker-compose logs -f         # stream logs"

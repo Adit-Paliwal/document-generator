@@ -61,7 +61,7 @@ while ($count -lt $max) {
     Start-Sleep -Seconds 2
     $count++
     try {
-        $r = Invoke-WebRequest -Uri "http://localhost:7071/api/templates" -UseBasicParsing -TimeoutSec 3 -ErrorAction Stop
+        $r = Invoke-WebRequest -Uri "http://localhost:7071/api/health" -UseBasicParsing -TimeoutSec 3 -ErrorAction Stop
         if ($r.StatusCode -eq 200) { $ready = $true; break }
     } catch {}
     Write-Host -NoNewline "."
@@ -74,7 +74,7 @@ if ($ready) {
     Write-Host "  ✅  IntelliDraft API is running!" -ForegroundColor Green
     Write-Host ""
     Write-Host "  API base URL  →  http://localhost:7071/api"
-    Write-Host "  Health check  →  http://localhost:7071/api/templates"
+    Write-Host "  Health check  →  http://localhost:7071/api/health"
     Write-Host ""
     Write-Host "  Useful commands:"
     Write-Host "    docker-compose logs -f                             # stream logs"

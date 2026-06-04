@@ -80,7 +80,13 @@ def options_handler(p):
 # INGESTION ENDPOINTS
 # ═════════════════════════════════════════════════════════════════════════════
 
-# 0. GET /api/docs  — interactive API reference
+# 0a. GET /api/health  — lightweight liveness probe (used by Docker HEALTHCHECK)
+@app.route("/api/health", methods=["GET"])
+def health():
+    return json_resp({"status": "ok", "version": "1.0"})
+
+
+# 0b. GET /api/docs  — interactive API reference
 @app.route("/api/docs", methods=["GET"])
 def api_docs():
     docs_path = _BASE / "api-docs.html"
@@ -768,8 +774,10 @@ if __name__ == "__main__":
     print()
     print("  Intellidraft API Server")
     print("  -----------------------")
-    print("  API   ->  http://localhost:7071/api")
-    print("  Docs  ->  http://localhost:7071/api/docs")
-    print("  Stop  ->  Ctrl+C")
+    print("  API    ->  http://localhost:7071/api")
+    print("  Docs   ->  http://localhost:7071/api/docs")
+    print("  Health ->  http://localhost:7071/api/health")
+    print("  Stop   ->  Ctrl+C")
     print()
-    app.run(host="0.0.0.0", port=7071, debug=False, use_reloader=False)
+    # threaded=True allows concurrent poll requests while background generation runs
+    app.run(host="0.0.0.0", port=7071, debug=False, use_reloader=False, threaded=True)

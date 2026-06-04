@@ -40,9 +40,21 @@ WORKDIR /app/Data_Ingestion
 
 EXPOSE 7071
 
-# ── Health check ─────────────────────────────────────────────────────────────
-HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
-    CMD curl -sf http://localhost:7071/api/templates > /dev/null || exit 1
+# ── Health check — lightweight /api/health (zero DB cost) ────────────────────
+HEALTHCHECK --interval=30s --timeout=10s --start-period=25s --retries=3 \
+    CMD curl -sf http://localhost:7071/api/health > /dev/null || exit 1
 
-# ── Start Flask server ────────────────────────────────────────────────────────
-CMD ["python", "run_server.py"]
+# ── Start with Gunicorn (production WSGI) ────────────────────────────────────
+# --workers=2          : 2 processes (enough for staging/prod single-instance)
+# --worker-class=gthread: thread-based workers — safe with SQLite WAL + background gen threads
+# --threads=4          : 4 threads per worker → handles concurrent polls during generation
+# --timeout=120        : LLM calls take up to 60s; give headroom
+# --access-logfile=-   : stream access logs to stdout (captured by Docker)
+CMD ["gunicorn", \
+     "--workers=2", \
+     "--worker-class=gthread", \
+     "--threads=4", \
+     "--bind=0.0.0.0:7071", \
+     "--timeout=120", \
+     "--access-logfile=-", \
+     "run_server:app"]

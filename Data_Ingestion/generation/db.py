@@ -31,6 +31,8 @@ from sqlalchemy import (
     Boolean, Column, DateTime, ForeignKey, Integer, String, Text,
     create_engine, event,
 )
+from contextlib import contextmanager
+
 from sqlalchemy.orm import DeclarativeBase, Session, relationship
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -84,9 +86,30 @@ def get_engine():
     return _engine
 
 
-def get_session() -> Session:
-    """Return a new SQLAlchemy session. Caller must close it (use as context manager)."""
-    return Session(get_engine())
+@contextmanager
+def get_session():
+    """
+    Context-manager that yields a SQLAlchemy Session.
+
+    Usage:
+        with get_session() as s:
+            s.add(obj)
+            s.commit()
+
+    Guarantees:
+      - Always closes the session on exit (returns connection to pool).
+      - Rolls back automatically on any unhandled exception, so DB locks
+        are never left hanging — critical for PostgreSQL / Azure SQL in production.
+      - Callers must still call s.commit() explicitly; nothing is auto-committed.
+    """
+    session = Session(get_engine())
+    try:
+        yield session
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
