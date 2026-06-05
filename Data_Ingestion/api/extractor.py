@@ -67,8 +67,8 @@ MAPPING GUIDANCE:
 - risks: any risk items, issues, or mitigation strategies mentioned.
 - technical_landscape: systems, integrations, APIs, databases, or tech stack mentioned.
 - estimated_cost_crores: any budget figure — convert to Crores INR if possible (e.g. "12.5").
-- business_priority: Critical / High / Medium / Low — infer from urgency language if explicit
-  priority not stated.
+- business_priority: one of "Critical", "Highly Critical", "Non-Critical" — infer from urgency
+  language in the document. Default to "Non-Critical" if no clear signal.
 
 Return EXACTLY this JSON structure (use null for fields you cannot find or reliably infer):
 
@@ -96,14 +96,20 @@ DOCUMENT CONTENT:
 {content}
 """
 
-# Fields that are considered "required" for BRD generation
+# All 12 fields required by the Figma Create Project form
 _REQUIRED_FIELDS = [
+    "business_unit",
     "project_name",
+    "project_code",
     "problem_statement",
     "project_objective",
-    "proposed_solution",
     "stakeholders",
+    "start_date",
+    "end_date",
+    "as_is_processes",
+    "proposed_solution",
     "technical_landscape",
+    "business_priority",
 ]
 
 # Human-readable labels shown to the user for missing fields
@@ -119,10 +125,10 @@ _FIELD_LABELS = {
     "as_is_processes":       "As-Is Processes & Challenges",
     "proposed_solution":     "Proposed Solution Overview",
     "constraints":           "Constraints & Dependencies",
-    "risks":                 "Risks & Mitigation Strategies",
+    "risks":                 "Risk & Mitigation",
     "technical_landscape":   "Technical Landscape & Integrations",
-    "estimated_cost_crores": "Estimated Project Cost (₹ Crores)",
-    "business_priority":     "Business Priority (Critical / High / Medium / Low)",
+    "estimated_cost_crores": "Project Estimated Cost (₹ Crores)",
+    "business_priority":     "Business Priority & Criticality (Critical / Highly Critical / Non-Critical)",
 }
 
 
@@ -178,13 +184,18 @@ def extract_project_data(document_ids: list[str]) -> dict:
 
 # Questions the agent "asks" when a required field is missing
 _MISSING_QUESTIONS = {
+    "business_unit":      "Which Adani business unit does this project belong to? (e.g. AESL, AESL-Digital, AGEL, ANIL, APSEZ)",
     "project_name":       "What is the full name of this project?",
+    "project_code":       "What is the project code or reference ID? (e.g. AESL-2026-001)",
     "problem_statement":  "What business problem or challenge is this project solving? Describe the current pain points.",
     "project_objective":  "What are the main objectives and expected outcomes of this project?",
-    "proposed_solution":  "What is the proposed solution or approach for this project?",
     "stakeholders":       "Who are the key stakeholders? Please provide names and their roles/designations.",
+    "start_date":         "What is the planned project start date? (YYYY-MM-DD)",
+    "end_date":           "What is the planned project end date? (YYYY-MM-DD)",
+    "as_is_processes":    "Describe the current (as-is) processes, workflows, tools, and challenges.",
+    "proposed_solution":  "What is the proposed solution or approach for this project?",
     "technical_landscape":"What systems, technologies, integrations, or data sources are involved?",
-    "business_unit":      "Which Adani business unit does this project belong to? (e.g. AESL, AGEL, ANIL, APSEZ)",
+    "business_priority":  "How critical is this project? (Critical / Highly Critical / Non-Critical)",
 }
 
 def _is_empty(value) -> bool:

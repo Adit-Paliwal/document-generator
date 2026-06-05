@@ -54,7 +54,7 @@ class ProjectFormData(BaseModel):
     stakeholders:      List[StakeholderEntry]   # min 1 entry enforced below
     start_date:        str                       # ISO date YYYY-MM-DD  (Timeline)
     end_date:          str                       # ISO date YYYY-MM-DD  (Timeline)
-    business_priority: str                       # Critical | High | Medium | Low
+    business_priority: str                       # Critical | Highly Critical | Non-Critical
 
     # ── Optional content ──────────────────────────────────────────────────────
     constraints:           Optional[str] = None

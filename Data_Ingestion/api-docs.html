@@ -439,15 +439,81 @@
   <div class="ep-header" onclick="toggle(this)">
     <span class="ep-method get">GET</span>
     <span class="ep-path">/form-fields</span>
-    <span class="ep-desc">Get all form field definitions</span>
+    <span class="ep-desc">Get all Create Project form field definitions</span>
     <span class="ep-arrow">▼</span>
   </div>
   <div class="ep-body">
-    <p class="ep-desc-text">Returns the list of all input fields shown in the "Create Project" form, including labels, types, placeholders, and required flags. Use this to render the form dynamically.</p>
+    <p class="ep-desc-text">Returns all 19 field definitions for the Create Project form — labels, types, placeholders, required flags, dropdown options, and stakeholder table config. Use this to render the form dynamically without hardcoding any labels or options.</p>
     <div class="ep-section">
-      <div class="ep-section-title">Response 200</div>
-      <div class="responses"><span class="resp-badge r200">200 OK</span></div>
-      <pre>{ <span class="key">"fields"</span>: [ { <span class="key">"id"</span>: <span class="str">"project_name"</span>, <span class="key">"label"</span>: <span class="str">"Project Name"</span>, <span class="key">"type"</span>: <span class="str">"text"</span>, <span class="key">"required"</span>: <span class="bool">true</span> }, ... ] }</pre>
+      <div class="ep-section-title">Field types returned</div>
+      <table><tr><th>Type</th><th>Meaning</th></tr>
+        <tr><td><code>text</code></td><td>Single-line text input</td></tr>
+        <tr><td><code>textarea</code></td><td>Multi-line text area</td></tr>
+        <tr><td><code>select</code></td><td>Single-choice dropdown — options array provided</td></tr>
+        <tr><td><code>date</code></td><td>Date picker — value sent as <code>YYYY-MM-DD</code></td></tr>
+        <tr><td><code>number</code></td><td>Numeric input — value sent as string e.g. <code>"12.5"</code></td></tr>
+        <tr><td><code>stakeholder_list</code></td><td>Structured table of rows — see <code>stakeholder_config</code> below</td></tr>
+      </table>
+    </div>
+    <div class="ep-section">
+      <div class="ep-section-title">Required fields (12) — Step 1</div>
+      <table><tr><th>key</th><th>Label</th><th>Type</th></tr>
+        <tr><td><code>business_unit</code></td><td>Business Unit</td><td>select — AESL / AESL-Digital / AESL-Infrastructure / AESL-Finance / AESL-Operations</td></tr>
+        <tr><td><code>project_name</code></td><td>Project Name</td><td>text</td></tr>
+        <tr><td><code>project_code</code></td><td>Project Code</td><td>text</td></tr>
+        <tr><td><code>problem_statement</code></td><td>Problem Statement</td><td>textarea</td></tr>
+        <tr><td><code>project_objective</code></td><td>Project Objective</td><td>textarea</td></tr>
+        <tr><td><code>stakeholders</code></td><td>Stakeholders</td><td>stakeholder_list — <code>[{"name":"…","designation":"…"}]</code></td></tr>
+        <tr><td><code>start_date</code></td><td>Start Date</td><td>date (YYYY-MM-DD)</td></tr>
+        <tr><td><code>end_date</code></td><td>End Date</td><td>date (YYYY-MM-DD)</td></tr>
+        <tr><td><code>as_is_processes</code></td><td>As-Is Processes &amp; Challenges</td><td>textarea</td></tr>
+        <tr><td><code>proposed_solution</code></td><td>Proposed Solution Overview</td><td>textarea</td></tr>
+        <tr><td><code>technical_landscape</code></td><td>Technical Landscape &amp; Integrations</td><td>textarea</td></tr>
+        <tr><td><code>business_priority</code></td><td>Business Priority &amp; Criticality</td><td>select — Critical / Highly Critical / Non-Critical</td></tr>
+      </table>
+    </div>
+    <div class="ep-section">
+      <div class="ep-section-title">Optional fields (3) — Step 1</div>
+      <table><tr><th>key</th><th>Label</th><th>Type</th></tr>
+        <tr><td><code>constraints</code></td><td>Constraints &amp; Dependencies</td><td>textarea</td></tr>
+        <tr><td><code>risks</code></td><td>Risk &amp; Mitigation</td><td>textarea</td></tr>
+        <tr><td><code>estimated_cost_crores</code></td><td>Project Estimated Cost (&#8377; Crores)</td><td>number (string)</td></tr>
+      </table>
+    </div>
+    <div class="ep-section">
+      <div class="ep-section-title">Generation settings (4) — Step 2</div>
+      <table><tr><th>key</th><th>Label</th><th>Default</th></tr>
+        <tr><td><code>document_type</code></td><td>Document Type</td><td>BRD / RFP / SOW / Project Proposal / Technical Specification / Scope Document</td></tr>
+        <tr><td><code>output_format</code></td><td>Output Format</td><td>Word (.docx) / PDF / Markdown</td></tr>
+        <tr><td><code>additional_instructions</code></td><td>Additional Instructions</td><td>textarea</td></tr>
+        <tr><td><code>template_id</code></td><td>Document Template</td><td>select — populated from DB</td></tr>
+      </table>
+    </div>
+    <div class="ep-section">
+      <div class="ep-section-title">Stakeholder field — stakeholder_config shape</div>
+      <pre>{
+  <span class="key">"key"</span>: <span class="str">"stakeholders"</span>,
+  <span class="key">"type"</span>: <span class="str">"stakeholder_list"</span>,
+  <span class="key">"stakeholder_config"</span>: {
+    <span class="key">"columns"</span>: [
+      {
+        <span class="key">"key"</span>: <span class="str">"name"</span>, <span class="key">"label"</span>: <span class="str">"Name"</span>, <span class="key">"type"</span>: <span class="str">"select"</span>,
+        <span class="key">"options"</span>: [<span class="str">"Srinivas Gutta"</span>, <span class="str">"Ali Imam"</span>, <span class="str">"Bapurao Tilekar"</span>, <span class="str">"Santosh Sawant"</span>, <span class="str">"Rajesh Lad"</span>]
+      },
+      {
+        <span class="key">"key"</span>: <span class="str">"designation"</span>, <span class="key">"label"</span>: <span class="str">"Designation"</span>, <span class="key">"type"</span>: <span class="str">"select"</span>,
+        <span class="key">"options"</span>: [<span class="str">"Project Manager"</span>, <span class="str">"Technical Lead"</span>, <span class="str">"Business Analyst"</span>, <span class="str">"Finance Lead"</span>, <span class="str">"Compliance Officer"</span>, <span class="str">"Operations Head"</span>]
+      }
+    ]
+  }
+}</pre>
+    </div>
+    <div class="ep-section">
+      <div class="ep-section-title">Value sent to POST /api/projects for stakeholders</div>
+      <pre><span class="key">"stakeholders"</span>: [
+  { <span class="key">"name"</span>: <span class="str">"Srinivas Gutta"</span>, <span class="key">"designation"</span>: <span class="str">"Project Manager"</span> },
+  { <span class="key">"name"</span>: <span class="str">"Ali Imam"</span>,       <span class="key">"designation"</span>: <span class="str">"Technical Lead"</span>  }
+]</pre>
     </div>
   </div>
 </div>
@@ -572,11 +638,11 @@ form.append(<span class="str">'file'</span>, fileInput.files[<span class="num">0
   <div class="ep-header" onclick="toggle(this)">
     <span class="ep-method post">POST</span>
     <span class="ep-path">/extract-project-data</span>
-    <span class="ep-desc">AI-extract 15 project fields from uploaded documents</span>
+    <span class="ep-desc">AI-populate all 15 form fields from uploaded documents</span>
     <span class="ep-arrow">▼</span>
   </div>
   <div class="ep-body">
-    <p class="ep-desc-text">Sends uploaded document content to the LLM and extracts all 15 project fields (project name, business unit, problem statement, etc.). Returns pre-filled form data ready to save as a project. <strong>Requires valid Azure API key in .env.</strong></p>
+    <p class="ep-desc-text">The "Populate" button API. Sends uploaded document content to the LLM and extracts all 15 project form fields. Returns pre-filled values the frontend can load into the form — <strong>does not save to DB</strong>. User reviews, edits if needed, then clicks Save to call <code>POST /api/projects</code>. <strong>Requires valid Azure API key in .env.</strong></p>
     <div class="ep-section">
       <div class="ep-section-title">Request Body</div>
       <pre>{ <span class="key">"document_ids"</span>: [<span class="str">"abc123"</span>, <span class="str">"def456"</span>] }</pre>
@@ -585,24 +651,41 @@ form.append(<span class="str">'file'</span>, fileInput.files[<span class="num">0
       <div class="ep-section-title">Response 200</div>
       <div class="responses"><span class="resp-badge r200">200 OK</span><span class="resp-badge r400">400</span><span class="resp-badge r500">500</span></div>
       <pre>{
-  <span class="key">"project_name"</span>:       <span class="str">"Smart Meter Analytics"</span>,
-  <span class="key">"business_unit"</span>:      <span class="str">"AESL Distribution"</span>,
-  <span class="key">"project_code"</span>:       <span class="str">"AESL-2025-042"</span>,
-  <span class="key">"business_priority"</span>:  <span class="str">"High"</span>,
-  <span class="key">"problem_statement"</span>:  <span class="str">"..."</span>,
-  <span class="key">"project_objective"</span>:  <span class="str">"..."</span>,
-  <span class="key">"proposed_solution"</span>:  <span class="str">"..."</span>,
-  <span class="key">"as_is_processes"</span>:    <span class="str">"..."</span>,
-  <span class="key">"technical_landscape"</span>:<span class="str">"..."</span>,
-  <span class="key">"constraints"</span>:        <span class="str">"..."</span>,
-  <span class="key">"risks"</span>:              <span class="str">"..."</span>,
-  <span class="key">"stakeholders"</span>:       [{ <span class="key">"name"</span>: <span class="str">"Ravi Kumar"</span>, <span class="key">"designation"</span>: <span class="str">"PM"</span> }],
-  <span class="key">"start_date"</span>:         <span class="str">"2025-04-01"</span>,
-  <span class="key">"end_date"</span>:           <span class="str">"2025-12-31"</span>,
-  <span class="key">"estimated_cost_crores"</span>: <span class="str">"4.5"</span>,
-  <span class="key">"filled_count"</span>:       <span class="num">15</span>,
-  <span class="key">"message"</span>:            <span class="str">"All fields populated from 1 document(s)."</span>
+  <span class="key">"extracted"</span>: {
+    <span class="key">"business_unit"</span>:          <span class="str">"AESL"</span>,
+    <span class="key">"project_name"</span>:           <span class="str">"Smart Meter Analytics"</span>,
+    <span class="key">"project_code"</span>:           <span class="str">"AESL-2025-042"</span>,
+    <span class="key">"problem_statement"</span>:      <span class="str">"..."</span>,
+    <span class="key">"project_objective"</span>:      <span class="str">"..."</span>,
+    <span class="key">"stakeholders"</span>:           [{ <span class="key">"name"</span>: <span class="str">"Srinivas Gutta"</span>, <span class="key">"designation"</span>: <span class="str">"Project Manager"</span> }],
+    <span class="key">"start_date"</span>:             <span class="str">"2025-04-01"</span>,
+    <span class="key">"end_date"</span>:               <span class="str">"2025-12-31"</span>,
+    <span class="key">"as_is_processes"</span>:        <span class="str">"..."</span>,
+    <span class="key">"proposed_solution"</span>:      <span class="str">"..."</span>,
+    <span class="key">"constraints"</span>:            <span class="str">"..."</span>,
+    <span class="key">"risks"</span>:                  <span class="str">"..."</span>,
+    <span class="key">"technical_landscape"</span>:    <span class="str">"..."</span>,
+    <span class="key">"estimated_cost_crores"</span>:  <span class="str">"4.5"</span>,
+    <span class="key">"business_priority"</span>:      <span class="str">"Critical"</span>
+  },
+  <span class="key">"missing_required"</span>: [
+    { <span class="key">"field"</span>: <span class="str">"project_code"</span>, <span class="key">"label"</span>: <span class="str">"Project Code"</span>, <span class="key">"question"</span>: <span class="str">"What is the project code or reference ID?"</span> }
+  ],
+  <span class="key">"missing_optional"</span>: [],
+  <span class="key">"filled_count"</span>:    <span class="num">14</span>,
+  <span class="key">"total_fields"</span>:    <span class="num">15</span>,
+  <span class="key">"document_count"</span>:  <span class="num">1</span>,
+  <span class="key">"message"</span>:         <span class="str">"Extracted 14/15 fields. 1 required field(s) still needed."</span>
 }</pre>
+    </div>
+    <div class="ep-section">
+      <div class="ep-section-title">Notes</div>
+      <ul style="margin:0;padding-left:1.2em;color:var(--text);font-size:0.85rem;line-height:1.8">
+        <li><code>business_priority</code> values: <strong>Critical</strong> / <strong>Highly Critical</strong> / <strong>Non-Critical</strong></li>
+        <li><code>missing_required</code> — fields the document didn't contain; user must fill them manually</li>
+        <li><code>missing_optional</code> — optional fields not found; safe to leave blank</li>
+        <li>Pass <code>extracted</code> values directly into the form, let user review, then <code>POST /api/projects</code></li>
+      </ul>
     </div>
   </div>
 </div>
@@ -616,34 +699,51 @@ form.append(<span class="str">'file'</span>, fileInput.files[<span class="num">0
     <span class="ep-arrow">▼</span>
   </div>
   <div class="ep-body">
-    <p class="ep-desc-text">Creates and persists a project in the database. Pass the fields returned by <code>/extract-project-data</code> directly, or fill them manually. Returns a <code>project_id</code> for all future operations.</p>
+    <p class="ep-desc-text">Creates and persists a project in the database. All 12 Step-1 fields are required. Pass values from <code>/extract-project-data</code> directly, or fill manually. Returns a <code>project_id</code> for all future operations.</p>
     <div class="ep-section">
-      <div class="ep-section-title">Request Body</div>
-      <table><tr><th>Field</th><th>Type</th><th></th></tr>
+      <div class="ep-section-title">Request Body — Required fields (12)</div>
+      <table><tr><th>Field</th><th>Type</th><th>Notes</th></tr>
+        <tr><td><code>business_unit</code></td><td>string</td><td><span class="req">required</span> AESL / AESL-Digital / AESL-Infrastructure / AESL-Finance / AESL-Operations</td></tr>
         <tr><td><code>project_name</code></td><td>string</td><td><span class="req">required</span></td></tr>
-        <tr><td><code>document_ids</code></td><td>array</td><td><span class="req">required</span> doc IDs from /upload</td></tr>
-        <tr><td><code>document_type</code></td><td>string</td><td><span class="opt">optional</span> BRD / RFP / SOW / Proposal / TechSpec / ScopeDoc</td></tr>
-        <tr><td><code>project_code</code></td><td>string</td><td><span class="opt">optional</span></td></tr>
-        <tr><td><code>business_unit</code></td><td>string</td><td><span class="opt">optional</span></td></tr>
-        <tr><td><code>business_priority</code></td><td>string</td><td><span class="opt">optional</span></td></tr>
-        <tr><td><code>problem_statement</code></td><td>string</td><td><span class="opt">optional</span></td></tr>
-        <tr><td><code>project_objective</code></td><td>string</td><td><span class="opt">optional</span></td></tr>
-        <tr><td><code>proposed_solution</code></td><td>string</td><td><span class="opt">optional</span></td></tr>
-        <tr><td><code>as_is_processes</code></td><td>string</td><td><span class="opt">optional</span></td></tr>
-        <tr><td><code>technical_landscape</code></td><td>string</td><td><span class="opt">optional</span></td></tr>
-        <tr><td><code>constraints</code></td><td>string</td><td><span class="opt">optional</span></td></tr>
-        <tr><td><code>risks</code></td><td>string</td><td><span class="opt">optional</span></td></tr>
-        <tr><td><code>stakeholders</code></td><td>array</td><td><span class="opt">optional</span> <code>[{"name":"…","designation":"…"}]</code></td></tr>
-        <tr><td><code>start_date</code></td><td>string</td><td><span class="opt">optional</span> YYYY-MM-DD</td></tr>
-        <tr><td><code>end_date</code></td><td>string</td><td><span class="opt">optional</span> YYYY-MM-DD</td></tr>
-        <tr><td><code>estimated_cost_crores</code></td><td>string</td><td><span class="opt">optional</span></td></tr>
+        <tr><td><code>project_code</code></td><td>string</td><td><span class="req">required</span> e.g. AESL-2026-001</td></tr>
+        <tr><td><code>problem_statement</code></td><td>string</td><td><span class="req">required</span></td></tr>
+        <tr><td><code>project_objective</code></td><td>string</td><td><span class="req">required</span></td></tr>
+        <tr><td><code>stakeholders</code></td><td>array</td><td><span class="req">required</span> min 1 row — <code>[{"name":"…","designation":"…"}]</code></td></tr>
+        <tr><td><code>start_date</code></td><td>string</td><td><span class="req">required</span> YYYY-MM-DD</td></tr>
+        <tr><td><code>end_date</code></td><td>string</td><td><span class="req">required</span> YYYY-MM-DD</td></tr>
+        <tr><td><code>as_is_processes</code></td><td>string</td><td><span class="req">required</span></td></tr>
+        <tr><td><code>proposed_solution</code></td><td>string</td><td><span class="req">required</span></td></tr>
+        <tr><td><code>technical_landscape</code></td><td>string</td><td><span class="req">required</span></td></tr>
+        <tr><td><code>business_priority</code></td><td>string</td><td><span class="req">required</span> Critical / Highly Critical / Non-Critical</td></tr>
+      </table>
+    </div>
+    <div class="ep-section">
+      <div class="ep-section-title">Request Body — Optional fields</div>
+      <table><tr><th>Field</th><th>Type</th><th>Notes</th></tr>
+        <tr><td><code>constraints</code></td><td>string</td><td><span class="opt">optional</span> Constraints &amp; Dependencies</td></tr>
+        <tr><td><code>risks</code></td><td>string</td><td><span class="opt">optional</span> Risk &amp; Mitigation</td></tr>
+        <tr><td><code>estimated_cost_crores</code></td><td>string</td><td><span class="opt">optional</span> e.g. "12.5"</td></tr>
+        <tr><td><code>document_type</code></td><td>string</td><td><span class="opt">optional</span> default: BRD</td></tr>
+        <tr><td><code>output_format</code></td><td>string</td><td><span class="opt">optional</span> default: Word (.docx)</td></tr>
+        <tr><td><code>additional_instructions</code></td><td>string</td><td><span class="opt">optional</span></td></tr>
+        <tr><td><code>document_ids</code></td><td>array</td><td><span class="opt">optional</span> doc IDs from /upload</td></tr>
         <tr><td><code>template_id</code></td><td>string</td><td><span class="opt">optional</span></td></tr>
       </table>
     </div>
     <div class="ep-section">
       <div class="ep-section-title">Response 201</div>
-      <div class="responses"><span class="resp-badge r201">201 Created</span><span class="resp-badge r400">400</span></div>
+      <div class="responses"><span class="resp-badge r201">201 Created</span><span class="resp-badge r422">422 Validation</span><span class="resp-badge r400">400</span></div>
       <pre>{ <span class="key">"project_id"</span>: <span class="str">"uuid-here"</span>, <span class="key">"status"</span>: <span class="str">"ready"</span>, <span class="key">"message"</span>: <span class="str">"Project 'Smart Meter Analytics' saved."</span> }</pre>
+    </div>
+    <div class="ep-section">
+      <div class="ep-section-title">Response 422 — Validation error (missing/blank required field)</div>
+      <pre>{
+  <span class="key">"error"</span>: <span class="str">"Validation failed"</span>,
+  <span class="key">"fields"</span>: [
+    { <span class="key">"field"</span>: <span class="str">"business_unit"</span>, <span class="key">"message"</span>: <span class="str">"'business_unit' is required and cannot be blank."</span> },
+    { <span class="key">"field"</span>: <span class="str">"stakeholders"</span>,  <span class="key">"message"</span>: <span class="str">"At least one stakeholder with a name is required."</span> }
+  ]
+}</pre>
     </div>
   </div>
 </div>
