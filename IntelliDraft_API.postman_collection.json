@@ -85,7 +85,12 @@
               "script": {
                 "exec": [
                   "pm.test('Status 200', () => pm.response.to.have.status(200));",
-                  "pm.test('Has fields array', () => pm.expect(pm.response.json()).to.have.property('fields'));"
+                  "const json = pm.response.json();",
+                  "pm.test('Has fields array', () => pm.expect(json).to.have.property('fields'));",
+                  "pm.test('Has 19 fields', () => pm.expect(json.fields).to.have.lengthOf(19));",
+                  "const sf = json.fields.find(f => f.key === 'stakeholders');",
+                  "pm.test('Stakeholders field has stakeholder_config', () => pm.expect(sf).to.have.property('stakeholder_config'));",
+                  "console.log('Fields returned:', json.fields.map(f => f.key).join(', '));"
                 ]
               }
             }
@@ -149,7 +154,20 @@
             "method": "GET",
             "url": "{{base_url}}/document/{{document_id}}/status",
             "description": "Get lightweight document status."
-          }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Has document_id', () => pm.expect(json).to.have.property('document_id'));",
+                  "console.log('Document status:', json.status, '| ID:', json.document_id);"
+                ]
+              }
+            }
+          ]
         }
       ]
     },
@@ -882,7 +900,23 @@
               "raw": "{\n  \"document_ids\": [\n    \"{{document_id}}\"\n  ]\n}"
             },
             "description": "AI Populate button. Reads uploaded document and extracts all 15 project form fields. Takes 30-60s. Returns extracted{} wrapper + missing_required list."
-          }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Has extracted object', () => pm.expect(json).to.have.property('extracted'));",
+                  "pm.test('Has missing_required array', () => pm.expect(json).to.have.property('missing_required'));",
+                  "const ex = json.extracted || {};",
+                  "console.log('Filled fields:', Object.keys(ex).filter(k => ex[k] !== null).join(', '));",
+                  "console.log('Missing required:', json.missing_required.map(f => f.field).join(', ') || 'none');"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "STEP 4 — Create Project",
