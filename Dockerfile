@@ -1,12 +1,16 @@
 # ══════════════════════════════════════════════════════════════════════════════
-# IntelliDraft — Backend API Docker Image
+# Document Generator — Backend API Docker Image
 #
 # Entry point : Data_Ingestion/run_server.py  (Flask, no Azure Functions needed)
 # Port        : 7071
 # Python      : 3.11-slim  (matches tested version)
 #
-# Build:   docker build -t intellidraft-api .
+# Build:   docker build -t document-generator-api .
 # Run:     docker-compose up -d
+#
+# LLM providers:
+#   Primary  — Gemini 2.5 Flash (Vertex AI) — mount key.json via docker-compose volume
+#   Fallback — Azure GPT-5 — set AZURE_GPT5_* env vars in Data_Ingestion/.env
 # ══════════════════════════════════════════════════════════════════════════════
 
 FROM python:3.11-slim
@@ -48,13 +52,13 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=25s --retries=3 \
 # --workers=2          : 2 processes (enough for staging/prod single-instance)
 # --worker-class=gthread: thread-based workers — safe with SQLite WAL + background gen threads
 # --threads=4          : 4 threads per worker → handles concurrent polls during generation
-# --timeout=120        : LLM calls take up to 60s; give headroom
+# --timeout=200        : derive-fields uses 180s LLM timeout; 200s gives headroom above that
 # --access-logfile=-   : stream access logs to stdout (captured by Docker)
 CMD ["gunicorn", \
      "--workers=2", \
      "--worker-class=gthread", \
      "--threads=4", \
      "--bind=0.0.0.0:7071", \
-     "--timeout=120", \
+     "--timeout=200", \
      "--access-logfile=-", \
      "run_server:app"]

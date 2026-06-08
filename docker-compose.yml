@@ -1,11 +1,13 @@
 # ══════════════════════════════════════════════════════════════════════════════
-# IntelliDraft — Docker Compose
+# Document Generator — Docker Compose
 #
 # Usage:
 #   1. Copy Data_Ingestion/.env.example  →  Data_Ingestion/.env
-#   2. Fill in your API key in .env
-#   3. docker-compose up -d
-#   4. API available at http://localhost:7071/api
+#   2. Fill in your API keys in .env
+#   3. (Gemini) Place GCP service account key at  Data_Ingestion/key.json
+#      and uncomment the key.json volume mount below.
+#   4. docker-compose up -d
+#   5. API available at http://localhost:7071/api
 #
 # Useful commands:
 #   docker-compose up -d          start in background
@@ -19,12 +21,12 @@ version: "3.9"
 
 services:
 
-  intellidraft-api:
+  document-generator-api:
     build:
       context: .
       dockerfile: Dockerfile
-    image: intellidraft-api:latest
-    container_name: intellidraft-api
+    image: document-generator-api:latest
+    container_name: document-generator-api
     ports:
       - "7071:7071"      # API available at  http://localhost:7071/api
 
@@ -42,7 +44,13 @@ services:
     # ── Persistent storage ────────────────────────────────────────────────────
     # SQLite DB + parsed documents survive container restarts
     volumes:
-      - intellidraft-data:/app/Data_Ingestion/local_storage
+      - document-generator-data:/app/Data_Ingestion/local_storage
+      # ── Gemini / Vertex AI key (optional) ───────────────────────────────────
+      # To use Gemini as the primary LLM:
+      #   1. Place your GCP service account JSON at  Data_Ingestion/key.json
+      #   2. Uncomment the line below
+      #   key.json is in .dockerignore — it is NEVER baked into the image.
+      # - ./Data_Ingestion/key.json:/app/Data_Ingestion/key.json:ro
 
     restart: unless-stopped
 
@@ -55,5 +63,5 @@ services:
 
 # ── Named volume — data persists across restarts ──────────────────────────────
 volumes:
-  intellidraft-data:
-    name: intellidraft-data
+  document-generator-data:
+    name: document-generator-data

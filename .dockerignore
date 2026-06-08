@@ -20,6 +20,9 @@ Data_Ingestion/agent/.env
 *.pem
 *.pfx
 secrets/
+# GCP service account key — must NEVER be baked into the image
+key.json
+Data_Ingestion/key.json
 
 # ── Local data — mount as volume instead ─────────────────
 Data_Ingestion/local_storage/
