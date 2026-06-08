@@ -432,6 +432,13 @@ def extract_project_data():
                if missing == 0 else
                f"Extracted {filled}/{total} fields. {missing} required field(s) still needed.")
         return json_resp({**result, "document_count": len(document_ids), "message": msg})
+    except FileNotFoundError as e:
+        return json_resp({"error": str(e)}, 404)
+    except RuntimeError as e:
+        # LLM call failed — return 502 so the frontend knows it's a backend config issue,
+        # not an extraction quality issue (which would look identical as HTTP 200 + empty fields)
+        logger.error("extract-project-data LLM error: %s", e)
+        return json_resp({"error": f"LLM extraction failed: {e}. Check MODEL_PROVIDER and API keys in .env."}, 502)
     except Exception as e:
         logger.exception("extract-project-data failed")
         return json_resp({"error": str(e)}, 500)

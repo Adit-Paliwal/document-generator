@@ -12,6 +12,9 @@ Data_Ingestion/agent/.env
 *.pem
 *.pfx
 secrets/
+# GCP service account key — contains private key, must never be committed
+Data_Ingestion/key.json
+key.json
 
 # ── Python ──────────────────────────────
 __pycache__/

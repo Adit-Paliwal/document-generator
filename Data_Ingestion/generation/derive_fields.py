@@ -49,7 +49,7 @@ logger = logging.getLogger(__name__)
 # ─────────────────────────────────────────────────────────────────────────────
 
 _SYSTEM = (
-    "You are a senior business analyst and enterprise architect at an energy company. "
+    "You are a senior business analyst and enterprise architect. "
     "Your job is to analyse project intake information and derive detailed technical and "
     "business analysis fields that will feed into a formal project document (BRD, RFP, SOW, etc.). "
     "Your output must be grounded in the information provided — do not invent facts, "
@@ -115,7 +115,7 @@ Return EXACTLY this JSON (all 12 fields, each a detailed string of 150–400 wor
 
   "non_functional_requirements": "Enumerate NFRs across: Performance (response time, throughput, concurrent users), Availability (uptime SLA, RTO/RPO), Security (authentication, authorization, encryption, audit trail), Scalability, Maintainability, Compliance (regulatory), and Data Retention.",
 
-  "industry_benchmarks": "Reference 4–6 relevant industry benchmarks, standards, or best practices applicable to this project. For energy/utility sector: NERC CIP, CERC guidelines, IEC 61850, IEC 61968/61970 (CIM), ISO 27001, etc. For software: TOGAF, ITIL, IEEE standards. Explain how each applies.",
+  "industry_benchmarks": "Reference 4–6 relevant industry benchmarks, standards, or best practices applicable to this project. Consider ISO standards, TOGAF, ITIL, IEEE standards, sector-specific regulations, and relevant compliance frameworks. Explain how each benchmark applies to this project.",
 
   "workflow": "Describe the end-to-end process workflow for the proposed solution in 6–10 numbered steps. For each step include: actor (human or system), action taken, system involved, inputs required, outputs produced, and any decision points or exception flows.",
 
@@ -125,7 +125,7 @@ Return EXACTLY this JSON (all 12 fields, each a detailed string of 150–400 wor
 
   "data_sources": "Enumerate all data sources that feed into the solution: primary transactional systems, sensor feeds, external data providers, legacy extracts, manual inputs, third-party APIs. For each: source name, data type, volume (records/day or GB), refresh frequency, data quality concerns, and owner.",
 
-  "constraints_dependencies": "Expand into structured constraints and dependencies: Technical Constraints (infrastructure limitations, technology mandates), Regulatory Constraints (CERC, SEBI, data residency, GDPR), Organizational Constraints (change management, training, parallel run period), External Dependencies (vendor delivery, third-party API availability, government approvals), and Assumptions (what must remain true for the project to succeed)."
+  "constraints_dependencies": "Expand into structured constraints and dependencies: Technical Constraints (infrastructure limitations, technology mandates), Regulatory Constraints (data residency, GDPR, compliance requirements), Organizational Constraints (change management, training, parallel run period), External Dependencies (vendor delivery, third-party API availability, approvals), and Assumptions (what must remain true for the project to succeed)."
 }}
 """
 
@@ -256,79 +256,63 @@ def _empty_derived() -> dict:
 
 
 def _call_llm(user_prompt: str) -> dict:
+    """
+    Call the LLM via llm_provider (Gemini primary → Azure GPT-5 fallback).
+    Derives all 12 DerivedData fields and returns them as a validated dict.
+
+    Raises:
+        RuntimeError: if all providers fail.
+    """
+    # Merge system + user into one message — required for GPT-5 reasoning model.
+    combined = f"{_SYSTEM}\n\n---\n\n{user_prompt}"
+
+    logger.info("[DeriveFields] Sending derivation prompt to LLM (prompt_len=%d chars)", len(combined))
+
+    # Import here (not at module level) so the module loads even if llm_provider
+    # dependencies aren't installed yet.
+    sys_path_base = Path(__file__).parent.parent.resolve()
+    if str(sys_path_base) not in sys.path:
+        sys.path.insert(0, str(sys_path_base))
+
+    from llm_provider import call_with_fallback
+
     try:
-        import litellm
-        litellm.drop_params = True   # GPT-5 doesn't support temperature
-
-        provider = os.getenv("MODEL_PROVIDER", "azure_gpt5").lower()
-
-        if provider == "azure_gpt5":
-            key     = os.getenv("AZURE_GPT5_OPENAI_API_KEY",      "")
-            base    = os.getenv("AZURE_GPT5_OPENAI_ENDPOINT",     "")
-            version = os.getenv("AZURE_GPT5_API_VERSION",         "2024-12-01-preview")
-            dep     = os.getenv("AZURE_GPT5_MODEL_DEPLOYMENT_ID", "project-pulse-gpt-5")
-            model   = f"azure/{dep}"
-            os.environ.update({
-                "AZURE_API_KEY":     key,
-                "AZURE_API_BASE":    base,
-                "AZURE_API_VERSION": version,
-            })
-        elif provider == "gemini":
-            model   = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
-        elif provider == "azure_openai":
-            key     = os.getenv("AZURE_OPENAI_API_KEY",      "")
-            base    = os.getenv("AZURE_OPENAI_ENDPOINT",     "")
-            version = os.getenv("AZURE_OPENAI_API_VERSION",  "2024-02-01")
-            dep     = os.getenv("AZURE_OPENAI_DEPLOYMENT",   "gpt-4o")
-            model   = f"azure/{dep}"
-            os.environ.update({
-                "AZURE_API_KEY":     key,
-                "AZURE_API_BASE":    base,
-                "AZURE_API_VERSION": version,
-            })
-        else:
-            raise EnvironmentError(f"Unknown MODEL_PROVIDER='{provider}'")
-
-        logger.info("[DeriveFields] Calling LLM model=%s", model)
-
-        # GPT-5 is a reasoning model: merge system + user into one user message
-        # to avoid the "system message ignored, content=''" bug with reasoning models.
-        combined = f"{_SYSTEM}\n\n---\n\n{user_prompt}"
-
-        response = litellm.completion(
-            model    = model,
+        raw, provider = call_with_fallback(
             messages = [{"role": "user", "content": combined}],
-            # GPT-5 derives 12 fields × ~300 words × 6 tokens = ~21 600 tokens minimum.
-            # Cap at 32k to avoid timeout while giving enough room for reasoning tokens.
+            # Gemini: max_tokens maps to max_output_tokens (up to 8192 on Flash).
+            # GPT-5 reasoning: max_completion_tokens includes hidden reasoning tokens;
+            #   12 fields × ~300 words × 6 tokens/word ≈ 21 600 tokens minimum.
+            max_tokens            = 16_000,
             max_completion_tokens = 32_000,
-            timeout  = 180,
+            timeout               = 180,
+            log_prefix            = "[DeriveFields]",
         )
+    except RuntimeError:
+        raise   # propagate to Flask route → HTTP 502
 
-        raw = (response.choices[0].message.content or "").strip()
-        usage = getattr(response, "usage", None)
-        logger.info("[DeriveFields] LLM done — response_len=%d  usage=%s", len(raw), usage)
+    logger.info("[DeriveFields] LLM response received via provider=%s len=%d", provider, len(raw))
 
-        # Strip accidental markdown fences
-        if raw.startswith("```"):
-            lines = raw.splitlines()
-            raw   = "\n".join(lines[1:-1] if lines and lines[-1].strip() == "```" else lines[1:])
+    # Strip accidental markdown fences
+    if raw.startswith("```"):
+        lines = raw.splitlines()
+        raw   = "\n".join(lines[1:-1] if lines and lines[-1].strip() == "```" else lines[1:])
 
+    try:
         data = json.loads(raw)
-
-        # Validate — ensure all 12 keys are present (fill missing with empty string)
-        result = _empty_derived()
-        for field in _DERIVED_FIELDS:
-            val = data.get(field)
-            if isinstance(val, str) and val.strip():
-                result[field] = val.strip()
-
-        filled = sum(1 for v in result.values() if v)
-        logger.info("[DeriveFields] Derivation complete — %d/12 fields populated", filled)
-        return result
-
     except json.JSONDecodeError as exc:
-        logger.error("[DeriveFields] LLM returned invalid JSON: %s", exc)
-        raise RuntimeError(f"LLM returned invalid JSON: {exc}") from exc
-    except Exception as exc:
-        logger.exception("[DeriveFields] LLM call failed")
-        raise RuntimeError(f"LLM derivation failed: {exc}") from exc
+        logger.error("[DeriveFields] LLM returned invalid JSON (provider=%s): %s", provider, exc)
+        raise RuntimeError(f"LLM ({provider}) returned invalid JSON: {exc}") from exc
+
+    # Validate — ensure all 12 keys are present (fill missing with empty string)
+    result = _empty_derived()
+    for field in _DERIVED_FIELDS:
+        val = data.get(field)
+        if isinstance(val, str) and val.strip():
+            result[field] = val.strip()
+
+    filled = sum(1 for v in result.values() if v)
+    logger.info(
+        "[DeriveFields] Derivation complete via %s — %d/12 fields populated",
+        provider, filled,
+    )
+    return result
