@@ -697,9 +697,13 @@ def derive_project_fields(project_id):
 
     except FileNotFoundError:
         return json_resp({"error": f"Project '{project_id}' not found."}, 404)
+    except RuntimeError as e:
+        # LLM failure — both Gemini and Azure GPT-5 failed
+        logger.error("derive-fields LLM error for project %s: %s", project_id, e)
+        return json_resp({"error": f"AI derivation failed: {e}"}, 502)
     except Exception as e:
-        logger.exception("derive-fields failed")
-        return json_resp({"error": str(e)}, 502)
+        logger.exception("derive-fields failed for project %s", project_id)
+        return json_resp({"error": str(e)}, 500)
 
 
 # 19. POST /api/generate/project/<project_id>  — start generation from saved project
@@ -744,6 +748,12 @@ def generate_from_project(project_id):
             "business_problem":        fd.get("problem_statement"),
             "expected_outcome":        fd.get("project_objective"),
             "additional_instructions": "\n\n".join(extra) if extra else None,
+            # Pass ALL attached document IDs so _load_job_context loads every doc,
+            # not just the first one.  _run_generation_job reads this from user_inputs_json.
+            "document_ids":            doc_ids,
+            # Pass template_id in user_inputs so _run_generation_job can resolve
+            # the correct section list (it reads from user_inputs, not job.template_id).
+            "template_id":             fd.get("template_id"),
         }
 
         job = start_job(doc_ids[0], user_inputs, fd.get("template_id"))

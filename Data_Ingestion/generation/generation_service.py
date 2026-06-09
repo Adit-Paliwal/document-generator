@@ -254,6 +254,21 @@ def _run_generation_job(job_id: str) -> None:
         if job:
             job.status       = final_status
             job.completed_at = datetime.utcnow()
+
+            # Also flip the linked Project status so the dashboard reflects reality.
+            # Project lifecycle: draft → ready → generating → completed | failed
+            from generation.db import Project as _Project
+            linked_proj = session.query(_Project).filter(
+                _Project.job_id == job_id
+            ).first()
+            if linked_proj:
+                linked_proj.status     = final_status   # "completed" or "failed"
+                linked_proj.updated_at = datetime.utcnow()
+                logger.info(
+                    "[gen] Project %s status → %s",
+                    linked_proj.project_id, final_status,
+                )
+
             session.commit()
 
     logger.info("[gen] Job %s finished — status=%s (total=%d failed=%d)",
@@ -264,6 +279,12 @@ def _load_job_context(job_id: str) -> tuple[str, dict, str]:
     """
     Load the document context and user inputs for a job.
     Returns (llm_context, user_inputs_dict, system_instructions).
+
+    Multi-document support:
+      If user_inputs contains "document_ids" (list), all documents are loaded
+      and their contexts are concatenated (capped at 60 000 chars total).
+      Falls back to the single job.document_id when "document_ids" is absent
+      (e.g. jobs started via POST /api/generate/start with a single document_id).
     """
     import json as json_mod
 
@@ -278,15 +299,40 @@ def _load_job_context(job_id: str) -> tuple[str, dict, str]:
 
     user_inputs = json_mod.loads(user_inputs_json or "{}")
 
-    # Load ParsedDocument from storage
+    # ── Resolve document ID list ──────────────────────────────────────────────
+    # generate_from_project passes all attached doc IDs via user_inputs["document_ids"].
+    # generate_start passes a single document_id at the job level.
+    all_doc_ids: list[str] = user_inputs.get("document_ids") or [document_id]
+
+    # ── Load and concatenate document contexts ────────────────────────────────
     store = get_storage_service()
-    meta  = store.get_meta_json(document_id)
-
     from models.meta_schema import ParsedDocument
-    parsed_doc  = ParsedDocument(**meta)
-    llm_context = parsed_doc.to_llm_context(max_chars=60_000)
 
-    # Get template system instructions
+    contexts: list[str] = []
+    for doc_id in all_doc_ids:
+        try:
+            meta      = store.get_meta_json(doc_id)
+            parsed    = ParsedDocument(**meta)
+            # Cap per-document to 20 000 chars; total capped below at 60 000.
+            ctx       = parsed.to_llm_context(max_chars=20_000)
+            header    = f"=== Source Document: {parsed.source_filename} ===" if len(all_doc_ids) > 1 else ""
+            contexts.append(f"{header}\n{ctx}".strip())
+            logger.info("[gen] Loaded doc %s (%d chars)", parsed.source_filename, len(ctx))
+        except Exception as e:
+            logger.warning("[gen] Could not load document %s: %s", doc_id, e)
+
+    if not contexts:
+        raise FileNotFoundError(
+            f"No documents could be loaded for job {job_id}. "
+            f"Checked document IDs: {all_doc_ids}"
+        )
+
+    llm_context = "\n\n---\n\n".join(contexts)[:60_000]
+
+    # ── Get template system instructions ─────────────────────────────────────
+    # template_id is stored on the job record (set by start_job).
+    # For generate_from_project it's also in user_inputs["template_id"] so
+    # _run_generation_job can resolve sections correctly.
     system_instructions = ""
     if template_id:
         tmpl = get_template_by_id(template_id)

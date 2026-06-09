@@ -6,6 +6,7 @@ Used by:
   - api/extractor.py            (POST /api/extract-project-data)
   - generation/derive_fields.py (POST /api/projects/{id}/derive-fields)
   - generation/generator.py     (document section generation)
+  - parsers/vision_analyzer.py  (image analysis during document upload)
 
 Provider order:
   1. Gemini 2.5 Flash on Google Vertex AI — authenticated via GCP service account
@@ -139,6 +140,59 @@ def call_with_fallback(
         f"  Azure GPT-5: {azure_error}\n"
         f"Check key.json exists and Azure env vars (AZURE_GPT5_OPENAI_API_KEY, "
         f"AZURE_GPT5_OPENAI_ENDPOINT) are set correctly in Data_Ingestion/.env"
+    )
+
+
+def call_vision_with_fallback(
+    text_prompt: str,
+    base64_data: str,
+    mime_type:   str,
+    *,
+    max_tokens: int = 512,
+    timeout:    int = 30,
+    log_prefix: str = "[Vision]",
+) -> tuple[str, str]:
+    """
+    Send an image + text prompt to a vision-capable LLM.
+    Provider order: Gemini 2.5 Flash (Vertex AI) → Azure GPT-5 (fallback).
+
+    Both providers receive a standard OpenAI-compatible multimodal message:
+      content = [{"type": "image_url", ...}, {"type": "text", ...}]
+    litellm translates this to the provider's native format automatically.
+
+    Args:
+        text_prompt:  The instruction / question about the image.
+        base64_data:  Raw base64-encoded image bytes (no data URI prefix).
+        mime_type:    MIME type string, e.g. "image/png", "image/jpeg".
+        max_tokens:   Max output tokens (512 is sufficient for structured JSON).
+        timeout:      HTTP timeout in seconds.
+        log_prefix:   Module label for log lines.
+
+    Returns:
+        Tuple of (response_text, provider_used).
+
+    Raises:
+        RuntimeError: if ALL providers fail.
+    """
+    messages = [{
+        "role": "user",
+        "content": [
+            {
+                "type":      "image_url",
+                "image_url": {"url": f"data:{mime_type};base64,{base64_data}"},
+            },
+            {
+                "type": "text",
+                "text": text_prompt,
+            },
+        ],
+    }]
+    return call_with_fallback(
+        messages              = messages,
+        max_tokens            = max_tokens,
+        max_completion_tokens = max_tokens,   # same budget for both providers
+        timeout               = timeout,
+        log_prefix            = log_prefix,
     )
 
 

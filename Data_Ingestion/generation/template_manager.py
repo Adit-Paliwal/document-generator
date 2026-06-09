@@ -21,14 +21,21 @@ logger = logging.getLogger(__name__)
 # Path to the JSON template files — relative to this file's parent (Data_Ingestion/)
 _TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
 
-# Map user_input document_type strings → template JSON file IDs
+# Map document_type strings → template JSON file IDs.
+# Both long-form (canonical) and short-form (from user_input_schema.py dropdown)
+# are registered explicitly — no fragile fuzzy matching needed.
 _DOC_TYPE_MAP: dict[str, str] = {
+    # Long-form canonical names
     "Business Requirements Document (BRD)": "brd",
     "Request for Proposal (RFP)":           "rfp",
     "Statement of Work (SOW)":              "sow",
     "Project Proposal":                     "proposal",
     "Technical Specification":              "tech_spec",
     "Scope Document":                       "scope",
+    # Short-form aliases (from frontend dropdowns)
+    "BRD":                                  "brd",
+    "RFP":                                  "rfp",
+    "SOW":                                  "sow",
 }
 
 _seeded = False   # guard against repeated seeding in the same process
@@ -82,18 +89,12 @@ def ensure_seeded() -> None:
 def get_template_for_doc_type(document_type: str) -> Optional[Template]:
     """
     Return the system template for a given document_type string.
+    Accepts both long-form ("Business Requirements Document (BRD)") and
+    short-form ("BRD") names — both are registered in _DOC_TYPE_MAP.
     Returns None if no matching template exists.
     """
     ensure_seeded()
     template_id = _DOC_TYPE_MAP.get(document_type)
-    if not template_id:
-        # Fuzzy fallback: lowercase partial match
-        doc_lower = document_type.lower()
-        for key, tid in _DOC_TYPE_MAP.items():
-            if doc_lower in key.lower() or key.lower() in doc_lower:
-                template_id = tid
-                break
-
     if not template_id:
         return None
 

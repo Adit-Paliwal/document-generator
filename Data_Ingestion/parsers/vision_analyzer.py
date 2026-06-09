@@ -5,20 +5,32 @@ Sends extracted images to a vision-capable LLM to generate structured descriptio
 Identifies image types (workflow/flowchart, architecture diagram, chart, etc.) and
 produces natural-language descriptions suitable for use in document generation prompts.
 
+Provider order (same as the rest of the application):
+  1. Gemini 2.5 Flash on Vertex AI  — primary (via llm_provider)
+  2. Azure GPT-5                    — automatic fallback (via llm_provider)
+
 Controlled by VISION_ENABLED=true/false in .env (default: true).
-Gracefully no-ops when disabled or when the LLM call fails.
+Gracefully no-ops when disabled or when the LLM call fails — uploads never break
+due to a vision analysis failure.
 """
 
 from __future__ import annotations
 import json
 import logging
 import os
+import sys
+from pathlib import Path
 from typing import Optional
+
+# Ensure Data_Ingestion/ is on sys.path so llm_provider can be imported
+_BASE = Path(__file__).parent.parent.resolve()
+if str(_BASE) not in sys.path:
+    sys.path.insert(0, str(_BASE))
 
 logger = logging.getLogger(__name__)
 
-VISION_ENABLED = os.environ.get("VISION_ENABLED", "true").lower() == "true"
-MAX_IMAGE_BYTES_FOR_VISION = 5 * 1024 * 1024  # 5 MB — larger images are downsampled
+VISION_ENABLED             = os.environ.get("VISION_ENABLED", "true").lower() == "true"
+MAX_IMAGE_BYTES_FOR_VISION = 5 * 1024 * 1024   # 5 MB — larger images are skipped
 
 _PROMPT = """You are analyzing an image extracted from a business document (PDF, PowerPoint, Word, or Excel).
 
@@ -56,6 +68,7 @@ Respond with ONLY valid JSON. No markdown, no explanation outside the JSON objec
 def analyze_image(base64_data: str, img_format: str = "png") -> dict:
     """
     Analyze a base64-encoded image using the configured vision-capable LLM.
+    Uses Gemini 2.5 Flash (Vertex AI) as primary, Azure GPT-5 as fallback.
 
     Args:
         base64_data: Base64-encoded image bytes (without data URI prefix).
@@ -63,7 +76,7 @@ def analyze_image(base64_data: str, img_format: str = "png") -> dict:
 
     Returns:
         Dict with keys: image_type, description, key_elements, contains_text.
-        Empty dict if vision is disabled or the call fails.
+        Empty dict if vision is disabled or the call fails — never raises.
     """
     if not VISION_ENABLED:
         return {}
@@ -71,57 +84,34 @@ def analyze_image(base64_data: str, img_format: str = "png") -> dict:
     if not base64_data:
         return {}
 
-    # Rough byte check — skip if too large (prevent API timeout)
+    # Rough byte check — skip images that are too large to avoid API timeouts
     approx_bytes = len(base64_data) * 3 // 4
     if approx_bytes > MAX_IMAGE_BYTES_FOR_VISION:
         logger.info(
-            "Skipping vision analysis: image too large (~%d MB)",
+            "[Vision] Skipping vision analysis: image too large (~%d MB)",
             approx_bytes // (1024 * 1024),
         )
         return {}
 
     try:
-        import litellm
-
-        model, kwargs = _get_model_config()
-        if not model:
-            logger.warning("Vision analysis skipped: no vision model configured")
-            return {}
+        from llm_provider import call_vision_with_fallback
 
         mime = f"image/{img_format.lower().replace('jpg', 'jpeg')}"
 
-        # GPT-5 / reasoning models: drop_params=True handles temperature & unsupported params
-        litellm.drop_params = True
-
-        response = litellm.completion(
-            model    = model,
-            messages = [{
-                "role": "user",
-                "content": [
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url":    f"data:{mime};base64,{base64_data}",
-                            "detail": "high",
-                        },
-                    },
-                    {
-                        "type": "text",
-                        "text": _PROMPT,
-                    },
-                ],
-            }],
-            max_completion_tokens = 512,
-            # temperature and response_format omitted — GPT-5 doesn't support them
-            **kwargs,
+        raw, provider = call_vision_with_fallback(
+            text_prompt = _PROMPT,
+            base64_data = base64_data,
+            mime_type   = mime,
+            max_tokens  = 512,
+            timeout     = 30,
+            log_prefix  = "[Vision]",
         )
 
-        raw = response.choices[0].message.content.strip()
         result = _parse_json(raw)
         if not result:
             return {}
 
-        # Validate and normalise
+        # Validate and normalise image_type
         valid_types = {
             "workflow_flowchart", "architecture_diagram", "chart_graph",
             "table_screenshot", "ui_screenshot", "photo", "logo_icon", "other",
@@ -129,70 +119,25 @@ def analyze_image(base64_data: str, img_format: str = "png") -> dict:
         if result.get("image_type") not in valid_types:
             result["image_type"] = "other"
 
-        result["key_elements"] = result.get("key_elements") or []
+        result["key_elements"]  = result.get("key_elements") or []
         result["contains_text"] = bool(result.get("contains_text", False))
 
         logger.info(
-            "Vision analysis: type=%s  elements=%s",
+            "[Vision] ✓ type=%s  elements=%s  provider=%s",
             result.get("image_type"),
             result.get("key_elements"),
+            provider,
         )
         return result
 
     except Exception as e:
-        logger.warning("Vision analysis failed: %s", e)
+        logger.warning("[Vision] Analysis failed: %s", e)
         return {}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Internal helpers
+# JSON parser — handles markdown fences and partial JSON objects
 # ─────────────────────────────────────────────────────────────────────────────
-
-def _get_model_config() -> tuple[Optional[str], dict]:
-    """
-    Returns (litellm_model_string, extra_kwargs) based on MODEL_PROVIDER env var.
-    Returns (None, {}) if the provider is not configured for vision.
-    """
-    provider = os.environ.get("MODEL_PROVIDER", "azure_gpt5").lower()
-
-    if provider == "azure_gpt5":
-        key      = os.environ.get("AZURE_GPT5_OPENAI_API_KEY", "")
-        endpoint = os.environ.get("AZURE_GPT5_OPENAI_ENDPOINT", "")
-        version  = os.environ.get("AZURE_GPT5_API_VERSION", "2024-12-01-preview")
-        deploy   = os.environ.get("AZURE_GPT5_MODEL_DEPLOYMENT_ID", "project-pulse-gpt-5")
-        if not key or not endpoint:
-            return None, {}
-        os.environ.update({
-            "AZURE_API_KEY":     key,
-            "AZURE_API_BASE":    endpoint,
-            "AZURE_API_VERSION": version,
-        })
-        return f"azure/{deploy}", {}
-
-    elif provider == "gemini":
-        api_key = os.environ.get("GOOGLE_API_KEY", "")
-        model   = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash")
-        if not api_key:
-            return None, {}
-        return model, {"api_key": api_key}
-
-    elif provider == "azure_openai":
-        key      = os.environ.get("AZURE_OPENAI_API_KEY", "")
-        endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT", "")
-        version  = os.environ.get("AZURE_OPENAI_API_VERSION", "2024-02-01")
-        deploy   = os.environ.get("AZURE_OPENAI_DEPLOYMENT", "gpt-4o")
-        if not key or not endpoint:
-            return None, {}
-        os.environ.update({
-            "AZURE_API_KEY":     key,
-            "AZURE_API_BASE":    endpoint,
-            "AZURE_API_VERSION": version,
-        })
-        return f"azure/{deploy}", {}
-
-    logger.warning("Unknown MODEL_PROVIDER '%s' — vision disabled", provider)
-    return None, {}
-
 
 def _parse_json(raw: str) -> Optional[dict]:
     """Extract JSON from LLM response, handling markdown code fences."""
@@ -201,7 +146,6 @@ def _parse_json(raw: str) -> Optional[dict]:
     # Strip ```json ... ``` fences if present
     if text.startswith("```"):
         lines = text.split("\n")
-        # Drop first and last fence lines
         inner = lines[1:] if len(lines) > 1 else lines
         if inner and inner[-1].strip() == "```":
             inner = inner[:-1]
@@ -218,5 +162,6 @@ def _parse_json(raw: str) -> Optional[dict]:
                 return json.loads(text[start:end])
             except json.JSONDecodeError:
                 pass
-    logger.warning("Could not parse vision JSON: %s", raw[:200])
+
+    logger.warning("[Vision] Could not parse JSON from response: %s", raw[:200])
     return None

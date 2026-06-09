@@ -3,7 +3,8 @@ Section Generator
 ==================
 Core LLM call for generating a single document section.
 
-Uses the same LiteLLM / Azure GPT-5 configuration as the ADK agent.
+Uses llm_provider.call_with_fallback() — Gemini 2.5 Flash (Vertex AI) primary,
+Azure GPT-5 automatic fallback.  Same provider chain as extractor and derive_fields.
 Prompt strategy:
   - System prompt: role, document type, full document context, user inputs
   - User prompt: section-specific instructions + any edit comment
@@ -17,8 +18,14 @@ Supports:
 
 from __future__ import annotations
 import logging
-import os
+import sys
+from pathlib import Path
 from typing import Optional
+
+# Ensure Data_Ingestion/ is on sys.path so llm_provider can be imported
+_BASE = Path(__file__).parent.parent.resolve()
+if str(_BASE) not in sys.path:
+    sys.path.insert(0, str(_BASE))
 
 logger = logging.getLogger(__name__)
 
@@ -122,10 +129,9 @@ def generate_section(
     Returns:
         (content_markdown, full_prompt_used, model_identifier)
     """
-    model, model_id, call_kwargs = _get_model()
-
-    # Cap llm_context to reduce prompt size — GPT-5 needs room for reasoning tokens.
-    # 8 000 chars ≈ ~2 000 tokens, sufficient for rich document context.
+    # Cap llm_context to keep prompt size manageable.
+    # Gemini 2.5 Flash has a 1M context window but we cap here to keep latency predictable.
+    # 8 000 chars ≈ ~2 000 tokens, sufficient for rich document context per section.
     _MAX_CONTEXT_CHARS = 8_000
     if len(llm_context) > _MAX_CONTEXT_CHARS:
         llm_context = llm_context[:_MAX_CONTEXT_CHARS] + "\n\n[... document truncated for brevity ...]"
@@ -154,43 +160,35 @@ def generate_section(
 
     full_prompt_for_log = f"SYSTEM:\n{system_prompt}\n\nUSER:\n{user_prompt}"
 
-    import litellm
-
-    # GPT-5 is a reasoning model:
-    #   • It ignores system messages (all tokens go to reasoning, content="" when system used)
-    #   • It requires max_completion_tokens, not max_tokens
-    #   • drop_params=True silently drops any unsupported params (temperature etc.)
-    # Fix: merge system + user into a single user message so content is returned correctly.
-    litellm.drop_params = True
-
+    # Merge system + user into one message:
+    #   • GPT-5 reasoning model ignores a separate system message
+    #   • Gemini works correctly with merged prompt too
     combined_prompt = f"{system_prompt}\n\n---\n\n{user_prompt}"
     max_tok = _estimate_max_tokens(target_words)
+
     logger.info(
-        "[gen] Section '%s' — prompt %d chars, max_completion_tokens=%d",
+        "[Generator] Section '%s' — prompt %d chars, max_tokens=%d",
         section_key, len(combined_prompt), max_tok,
     )
 
+    from llm_provider import call_with_fallback
     try:
-        response = litellm.completion(
-            model    = model,
-            messages = [
-                {"role": "user", "content": combined_prompt},
-            ],
-            max_completion_tokens = max_tok,
-            **call_kwargs,
+        content, provider = call_with_fallback(
+            messages              = [{"role": "user", "content": combined_prompt}],
+            max_tokens            = max_tok,           # Gemini → max_output_tokens
+            max_completion_tokens = max_tok,           # GPT-5 reasoning model
+            timeout               = 180,
+            log_prefix            = f"[Generator:{section_key}]",
         )
-        content = (response.choices[0].message.content or "").strip()
-        usage = getattr(response, "usage", None)
-        reasoning_tok = getattr(usage, "completion_tokens_details", None)
-        logger.info(
-            "[gen] Section '%s' done — %d words  usage=%s  reasoning_details=%s",
-            section_key, len(content.split()), usage, reasoning_tok,
-        )
-        return content, full_prompt_for_log, model_id
-
-    except Exception as e:
-        logger.exception("LLM call failed for section '%s'", section_key)
+    except RuntimeError as e:
+        logger.exception("[Generator] LLM call failed for section '%s'", section_key)
         raise RuntimeError(f"LLM generation failed for '{section_title}': {e}") from e
+
+    logger.info(
+        "[Generator] Section '%s' done via %s — %d words",
+        section_key, provider, len(content.split()),
+    )
+    return content, full_prompt_for_log, provider
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -266,55 +264,3 @@ def _estimate_max_tokens(target_words: int) -> int:
     return max(5000, min(int(target_words * 6), 16000))
 
 
-def _get_model() -> tuple[str, str, dict]:
-    """
-    Returns (litellm_model_string, model_identifier, extra_call_kwargs).
-    Uses the same provider config as the ADK agent.
-    """
-    provider = os.environ.get("MODEL_PROVIDER", "azure_gpt5").lower()
-
-    if provider == "azure_gpt5":
-        key      = os.environ.get("AZURE_GPT5_OPENAI_API_KEY", "")
-        endpoint = os.environ.get("AZURE_GPT5_OPENAI_ENDPOINT", "")
-        version  = os.environ.get("AZURE_GPT5_API_VERSION", "2024-12-01-preview")
-        deploy   = os.environ.get("AZURE_GPT5_MODEL_DEPLOYMENT_ID", "project-pulse-gpt-5")
-
-        if not key or not endpoint:
-            raise EnvironmentError(
-                "AZURE_GPT5_OPENAI_API_KEY and AZURE_GPT5_OPENAI_ENDPOINT must be set"
-            )
-        os.environ.update({
-            "AZURE_API_KEY":     key,
-            "AZURE_API_BASE":    endpoint,
-            "AZURE_API_VERSION": version,
-        })
-        model_str = f"azure/{deploy}"
-        return model_str, model_str, {}
-
-    elif provider == "gemini":
-        api_key   = os.environ.get("GOOGLE_API_KEY", "")
-        model_str = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash")
-        if not api_key:
-            raise EnvironmentError("GOOGLE_API_KEY must be set for gemini provider")
-        return model_str, model_str, {"api_key": api_key}
-
-    elif provider == "azure_openai":
-        key      = os.environ.get("AZURE_OPENAI_API_KEY", "")
-        endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT", "")
-        version  = os.environ.get("AZURE_OPENAI_API_VERSION", "2024-02-01")
-        deploy   = os.environ.get("AZURE_OPENAI_DEPLOYMENT", "gpt-4o")
-        if not key or not endpoint:
-            raise EnvironmentError(
-                "AZURE_OPENAI_API_KEY and AZURE_OPENAI_ENDPOINT must be set"
-            )
-        os.environ.update({
-            "AZURE_API_KEY":     key,
-            "AZURE_API_BASE":    endpoint,
-            "AZURE_API_VERSION": version,
-        })
-        model_str = f"azure/{deploy}"
-        return model_str, model_str, {}
-
-    raise EnvironmentError(
-        f"Unknown MODEL_PROVIDER='{provider}'. Use: azure_gpt5 | gemini | azure_openai"
-    )
