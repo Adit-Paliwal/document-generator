@@ -42,9 +42,41 @@ from sqlalchemy.orm import DeclarativeBase, Session, relationship
 LOCAL_DB = os.environ.get("LOCAL_DB", "true").lower() == "true"
 
 if LOCAL_DB:
-    # Use absolute path so the DB lands in Data_Ingestion/local_storage/
-    # regardless of which directory `adk web` or the Azure Function host is run from.
-    _db_dir = Path(__file__).parent.parent / "local_storage"
+    # ── DB path resolution ───────────────────────────────────────────────────
+    # SQLite WAL-mode databases MUST NOT live inside cloud-synced folders
+    # (OneDrive, Dropbox, etc.) — the sync client holds file handles that
+    # prevent clean shutdown and can corrupt the WAL.
+    #
+    # Priority order:
+    #   1. INTELLIDRAFT_DB_DIR env var — set this to override (e.g. C:\dev\intellidraft_db)
+    #   2. If the default path is inside a OneDrive/Dropbox folder → redirect to
+    #      %LOCALAPPDATA%\Intellidraft  (on Windows) or  ~/intellidraft_data  (Linux/Mac)
+    #   3. Otherwise: Data_Ingestion/local_storage/ (the original default)
+    _custom_db_dir = os.environ.get("INTELLIDRAFT_DB_DIR", "").strip()
+    _default_dir   = Path(__file__).parent.parent / "local_storage"
+
+    def _is_cloud_synced(p: Path) -> bool:
+        s = str(p).lower()
+        return any(x in s for x in ("onedrive", "dropbox", "google drive", "icloud"))
+
+    if _custom_db_dir:
+        _db_dir = Path(_custom_db_dir)
+    elif _is_cloud_synced(_default_dir):
+        # Redirect to a local-only path outside cloud sync
+        if os.name == "nt":
+            _db_dir = Path(os.environ.get("LOCALAPPDATA", "C:\\Users\\Public")) / "Intellidraft"
+        else:
+            _db_dir = Path.home() / "intellidraft_data"
+        import warnings
+        warnings.warn(
+            f"\n  [DB] Default path is inside a cloud-synced folder — redirecting to:\n"
+            f"       {_db_dir}\n"
+            f"  Set INTELLIDRAFT_DB_DIR in .env to override.",
+            stacklevel=2,
+        )
+    else:
+        _db_dir = _default_dir
+
     _db_dir.mkdir(parents=True, exist_ok=True)
     DATABASE_URL = f"sqlite:///{(_db_dir / 'intellidraft.db').resolve()}"
 else:

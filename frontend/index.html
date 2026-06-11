@@ -371,7 +371,7 @@ select{cursor:pointer}
 <!-- ══════════════════════════════════════════════════
      PAGE: CREATE PROJECT — STEP 1
 ══════════════════════════════════════════════════ -->
-<div id="pg-create" class="page active">
+<div id="pg-create" class="page">
 
   <!-- Top bar -->
   <div class="topbar">
@@ -627,7 +627,8 @@ select{cursor:pointer}
         <p id="st-sub">Sections are being written. Usually 1–3 minutes.</p>
       </div>
     </div>
-    <div class="topbar-right">
+    <div class="topbar-right" style="gap:10px">
+      <button class="btn btn-ghost btn-sm" onclick="poll()" title="Refresh status">&#8635; Refresh</button>
       <span id="st-badge" class="chip live" style="font-size:12px">
         <span class="spin" style="width:10px;height:10px;border-width:1.5px;margin-right:5px"></span>
         Generating…
@@ -688,6 +689,18 @@ select{cursor:pointer}
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
       <h2 style="font-size:18px;font-weight:700">My Projects</h2>
       <button class="btn btn-ghost btn-sm" onclick="loadProjects()">&#8635; Refresh</button>
+    </div>
+    <div id="draft-banner" style="display:none;margin-bottom:14px;padding:12px 16px;
+         background:#faf5ff;border:1.5px solid var(--purple-mid);border-radius:var(--radius-sm);
+         align-items:center;justify-content:space-between;gap:12px">
+      <div style="font-size:13px;color:var(--purple)">
+        <b>&#9998; Unsaved draft detected</b>
+        <span id="draft-banner-name" style="color:var(--muted);margin-left:6px"></span>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary btn-sm" onclick="resumeDraft()">Resume Draft</button>
+        <button class="btn btn-ghost btn-sm" onclick="discardDraft()">Discard</button>
+      </div>
     </div>
     <div id="proj-list" class="proj-list"></div>
   </div>
@@ -1007,9 +1020,16 @@ const S = {
   projectId:       null,
   jobId:           null,
   pollTimer:       null,
+  documentType:    null, // tracks doc type for status page title
+  projectName:     null, // tracks project name for status page title
   // Project-data page
   pdProjectId:     null,
   pdStakeholders:  [],
+  pdJobId:         null,
+  // Loaded project settings (used when navigating from project-data → Step 2)
+  pdDocumentType:  null,
+  pdOutputFormat:  null,
+  pdDocumentIds:   [],
 };
 
 // ── Page routing ──────────────────────────────────────────────────────────
@@ -1019,15 +1039,47 @@ function show(id){
   if(el) el.classList.add('active');
   window.scrollTo(0,0);
 }
-function goProjects(){ show('pg-home'); loadProjects(); }
+function goProjects(){ show('pg-home'); loadProjects(); checkDraftBanner(); }
 function newProject(){
-  // Reset state for new project
+  // Reset state for a brand-new project
   S.files=[]; S.stakeholders=[]; S.projectId=null; S.jobId=null;
+  S.documentType=null; S.projectName=null;
   document.getElementById('files-list').innerHTML='';
   document.getElementById('sth-list').innerHTML='';
   document.getElementById('extract-bar').style.display='none';
   clearForm();
+  // Clear the localStorage draft so the old project ID is not reused
+  try{ localStorage.removeItem('id_draft'); }catch{}
   show('pg-create');
+}
+function checkDraftBanner(){
+  const b=document.getElementById('draft-banner');
+  if(!b) return;
+  try{
+    const raw=localStorage.getItem('id_draft');
+    if(!raw){b.style.display='none';return;}
+    const d=JSON.parse(raw);
+    const name=d.form?.project_name||'';
+    if(!name&&!d.files?.length){b.style.display='none';return;}
+    document.getElementById('draft-banner-name').textContent=name?`"${name}"`:'(unnamed)';
+    b.style.display='flex';
+  }catch{b.style.display='none';}
+}
+function resumeDraft(){
+  // Reset state, load the draft, go to pg-create
+  S.files=[]; S.stakeholders=[]; S.projectId=null; S.jobId=null;
+  S.documentType=null; S.projectName=null;
+  document.getElementById('files-list').innerHTML='';
+  document.getElementById('sth-list').innerHTML='';
+  document.getElementById('extract-bar').style.display='none';
+  clearForm();
+  loadDraft();
+  show('pg-create');
+}
+function discardDraft(){
+  try{localStorage.removeItem('id_draft');}catch{}
+  document.getElementById('draft-banner').style.display='none';
+  toast('Draft discarded','info');
 }
 
 // ── Toast ─────────────────────────────────────────────────────────────────
@@ -1050,7 +1102,7 @@ async function checkApi(){
   const lbl=document.getElementById('api-lbl');
   if(!dot) return;
   try{
-    const r=await fetch(API.base+'/templates',{signal:AbortSignal.timeout(4000)});
+    const r=await fetch(API.base+'/health',{signal:AbortSignal.timeout(4000)});
     dot.style.background=r.ok?'#22c55e':'#f97316';
     lbl.textContent=r.ok?'API connected':'API error '+r.status;
   }catch{
@@ -1086,12 +1138,24 @@ async function uploadAll(files){
     addChip(id,f.name,fmtSz(f.size),'busy','Uploading…');
     const fd=new FormData(); fd.append('file',f,f.name);
     try{
+      // 1. POST to parse & persist the document
       const r=await fetch(API.base+'/upload',{method:'POST',body:fd});
       const d=await r.json();
       if(!r.ok) throw new Error(d.error||'Upload failed');
-      S.files.push({document_id:d.document_id,filename:f.name,size:fmtSz(f.size),summary:d.summary});
+
+      // 2. Read document metadata from DB (not from POST response body)
+      //    GET /api/document/<id> returns the full ParsedDocument stored in meta.json
+      let summary = null;
+      try{
+        const dr=await fetch(`${API.base}/document/${d.document_id}`);
+        if(dr.ok){const dd=await dr.json(); summary=dd.summary||null;}
+      }catch{}
+      // Fallback: use POST response summary if GET failed (shouldn't happen, but safe)
+      if(!summary) summary = d.summary || {};
+
+      S.files.push({document_id:d.document_id,filename:f.name,size:fmtSz(f.size),summary});
       updChip(id,f.name,fmtSz(f.size),'ok',
-        `✓ ${d.summary.total_text_elements} text · ${d.summary.total_images} img · ${d.summary.total_tables} tbl`);
+        `✓ ${summary.total_text_elements??0} text · ${summary.total_images??0} img · ${summary.total_tables??0} tbl`);
       showExtractBar();
     }catch(e){
       updChip(id,f.name,fmtSz(f.size),'err','✗ '+e.message);
@@ -1155,6 +1219,7 @@ async function extractData(){
   const panel=document.getElementById('missing-panel');
   if(panel) panel.remove();
   try{
+    // ── Step 1: AI extraction (stateless — returns fields but doesn't persist)
     const r=await fetch(API.base+'/extract-project-data',{
       method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({document_ids:ids})
@@ -1162,14 +1227,54 @@ async function extractData(){
     const d=await r.json();
     if(!r.ok) throw new Error(d.error||'Extraction failed');
 
-    const filled  = d.filled_count  || 0;
-    const total   = d.total_fields  || 15;
-    const missing = d.missing_required || [];
-    const optional= d.missing_optional|| [];
+    const extracted = d.extracted || {};
+    const filled    = d.filled_count  || 0;
+    const total     = d.total_fields  || 15;
+    const missing   = d.missing_required || [];
+    const optional  = d.missing_optional || [];
 
-    fillForm(d.extracted||{});
+    // ── Step 2: Persist extracted data to DB immediately
+    //    This ensures the data is safe in DB — not just in the API response body.
+    //    If S.projectId exists: PATCH the existing project.
+    //    Otherwise: POST /api/projects/draft (no validation, any partial fields accepted).
+    document.getElementById('extract-msg').textContent='💾 Saving to project…';
+    const saveBody = {...extracted, document_ids: ids};
+    try{
+      if(S.projectId){
+        await fetch(`${API.base}/projects/${S.projectId}`,{
+          method:'PATCH', headers:{'Content-Type':'application/json'},
+          body:JSON.stringify(saveBody)
+        });
+      } else {
+        const pr=await fetch(`${API.base}/projects/draft`,{
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body:JSON.stringify(saveBody)
+        });
+        if(pr.ok){
+          const pd=await pr.json();
+          S.projectId=pd.project_id;
+          autosave();   // persist project_id to localStorage
+        }
+      }
+    }catch(saveErr){
+      // Non-fatal: log and continue — we'll fill form from extracted data as fallback
+      console.warn('[extractData] DB save failed:', saveErr);
+    }
 
-    // Show a "missing fields" panel if agent found gaps
+    // ── Step 3: Re-read form data from DB so the form is always DB-backed
+    let formSource = extracted;  // fallback if DB read fails
+    if(S.projectId){
+      try{
+        const dbR=await fetch(`${API.base}/projects/${S.projectId}/data`);
+        if(dbR.ok){
+          const dbD=await dbR.json();
+          formSource = dbD.ingested || extracted;
+        }
+      }catch{}
+    }
+    fillForm(formSource);
+
+    // ── Step 4: Show result summary + missing-fields panel
     if(missing.length){
       showMissingPanel(missing, optional);
       document.getElementById('extract-msg').textContent=
@@ -1386,7 +1491,8 @@ function collect(){
 function autosave(){
   try{
     localStorage.setItem('id_draft',JSON.stringify({
-      form:collect(), files:S.files, sth:S.stakeholders
+      form:collect(), files:S.files, sth:S.stakeholders,
+      projectId:S.projectId||null, jobId:S.jobId||null,
     }));
   }catch{}
 }
@@ -1395,8 +1501,10 @@ function loadDraft(){
     const raw=localStorage.getItem('id_draft');
     if(!raw) return;
     const d=JSON.parse(raw);
-    if(d.files) S.files=d.files;
-    if(d.sth)   S.stakeholders=d.sth;
+    if(d.files)     S.files=d.files;
+    if(d.sth)       S.stakeholders=d.sth;
+    if(d.projectId) S.projectId=d.projectId;
+    if(d.jobId)     S.jobId=d.jobId;
     const map={
       'f-bu':'business_unit','f-pname':'project_name','f-pcode':'project_code',
       'f-prob':'problem_statement','f-obj':'project_objective',
@@ -1428,21 +1536,51 @@ function loadDraft(){
     showExtractBar();
   }catch{}
 }
-document.addEventListener('change',autosave);
-document.addEventListener('input', autosave);
+// Only autosave when the user is on the Create-Project pages (pg-create or pg-step2).
+// Listening on the whole document caused the project-data page's form fields (pd-*)
+// to overwrite the localStorage draft with empty values from collect() (which reads f-* IDs).
+function _autosaveIfOnCreatePage(){
+  const active=document.querySelector('.page.active');
+  if(active && (active.id==='pg-create'||active.id==='pg-step2')) autosave();
+}
+document.addEventListener('change', _autosaveIfOnCreatePage);
+document.addEventListener('input',  _autosaveIfOnCreatePage);
 
 // ── Save Draft ────────────────────────────────────────────────────────────
 async function saveDraft(){
   try{
-    const r=await fetch(API.base+'/projects',{
-      method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify(collect())
-    });
-    const d=await r.json();
-    if(!r.ok) throw new Error(d.error||'Save failed');
-    S.projectId=d.project_id;
-    toast('Draft saved','ok');
-  }catch(e){ toast('Save failed: '+e.message,'err'); }
+    let r, d;
+    if(S.projectId){
+      // PATCH the existing project — partial update, no server-side validation.
+      // Uses the same _apply_fields() as PUT but is semantically correct:
+      // we're updating only the fields the user has filled in, not replacing the record.
+      r=await fetch(`${API.base}/projects/${S.projectId}`,{
+        method:'PATCH',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(collect())
+      });
+      d=await r.json();
+      if(!r.ok) throw new Error(d.error||'Update failed');
+    } else {
+      // No project yet: POST with full validation.
+      // If the form is incomplete the server returns 422 with field-level errors.
+      r=await fetch(API.base+'/projects',{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(collect())
+      });
+      d=await r.json();
+      if(!r.ok){
+        // Show per-field validation errors if available
+        if(r.status===422 && d.fields?.length){
+          const msgs=d.fields.map(f=>`• ${f.field}: ${f.message}`).join('\n');
+          throw new Error('Validation failed:\n'+msgs);
+        }
+        throw new Error(d.error||'Save failed');
+      }
+      S.projectId=d.project_id;
+      autosave(); // persist projectId to localStorage
+    }
+    toast('Draft saved ✓','ok');
+  }catch(e){ toast('Save failed: '+e.message,'err',6000); }
 }
 
 // ── Step 2 ────────────────────────────────────────────────────────────────
@@ -1453,6 +1591,7 @@ function goStep2(){
   if(!document.getElementById('f-bu').value){
     toast('Please select a Business Unit','warn'); return;
   }
+  S.projectName = document.getElementById('f-pname').value.trim();
   autosave();
   // Fill step2 summary
   const d=collect();
@@ -1486,39 +1625,76 @@ async function startGen(){
   btn.innerHTML='<span class="spin"></span> Starting…';
   try{
     const d=collect();
-    // 1. Save project
-    const sr=await fetch(API.base+'/projects',{
-      method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify(d)
-    });
-    const sd=await sr.json();
-    if(!sr.ok) throw new Error(sd.error||'Save failed');
-    S.projectId=sd.project_id;
-    // 2. Start generation
+
+    if(S.projectId){
+      // ── Existing project: PATCH just the generation settings — partial update.
+      //    We never PUT with a full body here because that would wipe fields the
+      //    user filled on Step 1 if collect() missed anything.
+      const ur=await fetch(`${API.base}/projects/${S.projectId}`,{
+        method:'PATCH',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          document_type:           d.document_type,
+          output_format:           d.output_format,
+          additional_instructions: d.additional_instructions||null,
+          status:                  'ready',
+        })
+      });
+      if(!ur.ok){
+        const ud=await ur.json();
+        throw new Error(ud.error||'Update failed');
+      }
+    } else {
+      // ── New project: create it first
+      const sr=await fetch(API.base+'/projects',{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(d)
+      });
+      const sd=await sr.json();
+      if(!sr.ok) throw new Error(sd.error||'Save failed');
+      S.projectId=sd.project_id;
+      autosave(); // persist to localStorage
+    }
+
+    // ── Start generation for the project
     const gr=await fetch(`${API.base}/generate/project/${S.projectId}`,{
       method:'POST',headers:{'Content-Type':'application/json'},body:'{}'
     });
     const gd=await gr.json();
     if(!gr.ok) throw new Error(gd.error||'Generation failed');
     S.jobId=gd.job_id;
-    // 3. Go to status
+    S.documentType = d.document_type || 'document';
+    S.projectName  = d.project_name  || null;
+    autosave(); // persist jobId too
+
+    // ── Read initial job state from DB (not from POST response body)
+    //    GET /api/generate/<job_id> is the canonical source — same data, always DB-backed.
+    let jobData = gd; // fallback to POST response if GET fails
+    try{
+      const jr=await fetch(`${API.base}/generate/${S.jobId}`);
+      if(jr.ok) jobData=await jr.json();
+    }catch{}
+
+    // ── Go to status page
     show('pg-status');
-    initStatus(gd);
+    initStatus(jobData);
     startPoll();
   }catch(e){
     toast('Error: '+e.message,'err');
     btn.disabled=false;
-    btn.textContent='✨ Generate Document';
+    btn.innerHTML='&#10024; Generate Document';
   }
 }
 
 // ── Status page ───────────────────────────────────────────────────────────
 function initStatus(job){
   const secs=job.sections||[];
-  document.getElementById('st-title').textContent=
-    'Generating '+(document.getElementById('s2-dt')?.value||'document')+'…';
+  const dt = S.documentType || document.getElementById('s2-dt')?.value || 'document';
+  const pn = S.projectName ? ` — ${S.projectName}` : '';
+  document.getElementById('st-title').textContent=`Generating ${dt}${pn}…`;
   document.getElementById('st-sub').textContent=
     `${secs.length} sections queued. Usually 1–3 minutes.`;
+  document.getElementById('dl-box').style.display='none';
+  document.getElementById('err-box').style.display='none';
   renderSecs(secs);
   updateProg(secs);
 }
@@ -1659,6 +1835,13 @@ async function resumeJob(jid){
     const r=await fetch(`${API.base}/generate/${jid}`);
     const job=await r.json();
     if(r.ok){
+      // Try to enrich title from the project record if we have a project ID
+      if(job.project_id && !S.projectName){
+        try{
+          const pr=await fetch(`${API.base}/projects/${job.project_id}`);
+          if(pr.ok){const pd=await pr.json();S.documentType=pd.document_type||null;S.projectName=pd.project_name||null;}
+        }catch{}
+      }
       initStatus(job);
       if(job.status==='completed') showDl();
       else if(job.status==='failed') showErr(job.error||'Failed');
@@ -1713,15 +1896,21 @@ async function loadProjectData(){
     const parts = [ing.project_code, ing.business_unit].filter(Boolean);
     document.getElementById('pd-code').textContent = parts.join(' · ');
 
-    // fetch status badge from summary endpoint
+    // Fetch the full project record — this includes document_type, output_format,
+    // document_ids, and job_id that are stripped from the /data endpoint's ingested obj.
     try{
       const pr = await fetch(`${API.base}/projects/${S.pdProjectId}`);
       if(pr.ok){
         const pd = await pr.json();
+        // status badge
         const b = document.getElementById('pd-status-badge');
         b.textContent = pd.status||'draft';
         b.className   = 'badge '+(pd.status||'draft');
-        S.pdJobId = pd.job_id||null;
+        // generation settings — the /data endpoint strips these from ingested
+        S.pdJobId        = pd.job_id        || null;
+        S.pdDocumentType = pd.document_type || 'BRD';
+        S.pdOutputFormat = pd.output_format || 'Word (.docx)';
+        S.pdDocumentIds  = Array.isArray(pd.document_ids) ? pd.document_ids : [];
       }
     }catch{}
 
@@ -1932,9 +2121,50 @@ async function runDerive(){
 // ── Generate from project-data page ──────────────────────────────────────
 
 function genFromProject(){
+  // If there's already a generation job for this project, resume status view
   if(S.pdJobId){ resumeJob(S.pdJobId); return; }
-  // Pre-fill Step 2 and navigate
-  S.projectId = S.pdProjectId;
+
+  // Transfer the project-data page's project into the Step 2 generate flow
+  S.projectId    = S.pdProjectId;
+  S.documentType = S.pdDocumentType || 'BRD';
+  S.projectName  = document.getElementById('pd-name')?.textContent || null;
+  // S.files may be empty here (we came from the project-data page, not create-project)
+  // but document_ids are stored in the DB — startGen() will skip re-creating the project
+  // and just update generation settings.
+
+  // Pre-fill Step 2 form with the project's saved generation settings
+  const dtEl  = document.getElementById('s2-dt');
+  const fmtEl = document.getElementById('s2-fmt');
+  if(dtEl  && S.pdDocumentType) dtEl.value  = S.pdDocumentType;
+  if(fmtEl && S.pdOutputFormat) fmtEl.value = S.pdOutputFormat;
+
+  // Populate the "Attached Documents" summary from the project's stored doc IDs
+  const docsEl = document.getElementById('s2-docs-list');
+  if(docsEl){
+    docsEl.innerHTML = S.pdDocumentIds.length
+      ? S.pdDocumentIds.map(id=>`
+          <div class="file-row ok" style="margin-bottom:6px">
+            <span class="file-icon">📄</span>
+            <div class="file-info">
+              <div class="file-name" style="font-size:12px;color:var(--muted)">doc: ${x(id)}</div>
+            </div>
+            <span class="file-badge ok">✓ Attached</span>
+          </div>`).join('')
+      : '<p style="font-size:12px;color:var(--muted)">No documents attached — AI will use form data only.</p>';
+  }
+
+  // Show a project summary
+  const name  = document.getElementById('pd-name').textContent  || '';
+  const code  = document.getElementById('pd-code').textContent  || '';
+  const sumEl = document.getElementById('s2-summary');
+  if(sumEl){
+    sumEl.innerHTML=[
+      name && `<div><b>Project:</b> ${x(name)}</div>`,
+      code && `<div><b>${x(code)}</b></div>`,
+      `<div><b>Docs attached:</b> ${S.pdDocumentIds.length}</div>`,
+    ].filter(Boolean).join('');
+  }
+
   show('pg-step2');
 }
 
@@ -1957,9 +2187,10 @@ async function deleteProject(pid, name){
 // ── Init ──────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded',()=>{
   document.getElementById('api-input').value=API.base;
-  show('pg-home');           // START on the projects list
+  show('pg-home');              // START on the projects list
   loadProjects();
-  setTimeout(checkApi,500); // check API status in background
+  checkDraftBanner();           // show "resume draft" banner if applicable
+  setTimeout(checkApi,500);    // check API status in background
 });
 </script>
 </body>

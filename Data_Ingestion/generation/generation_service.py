@@ -567,3 +567,110 @@ def list_jobs(document_id: Optional[str] = None) -> list[dict]:
         if document_id:
             q = q.filter(GenerationJob.document_id == document_id)
         return [j.to_dict(include_sections=False) for j in q.all()]
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Convenience wrapper — project-based generation (used by Flask + ADK agent)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def start_job_from_project(project_id: str) -> dict:
+    """
+    Start a generation job from a fully saved project.
+
+    Assembles user_inputs from the Project + DerivedData records in the DB,
+    calls start_job(), and flips project.status to 'generating'.
+
+    This is the single source of truth for project-based generation.
+    It is called by:
+      - run_server.py  →  POST /api/generate/project/<project_id>
+      - agents/document_generator/tools.py  →  start_generation ADK tool
+
+    Args:
+        project_id: UUID of the saved project (must have source docs attached).
+
+    Returns:
+        Same dict as start_job() — { job_id, status, sections, total_sections, ... }
+
+    Raises:
+        FileNotFoundError: project not found.
+        ValueError:        no source documents attached.
+    """
+    import json as json_mod
+
+    from generation.db import Project, get_session as _get_session
+
+    # ── Load project fields ───────────────────────────────────────────────────
+    with _get_session() as session:
+        proj = session.get(Project, project_id)
+        if not proj:
+            raise FileNotFoundError(f"Project '{project_id}' not found.")
+        fd      = proj.to_ingested_dict()
+        doc_ids = json_mod.loads(proj.document_ids_json or "[]")
+        sths    = json_mod.loads(proj.stakeholders_json  or "[]")
+
+    if not doc_ids:
+        raise ValueError(
+            "No source documents attached to this project. "
+            "Please upload and parse a document first, "
+            "then attach it to the project via the form."
+        )
+
+    # ── Build stakeholder string ──────────────────────────────────────────────
+    sth_str = ", ".join(
+        f"{s.get('name', '')} ({s.get('designation', '')})"
+        for s in sths if s.get("name")
+    ) or None
+
+    # ── Build extra context from optional project fields ──────────────────────
+    extra_parts: list[str] = []
+    for label, key in [
+        ("Business Unit",       "business_unit"),
+        ("Project Code",        "project_code"),
+        ("Constraints",         "constraints"),
+        ("Risks",               "risks"),
+        ("Technical Landscape", "technical_landscape"),
+        ("Business Priority",   "business_priority"),
+    ]:
+        if fd.get(key):
+            extra_parts.append(f"{label}: {fd[key]}")
+    if fd.get("start_date") or fd.get("end_date"):
+        extra_parts.append(
+            f"Timeline: {fd.get('start_date', 'TBD')} to {fd.get('end_date', 'TBD')}"
+        )
+    if fd.get("estimated_cost_crores"):
+        extra_parts.append(f"Estimated Cost: Rs.{fd['estimated_cost_crores']} Crores")
+
+    # ── Assemble user_inputs for start_job ───────────────────────────────────
+    user_inputs = {
+        "project_name":            fd.get("project_name", ""),
+        "document_type":           fd.get("document_type", "BRD"),
+        "output_format":           fd.get("output_format", "Word (.docx)"),
+        "stakeholders":            sth_str,
+        # Prefer proposed_solution (richer) over project_objective for description
+        "project_description":     fd.get("proposed_solution") or fd.get("project_objective", ""),
+        "business_problem":        fd.get("problem_statement"),
+        "expected_outcome":        fd.get("project_objective"),
+        "additional_instructions": "\n\n".join(extra_parts) if extra_parts else None,
+        # Pass ALL attached doc IDs so _load_job_context loads every document
+        "document_ids":            doc_ids,
+        # Pass template_id so _run_generation_job resolves the correct section list
+        "template_id":             fd.get("template_id"),
+    }
+
+    # ── Start the job ─────────────────────────────────────────────────────────
+    job = start_job(doc_ids[0], user_inputs, fd.get("template_id"))
+
+    # ── Flip project status → 'generating' ───────────────────────────────────
+    with _get_session() as session:
+        proj2 = session.get(Project, project_id)
+        if proj2:
+            proj2.job_id     = job["job_id"]
+            proj2.status     = "generating"
+            proj2.updated_at = datetime.utcnow()
+            session.commit()
+
+    logger.info(
+        "[gen] start_job_from_project: project=%s job=%s doc_type=%s docs=%d",
+        project_id, job["job_id"], fd.get("document_type"), len(doc_ids),
+    )
+    return job

@@ -12,6 +12,7 @@ Then open  frontend/index.html  in your browser
 """
 
 from __future__ import annotations
+import atexit
 import json
 import logging
 import os
@@ -20,6 +21,37 @@ import tempfile
 from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
+
+# ── Venv / dependency guard ───────────────────────────────────────────────────
+# Catch the most common mistake: running with system Python instead of the venv.
+# We check for python-docx (the most distinctive package) early so the user gets
+# a clear error at startup instead of a cryptic 500 on the first upload.
+_REQUIRED = {
+    "docx":   "python-docx",
+    "flask":  "flask",
+    "dotenv": "python-dotenv",
+}
+_missing = []
+for _mod, _pkg in _REQUIRED.items():
+    try:
+        __import__(_mod)
+    except ModuleNotFoundError:
+        _missing.append(_pkg)
+
+if _missing:
+    print("\n" + "="*62)
+    print("  ERROR — Missing packages. Wrong Python interpreter?")
+    print("  Running with:", sys.executable)
+    print("  Missing:     ", ", ".join(_missing))
+    print()
+    print("  Fix — run with the virtual environment:")
+    print("    env\\Scripts\\Activate.ps1  (PowerShell)")
+    print("    python Data_Ingestion\\run_server.py")
+    print()
+    print("  Or directly:")
+    print("    env\\Scripts\\python.exe Data_Ingestion\\run_server.py")
+    print("="*62 + "\n")
+    sys.exit(1)
 
 # ── Bootstrap: add Data_Ingestion/ to sys.path ───────────────────────────────
 _BASE = Path(__file__).parent.resolve()   # …/Data_Ingestion/
@@ -34,11 +66,40 @@ load_dotenv(dotenv_path=_BASE / ".env", override=False)
 from flask import Flask, request, jsonify, Response, send_file
 
 app = Flask(__name__)
-logging.basicConfig(level=logging.INFO,
-                    format="%(asctime)s - %(levelname)s - %(name)s - %(message)s")
+
+# ── Logging ────────────────────────────────────────────────────────────────────
+# basicConfig sets the root handler; the werkzeug logger inherits it.
+# We also force werkzeug to stdout so access lines appear in all terminals.
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
+    stream=sys.stdout,
+)
+# Ensure werkzeug (Flask's HTTP layer) sends its lines to stdout too
+_wz = logging.getLogger("werkzeug")
+_wz.setLevel(logging.INFO)
+if not _wz.handlers:
+    _wz_h = logging.StreamHandler(sys.stdout)
+    _wz_h.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(name)s - %(message)s"))
+    _wz.addHandler(_wz_h)
+
 logger = logging.getLogger(__name__)
 
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024   # 50 MB
+
+# ── Graceful DB shutdown ───────────────────────────────────────────────────────
+# SQLAlchemy StaticPool keeps the SQLite connection open until engine.dispose()
+# is called. Without this, the -wal / -shm files stay locked after Ctrl+C.
+def _shutdown_db():
+    try:
+        from generation import db as _db
+        if _db._engine is not None:
+            _db._engine.dispose()
+            print("  [DB] connections closed — WAL flushed.")
+    except Exception:
+        pass   # best-effort; never break the shutdown
+
+atexit.register(_shutdown_db)
 
 # Lazy singletons
 _store = None
@@ -54,7 +115,7 @@ def _get_store():
 
 CORS_HEADERS = {
     "Access-Control-Allow-Origin":  "*",
-    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization, x-functions-key",
 }
 
@@ -71,7 +132,15 @@ def add_cors(response):
         response.headers[k] = v
     return response
 
-@app.route("/api/<path:p>", methods=["OPTIONS"])
+@app.after_request
+def log_request(response):
+    """Log every request with method, path, and HTTP status code."""
+    # Skip logging for static/options to keep output clean
+    if request.method not in ("OPTIONS", "HEAD"):
+        logger.info("%-6s %-45s → %s", request.method, request.path, response.status_code)
+    return response
+
+@app.route("/api/<path:p>", methods=["OPTIONS", "HEAD"])
 def options_handler(p):
     return Response(status=204, headers=CORS_HEADERS)
 
@@ -93,6 +162,44 @@ def api_docs():
     if docs_path.exists():
         return send_file(str(docs_path), mimetype="text/html")
     return json_resp({"error": "API docs not found."}, 404)
+
+
+# 0c. POST /api/admin/reset-db  — DEV ONLY: wipe and recreate the SQLite database
+@app.route("/api/admin/reset-db", methods=["POST"])
+def admin_reset_db():
+    """
+    Development helper — deletes the SQLite database and recreates all tables.
+    Call from Postman or the browser console when you want a clean slate.
+    NOT safe in production (no auth guard).
+    """
+    try:
+        import generation.db as _db
+        from pathlib import Path as _P
+
+        # 1. Dispose engine — flushes WAL, releases file handles
+        if _db._engine is not None:
+            _db._engine.dispose()
+            _db._engine = None
+
+        # 2. Delete DB + WAL/SHM files
+        db_url = _db.DATABASE_URL
+        deleted = []
+        if db_url.startswith("sqlite:///"):
+            db_path = _P(db_url.replace("sqlite:///", ""))
+            for suffix in ("", "-wal", "-shm"):
+                f = _P(str(db_path) + suffix) if suffix else db_path
+                if f.exists():
+                    f.unlink()
+                    deleted.append(f.name)
+
+        # 3. Recreate — get_engine() calls Base.metadata.create_all()
+        _db.get_engine()
+        logger.info("DB reset: deleted %s, tables recreated.", deleted)
+        return json_resp({"status": "ok", "deleted": deleted,
+                          "message": "Database wiped and recreated."})
+    except Exception as e:
+        logger.exception("admin_reset_db failed")
+        return json_resp({"error": str(e)}, 500)
 
 
 # 1. GET /api/form-fields
@@ -444,7 +551,31 @@ def extract_project_data():
         return json_resp({"error": str(e)}, 500)
 
 
-# 16. POST /api/projects  — create project
+# 15b. POST /api/projects/draft  — create a draft project without field validation
+# Used by the frontend to persist AI-extracted data immediately after extraction,
+# before the user has filled all required fields. The project is always status="draft".
+# Any subset of project fields may be sent; missing fields are left null/empty.
+@app.route("/api/projects/draft", methods=["POST"])
+def create_draft_project():
+    try:
+        from generation.db import Project as _P, DerivedData as _D, get_session
+        body = request.get_json() or {}
+        pid  = str(uuid4())
+        proj = _P(project_id=pid)
+        proj.status = "draft"
+        _apply_fields(proj, body)  # safe: only sets keys present in body
+        with get_session() as s:
+            s.add(proj)
+            s.add(_D(project_id=pid))
+            s.commit()
+        return json_resp({"project_id": pid, "status": "draft",
+                          "message": "Draft project created."}, 201)
+    except Exception as e:
+        logger.exception("create_draft_project failed")
+        return json_resp({"error": str(e)}, 500)
+
+
+# 16. POST /api/projects  — create project (full validation, status → "ready")
 @app.route("/api/projects", methods=["POST"])
 def create_project():
     try:
@@ -709,71 +840,27 @@ def derive_project_fields(project_id):
 # 19. POST /api/generate/project/<project_id>  — start generation from saved project
 @app.route("/api/generate/project/<project_id>", methods=["POST"])
 def generate_from_project(project_id):
+    """
+    Start document generation for a saved project.
+    Delegates entirely to generation_service.start_job_from_project() —
+    which is the single source of truth shared with the ADK agent tool.
+    """
     try:
-        from generation.db import get_session
-        from generation.generation_service import start_job
-
-        with get_session() as s:
-            proj      = _get_proj_or_404(s, project_id)
-            fd        = proj.to_ingested_dict()
-            doc_ids   = _json_mod.loads(proj.document_ids_json or "[]")
-            sths      = _json_mod.loads(proj.stakeholders_json or "[]")
-
-        if not doc_ids:
-            return json_resp({"error": "No documents attached to this project."}, 400)
-
-        sth_str = ", ".join(
-            f"{s.get('name','')} ({s.get('designation','')})"
-            for s in sths if s.get("name")
-        ) or None
-
-        extra = []
-        for label, key in [("Constraints","constraints"),("Risks","risks"),
-                            ("Technical Landscape","technical_landscape"),
-                            ("Business Unit","business_unit"),
-                            ("Project Code","project_code"),
-                            ("Business Priority","business_priority")]:
-            if fd.get(key): extra.append(f"{label}: {fd[key]}")
-        if fd.get("start_date") or fd.get("end_date"):
-            extra.append(f"Timeline: {fd.get('start_date','TBD')} to {fd.get('end_date','TBD')}")
-        if fd.get("estimated_cost_crores"):
-            extra.append(f"Estimated Cost: Rs.{fd['estimated_cost_crores']} Crores")
-
-        user_inputs = {
-            "project_name":            fd.get("project_name",""),
-            "document_type":           fd.get("document_type","BRD"),
-            "output_format":           fd.get("output_format","Word (.docx)"),
-            "stakeholders":            sth_str,
-            "project_description":     fd.get("proposed_solution") or fd.get("project_objective",""),
-            "business_problem":        fd.get("problem_statement"),
-            "expected_outcome":        fd.get("project_objective"),
-            "additional_instructions": "\n\n".join(extra) if extra else None,
-            # Pass ALL attached document IDs so _load_job_context loads every doc,
-            # not just the first one.  _run_generation_job reads this from user_inputs_json.
-            "document_ids":            doc_ids,
-            # Pass template_id in user_inputs so _run_generation_job can resolve
-            # the correct section list (it reads from user_inputs, not job.template_id).
-            "template_id":             fd.get("template_id"),
-        }
-
-        job = start_job(doc_ids[0], user_inputs, fd.get("template_id"))
-
-        now = datetime.utcnow()
-        with get_session() as s:
-            proj2 = _get_proj_or_404(s, project_id)
-            proj2.job_id     = job["job_id"]
-            proj2.status     = "generating"
-            proj2.updated_at = now
-            s.commit()
-
+        from generation.generation_service import start_job_from_project
+        job = start_job_from_project(project_id)
         return json_resp({
             "job_id":   job["job_id"],
             "status":   job["status"],
-            "sections": [{"section_id":s["section_id"],"section_title":s["section_title"],
-                          "status":s["status"]} for s in job.get("sections",[])],
-            "message":  f"Generation started. {job['total_sections']} sections queued.",
+            "sections": [
+                {
+                    "section_id":    s["section_id"],
+                    "section_title": s["section_title"],
+                    "status":        s["status"],
+                }
+                for s in job.get("sections", [])
+            ],
+            "message": f"Generation started. {job['total_sections']} sections queued.",
         }, 201)
-
     except FileNotFoundError as e:
         return json_resp({"error": str(e)}, 404)
     except ValueError as e:

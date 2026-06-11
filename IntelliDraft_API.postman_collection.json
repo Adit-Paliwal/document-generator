@@ -274,6 +274,41 @@
           ]
         },
         {
+          "name": "Create Draft Project (partial — no validation)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/projects/draft",
+            "description": "Save a project with partial data — no required-field validation. Used by the frontend immediately after AI extraction to persist extracted fields to DB before the user finishes the form. Returns project_id. Follow up with PATCH /projects/{{project_id}} to add remaining fields.\n\nKey difference from POST /projects: status is always 'draft', any subset of fields is accepted.",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"project_name\": \"Smart Meter Analytics\",\n  \"project_code\": \"AESL-2025-042\",\n  \"business_unit\": \"AESL\",\n  \"problem_statement\": \"Manual meter reading is error-prone and costly.\",\n  \"document_ids\": [\"{{document_id}}\"]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "pm.test('Has project_id', () => pm.expect(json).to.have.property('project_id'));",
+                  "pm.test('Status is draft', () => pm.expect(json.status).to.eql('draft'));",
+                  "if (json.project_id) {",
+                  "  pm.collectionVariables.set('project_id', json.project_id);",
+                  "  console.log('Draft project_id saved:', json.project_id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "List Projects",
           "request": {
             "method": "GET",
@@ -919,10 +954,11 @@
           ]
         },
         {
-          "name": "STEP 4 — Create Project",
+          "name": "STEP 3b — Save Draft (DB-persist extracted data)",
           "request": {
             "method": "POST",
-            "url": "{{base_url}}/projects",
+            "url": "{{base_url}}/projects/draft",
+            "description": "Immediately persist AI-extracted fields to DB without validation. Creates a draft project so data survives a browser refresh. The frontend auto-calls this right after extraction completes. Returns project_id which is saved for the next step.",
             "header": [
               {
                 "key": "Content-Type",
@@ -931,7 +967,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"business_unit\": \"AESL\",\n  \"project_name\": \"Smart Meter Analytics\",\n  \"project_code\": \"AESL-2025-042\",\n  \"problem_statement\": \"Manual meter reading is error-prone and costly, leading to billing disputes.\",\n  \"project_objective\": \"Automate meter data collection with real-time analytics dashboard.\",\n  \"stakeholders\": [\n    {\n      \"name\": \"Srinivas Gutta\",\n      \"designation\": \"Project Manager\"\n    },\n    {\n      \"name\": \"Ali Imam\",\n      \"designation\": \"Technical Lead\"\n    }\n  ],\n  \"start_date\": \"2025-04-01\",\n  \"end_date\": \"2025-12-31\",\n  \"as_is_processes\": \"Field engineers visit each meter monthly for manual reading and log results in spreadsheets.\",\n  \"proposed_solution\": \"Deploy IoT smart meters with a central analytics platform integrated with SAP.\",\n  \"technical_landscape\": \"Azure IoT Hub, Power BI, SAP ERP integration via REST API.\",\n  \"business_priority\": \"Critical\",\n  \"constraints\": \"Budget capped at 5 Crores. No disruption to existing billing cycle.\",\n  \"risks\": \"Device connectivity in remote areas. Data privacy regulations.\",\n  \"estimated_cost_crores\": \"4.5\",\n  \"document_type\": \"BRD\",\n  \"output_format\": \"Word (.docx)\",\n  \"document_ids\": [\n    \"{{document_id}}\"\n  ]\n}"
+              "raw": "{\n  \"project_name\": \"Smart Meter Analytics\",\n  \"project_code\": \"AESL-2025-042\",\n  \"business_unit\": \"AESL\",\n  \"problem_statement\": \"Manual meter reading is error-prone and costly, leading to billing disputes.\",\n  \"document_ids\": [\"{{document_id}}\"]\n}"
             }
           },
           "event": [
@@ -939,7 +975,41 @@
               "listen": "test",
               "script": {
                 "exec": [
-                  "const j = pm.response.json(); if(j.project_id) pm.collectionVariables.set('project_id', j.project_id);"
+                  "pm.test('Draft saved', () => pm.response.to.have.status(201));",
+                  "const j = pm.response.json();",
+                  "if (j.project_id) {",
+                  "  pm.collectionVariables.set('project_id', j.project_id);",
+                  "  console.log('Draft project_id saved:', j.project_id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "STEP 4 — Finalize Project (PATCH)",
+          "request": {
+            "method": "PATCH",
+            "url": "{{base_url}}/projects/{{project_id}}",
+            "description": "Add all remaining required fields to the draft project created in STEP 3b. PATCH only updates the fields present in the body — other fields are untouched. Also sets document_type, output_format, and document_ids for generation.",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"project_objective\": \"Automate meter data collection with real-time analytics dashboard.\",\n  \"stakeholders\": [\n    {\n      \"name\": \"Srinivas Gutta\",\n      \"designation\": \"Project Manager\"\n    },\n    {\n      \"name\": \"Ali Imam\",\n      \"designation\": \"Technical Lead\"\n    }\n  ],\n  \"start_date\": \"2025-04-01\",\n  \"end_date\": \"2025-12-31\",\n  \"as_is_processes\": \"Field engineers visit each meter monthly for manual reading and log results in spreadsheets.\",\n  \"proposed_solution\": \"Deploy IoT smart meters with a central analytics platform integrated with SAP.\",\n  \"technical_landscape\": \"Azure IoT Hub, Power BI, SAP ERP integration via REST API.\",\n  \"business_priority\": \"Critical\",\n  \"constraints\": \"Budget capped at 5 Crores. No disruption to existing billing cycle.\",\n  \"risks\": \"Device connectivity in remote areas. Data privacy regulations.\",\n  \"estimated_cost_crores\": \"4.5\",\n  \"document_type\": \"BRD\",\n  \"output_format\": \"Word (.docx)\",\n  \"status\": \"ready\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "console.log('Project finalized:', pm.collectionVariables.get('project_id'));"
                 ]
               }
             }

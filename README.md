@@ -8,18 +8,22 @@ Automatically generates BRDs, RFPs, SOWs, Proposals, Tech Specs, and Scope Docum
 ## Architecture Overview
 
 ```
-document-generator/
-├── Data_Ingestion/          # Flask backend (REST API)
-│   ├── api/                 # run_server.py — 26+ REST endpoints
-│   ├── parsers/             # PDF, DOCX, PPTX, Excel, Vision AI
-│   ├── storage/             # Azure Blob / local filesystem
-│   ├── generation/          # LLM doc generation, DB ORM, derive fields
-│   ├── models/              # Pydantic schemas
-│   ├── agent/               # Google ADK agent
+Intellidraft/
+├── Data_Ingestion/                 # Flask backend (REST API — port 7071)
+│   ├── run_server.py               # 20+ REST endpoints
+│   ├── parsers/                    # PDF, DOCX, PPTX, Excel, Vision AI
+│   ├── storage/                    # Azure Blob / local filesystem
+│   ├── generation/                 # LLM doc generation, DB ORM, derive fields
+│   ├── models/                     # Pydantic schemas
+│   ├── agents/                     # Google ADK multi-agent system
+│   │   ├── orchestrator.py         # Root LlmAgent — routes to sub-agents
+│   │   ├── doc_parser/             # Agent 1 — upload, parse, Vision AI
+│   │   ├── context_collector/      # Agent 2 — load project context from DB
+│   │   └── document_generator/     # Agent 3 — generate, modify, export
 │   └── requirements.txt
-├── frontend/                # React / Next.js frontend (separate team)
-├── Data_Ingestion/api-docs.html             # Full API reference (open in browser)
-└── IntelliDraft_API.postman_collection.json # Postman collection (29 requests)
+├── frontend/                       # Single-page HTML frontend (index.html)
+├── Data_Ingestion/api-docs.html    # Full API reference (open in browser)
+└── IntelliDraft_API.postman_collection.json  # Postman collection (30+ requests)
 ```
 
 ---
@@ -88,35 +92,49 @@ cp Data_Ingestion/.env.example Data_Ingestion/.env
 
 Open `Data_Ingestion/.env` and fill in your values:
 
+**Gemini (recommended — free API key from Google AI Studio):**
 ```env
-# Choose your LLM provider:  azure_openai | gemini
-MODEL_PROVIDER=azure_openai
+MODEL_PROVIDER=gemini
+GEMINI_API_KEY=<your-gemini-api-key>   # get at https://aistudio.google.com/app/apikey
+```
 
-# For Azure OpenAI
+**Azure GPT-5 (fallback / enterprise):**
+```env
+MODEL_PROVIDER=azure_gpt5
 AZURE_GPT5_OPENAI_API_KEY=<your-azure-api-key>
 AZURE_GPT5_OPENAI_ENDPOINT=https://<your-resource>.openai.azure.com/
 AZURE_GPT5_MODEL_DEPLOYMENT_ID=<your-deployment-name>
-
-# For Gemini (alternative)
-GOOGLE_API_KEY=<your-google-api-key>
 ```
 
 > **Keep `LOCAL_MODE=true` and `LOCAL_DB=true`** for local development —  
 > no Azure Blob, Cosmos DB, or SQL Server needed.
 
+> **Gemini is the primary LLM.** Azure GPT-5 is the automatic fallback — used only  
+> when Gemini credentials are absent or a Gemini call fails. No code changes needed  
+> to switch providers; just update `MODEL_PROVIDER` in `.env`.
+
 ---
 
 ## Running Locally
+
+### 1 — Start the Flask API
 
 ```bash
 python Data_Ingestion/run_server.py
 ```
 
-The API will be available at **`http://localhost:7071/api/`**
+API available at **`http://localhost:7071/api/`**  
+Health check: `http://localhost:7071/api/health`
 
-### Start the Google ADK web UI (optional)
+### 2 — Open the Frontend
+
+Open `frontend/index.html` directly in your browser (double-click or drag into Chrome).  
+No build step required — it's a single HTML file.
+
+### 3 — Start the Google ADK web UI (optional — AI agent chat)
 
 ```bash
+# Run from the Intellidraft/ parent directory (not Data_Ingestion/)
 source env/bin/activate   # or env\Scripts\Activate.ps1 on Windows
 adk web
 ```
@@ -135,15 +153,22 @@ http://localhost:7071/api
 ### Typical usage flow
 
 ```
-1. POST /api/upload                         → upload source files
-2. POST /api/extract-project-data           → AI populates form fields from document
-3. POST /api/projects                       → create & save project
-4. POST /api/projects/{id}/derive-fields    → AI derives 12 extended project fields
-5. GET  /api/projects/{id}/data             → verify ingested + derived fields
-6. POST /api/generate/project/{id}          → start document generation job
-7. GET  /api/generate/{job_id}              → poll until status = "completed"
-8. GET  /api/generate/{job_id}/export?format=docx  → download final document
+1. POST /api/upload                              → upload source file(s)
+2. GET  /api/document/{doc_id}                   → verify parse summary (text, images, tables)
+3. POST /api/extract-project-data                → AI populates form fields from document
+3b. POST /api/projects/draft                     → persist extracted fields immediately (no validation)
+4. PATCH /api/projects/{id}                      → fill in remaining fields, set document_type
+   — OR —
+   POST /api/projects                            → create project in one shot (all required fields)
+5. GET  /api/projects/{id}                       → verify project (document_type, status, doc IDs)
+6. GET  /api/projects/{id}/data                  → verify ingested + derived fields
+7. POST /api/generate/project/{id}               → start document generation job
+8. GET  /api/generate/{job_id}                   → poll until status = "completed"
+9. GET  /api/generate/{job_id}/export?format=docx → download final document
 ```
+
+> **DB-first reads:** All business data is read from GET endpoints.  
+> POST/PATCH responses return only IDs and counts — never read form data from them.
 
 Open **`Data_Ingestion/api-docs.html`** (double-click) for the full interactive API reference.  
 Import **`IntelliDraft_API.postman_collection.json`** into Postman for ready-to-run requests.
@@ -154,15 +179,17 @@ Import **`IntelliDraft_API.postman_collection.json`** into Postman for ready-to-
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `MODEL_PROVIDER` | `azure_openai` | Active LLM: `azure_openai` \| `gemini` |
+| `MODEL_PROVIDER` | `gemini` | Active LLM: `gemini` (primary) \| `azure_gpt5` (fallback) |
+| `GEMINI_API_KEY` | — | Google Gemini API key (get free at aistudio.google.com) |
+| `GOOGLE_API_KEY` | — | Alternative name for `GEMINI_API_KEY` — either works |
+| `GEMINI_VERTEX_MODEL` | `gemini-2.5-flash` | Gemini model ID |
 | `LOCAL_MODE` | `true` | `true` = save files locally; `false` = Azure Blob + Cosmos |
 | `LOCAL_DB` | `true` | `true` = SQLite; `false` = PostgreSQL / Azure SQL via `DATABASE_URL` |
 | `ASYNC_GENERATION` | `true` | `true` = background thread (poll for status); `false` = synchronous |
 | `VISION_ENABLED` | `true` | `true` = AI describes extracted images |
-| `AZURE_GPT5_OPENAI_API_KEY` | — | Azure OpenAI API key |
+| `AZURE_GPT5_OPENAI_API_KEY` | — | Azure OpenAI API key (fallback LLM) |
 | `AZURE_GPT5_OPENAI_ENDPOINT` | — | Azure OpenAI endpoint URL |
 | `AZURE_GPT5_MODEL_DEPLOYMENT_ID` | — | Azure deployment name |
-| `GOOGLE_API_KEY` | — | Google Gemini API key |
 | `DATABASE_URL` | — | Production DB connection string (only when `LOCAL_DB=false`) |
 
 ---
@@ -191,18 +218,24 @@ Data_Ingestion/local_storage/
 Edit `Data_Ingestion/.env` and change `MODEL_PROVIDER`:
 
 ```env
-# Use Gemini
+# ── Gemini (primary — recommended) ────────────────────────────────
 MODEL_PROVIDER=gemini
-GOOGLE_API_KEY=your-key-here
 
-# Use Azure OpenAI
-MODEL_PROVIDER=azure_openai
-AZURE_GPT5_OPENAI_API_KEY=your-key-here
-AZURE_GPT5_OPENAI_ENDPOINT=https://your-resource.openai.azure.com/
-AZURE_GPT5_MODEL_DEPLOYMENT_ID=your-deployment-name
+# Option A: API Key (free, easiest for local dev)
+GEMINI_API_KEY=your-gemini-api-key-here    # https://aistudio.google.com/app/apikey
+
+# Option B: Vertex AI (enterprise — place key.json at Data_Ingestion/key.json)
+# GOOGLE_KEY_JSON_PATH=                    # leave blank for default path
+
+# ── Azure GPT-5 (fallback / enterprise) ───────────────────────────
+# MODEL_PROVIDER=azure_gpt5
+# AZURE_GPT5_OPENAI_API_KEY=your-azure-key-here
+# AZURE_GPT5_OPENAI_ENDPOINT=https://your-resource.openai.azure.com/
+# AZURE_GPT5_MODEL_DEPLOYMENT_ID=your-deployment-name
 ```
 
-No code changes needed — the provider switch is purely config-driven.
+No code changes needed — the provider switch is purely config-driven.  
+Gemini is tried first for every operation; Azure GPT-5 is the automatic fallback.
 
 ---
 
@@ -224,10 +257,13 @@ No code changes needed — the provider switch is purely config-driven.
 |--------|--------|
 | Document parsers (PDF, DOCX, PPTX, Excel) | ✅ Complete |
 | Vision AI image analysis | ✅ Complete |
-| REST API (26+ endpoints) | ✅ Complete |
+| REST API (20+ endpoints) | ✅ Complete |
+| `POST /api/projects/draft` — partial save without validation | ✅ Complete |
+| DB-first data flow — all reads via GET endpoints | ✅ Complete |
 | Project + DerivedData ORM models | ✅ Complete |
 | AI-driven field derivation (`derive-fields`) | ✅ Complete |
 | Document generation (BRD, RFP, SOW, Proposal, TechSpec, Scope) | ✅ Complete |
-| Google ADK agent | ✅ Complete |
-| Frontend integration | 🔄 In progress |
+| Google ADK multi-agent system (Orchestrator + 3 sub-agents) | ✅ Complete |
+| Gemini primary / Azure GPT-5 fallback for all agents | ✅ Complete |
+| Frontend (single-page, DB-first, draft persistence) | ✅ Complete |
 | Production deployment | 🔄 Pending |

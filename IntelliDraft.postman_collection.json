@@ -108,6 +108,35 @@
           ]
         },
         {
+          "name": "Create Draft Project (partial — no validation)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/projects/draft", "host": ["{{base_url}}"], "path": ["projects", "draft"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"project_name\": \"Smart Grid Phase 2\",\n  \"project_code\": \"AESL-SG-002\",\n  \"business_unit\": \"T&D\",\n  \"problem_statement\": \"Legacy SCADA systems lack real-time visibility.\",\n  \"document_ids\": [\"{{doc_id}}\"]\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "Create a project with partial data — no required-field validation. Status is always 'draft'. Use after AI extraction to immediately persist extracted fields. Follow up with PATCH /projects/{{project_id}} to fill in remaining fields."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const json = pm.response.json();",
+                  "  pm.collectionVariables.set('project_id', json.project_id);",
+                  "  console.log('Draft project_id saved:', json.project_id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
           "name": "List Projects",
           "request": {
             "method": "GET",

@@ -206,13 +206,27 @@ def _load_gemini_credentials(log_prefix: str) -> Optional[dict]:
     Returns the credentials dict, or None if the file is missing/unreadable.
     The file is expected to be a standard GCP service account JSON export.
     """
+    # NOTE: Windows paths in .env files can be silently corrupted by dotenv's
+    # escape-sequence expansion — e.g. \adit → \x07dit (bell char), \n → newline.
+    # Strategy: try the custom path first; if it doesn't exist, always fall back
+    # to the default Data_Ingestion/key.json regardless of what was set in .env.
     path_env = os.getenv("GOOGLE_KEY_JSON_PATH", "").strip()
-    key_path = Path(path_env) if path_env else (_BASE / "key.json")
+    candidates: list[Path] = []
+    if path_env:
+        candidates.append(Path(path_env))
+    candidates.append(_BASE / "key.json")   # always try default as final fallback
 
-    if not key_path.exists():
+    key_path: Optional[Path] = None
+    for candidate in candidates:
+        if candidate.exists():
+            key_path = candidate
+            break
+
+    if key_path is None:
         logger.debug(
-            "%s key.json not found at %s — Gemini Vertex AI will be skipped.",
-            log_prefix, key_path,
+            "%s key.json not found (tried: %s) — Gemini Vertex AI will be skipped.",
+            log_prefix,
+            ", ".join(str(c) for c in candidates),
         )
         return None
 
@@ -221,8 +235,8 @@ def _load_gemini_credentials(log_prefix: str) -> Optional[dict]:
         project = creds.get("project_id", "unknown")
         sa_email = creds.get("client_email", "unknown")
         logger.info(
-            "%s Loaded Gemini credentials — project=%s service_account=%s",
-            log_prefix, project, sa_email,
+            "%s Loaded Gemini credentials from %s — project=%s service_account=%s",
+            log_prefix, key_path, project, sa_email,
         )
         return creds
     except Exception as exc:

@@ -42,6 +42,7 @@ cryptography==48.0.0
 
 # ── Google ADK + LLM ─────────────────────────────────────────────────────────
 google-adk==2.0.0
+google-cloud-aiplatform>=1.91.0  # Vertex AI SDK — required for Agent Engine deployment
 litellm==1.83.7             # Unified LLM interface (Azure GPT-5 / Gemini)
 openai==2.30.0              # Used by litellm for Azure OpenAI calls
 google-genai==1.75.0        # Gemini SDK
