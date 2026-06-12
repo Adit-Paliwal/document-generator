@@ -180,7 +180,7 @@ def deploy(args: argparse.Namespace) -> None:
     app = AdkApp(agent=root_agent, enable_tracing=False)
 
     # --- Requirements to install on the remote container ---
-    adk_ver   = importlib.metadata.version("google-adk")
+    adk_ver   = importlib.metadata.version("google-adk")   # 2.2.0+
     aipt_ver  = importlib.metadata.version("google-cloud-aiplatform")
     requirements = [
         f"google-adk=={adk_ver}",
