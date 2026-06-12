@@ -65,13 +65,29 @@ def get_agent_model(agent_name: str = "Agent"):
     if _gemini_credentials_available():
         return _gemini(agent_name)
 
-    # No Gemini credentials → fall back
+    # No Gemini credentials detected — try Azure GPT-5 if credentials exist,
+    # otherwise return the default model string so the container can start.
+    # On Vertex AI Agent Engine, ADC via the metadata server is always available
+    # even when no env var is set, so the returned model string will work at
+    # query time.  If truly no credentials exist, the first query will fail with
+    # an auth error (much friendlier than a startup crash).
+    azure_key  = os.getenv("AZURE_GPT5_OPENAI_API_KEY", "")
+    azure_base = os.getenv("AZURE_GPT5_OPENAI_ENDPOINT", "")
+    if azure_key and azure_base:
+        print(
+            f"[{agent_name}] Gemini credentials not found — falling back to Azure GPT-5.\n"
+            f"  TIP: Add  GEMINI_API_KEY=<your-key>  to Data_Ingestion/.env\n"
+            f"       (free key at https://aistudio.google.com/app/apikey)"
+        )
+        return _azure_gpt5(agent_name)
+
+    model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
     print(
-        f"[{agent_name}] Gemini credentials not found — falling back to Azure GPT-5.\n"
-        f"  TIP: Add  GEMINI_API_KEY=<your-key>  to Data_Ingestion/.env\n"
-        f"       (free key at https://aistudio.google.com/app/apikey)"
+        f"[{agent_name}] WARNING: No credentials detected at startup.\n"
+        f"  → Using '{model}' (ADC will be used on Vertex AI Agent Engine).\n"
+        f"  → For local dev set GEMINI_API_KEY in Data_Ingestion/.env."
     )
-    return _azure_gpt5(agent_name)
+    return model
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -82,7 +98,23 @@ def _gemini_credentials_available() -> bool:
     """Return True if any Gemini/Vertex AI credential signal is present."""
     if os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY"):
         return True
+
+    # Explicit project env vars (set manually or via .env)
     if os.getenv("GOOGLE_CLOUD_PROJECT") or os.getenv("GCP_PROJECT_ID"):
+        return True
+
+    # GCP-managed runtime environments — Agent Engine, Cloud Run, GCE, GKE, etc.
+    # These always have ADC available via the metadata server even if no env var
+    # is explicitly set.  We detect them via well-known platform markers.
+    _GCP_MARKERS = (
+        "CLOUD_ML_PROJECT_ID",   # Vertex AI training / prediction containers
+        "K_SERVICE",             # Cloud Run
+        "FUNCTION_NAME",         # Cloud Functions (1st gen)
+        "K_REVISION",            # Cloud Run (also present in Agent Engine)
+        "GAE_APPLICATION",       # App Engine
+        "GCE_METADATA_IP",       # set by some GCE images
+    )
+    if any(os.getenv(m) for m in _GCP_MARKERS):
         return True
 
     # key.json — GCP service account used by llm_provider.py / Vertex AI
@@ -125,11 +157,13 @@ def _azure_gpt5(agent_name: str):
     dep     = os.getenv("AZURE_GPT5_MODEL_DEPLOYMENT_ID", "project-pulse-gpt-5")
 
     if not key or not base:
-        raise ValueError(
-            f"[{agent_name}] Azure GPT-5 fallback failed: "
-            "AZURE_GPT5_OPENAI_API_KEY and AZURE_GPT5_OPENAI_ENDPOINT "
-            "must be set in Data_Ingestion/.env"
+        model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+        print(
+            f"[{agent_name}] WARNING: Azure GPT-5 credentials missing.\n"
+            f"  AZURE_GPT5_OPENAI_API_KEY / AZURE_GPT5_OPENAI_ENDPOINT not set.\n"
+            f"  → Falling back to '{model}'. Set credentials in .env or env_vars."
         )
+        return model
 
     os.environ.update({
         "AZURE_API_KEY":     key,
@@ -167,10 +201,13 @@ def _azure_openai(agent_name: str):
     dep     = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4o")
 
     if not key or not base:
-        raise ValueError(
-            f"[{agent_name}] AZURE_OPENAI_API_KEY and AZURE_OPENAI_ENDPOINT "
-            "must be set in Data_Ingestion/.env"
+        model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+        print(
+            f"[{agent_name}] WARNING: Azure OpenAI credentials missing.\n"
+            f"  AZURE_OPENAI_API_KEY / AZURE_OPENAI_ENDPOINT not set.\n"
+            f"  → Falling back to '{model}'. Set credentials in .env or env_vars."
         )
+        return model
 
     os.environ.update({
         "AZURE_API_KEY":     key,
