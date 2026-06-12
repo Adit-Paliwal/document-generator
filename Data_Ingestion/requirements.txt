@@ -148,8 +148,8 @@ pyOpenSSL==26.2.0
 pyasn1==0.6.3
 pyasn1_modules==0.4.2
 
-# ── Windows ──────────────────────────────────────────────────────────────────
-pywin32==311               # Windows only — remove on Linux/Mac
+# ── Windows (local dev only — do NOT include in Agent Engine deployment) ─────
+# pywin32==311             # uncomment only for local Windows development
 
 # ── Misc ─────────────────────────────────────────────────────────────────────
 setuptools==82.0.1

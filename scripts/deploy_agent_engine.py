@@ -180,27 +180,17 @@ def deploy(args: argparse.Namespace) -> None:
     app = AdkApp(agent=root_agent, enable_tracing=False)
 
     # --- Requirements to install on the remote container ---
-    adk_ver   = importlib.metadata.version("google-adk")   # 2.2.0+
-    aipt_ver  = importlib.metadata.version("google-cloud-aiplatform")
+    # Read from requirements-agent-engine.txt (Linux-safe; excludes pywin32).
+    req_file = _DATA_INGESTION / "requirements-agent-engine.txt"
+    if not req_file.exists():
+        print(f"  WARNING: {req_file} not found — falling back to requirements.txt")
+        req_file = _DATA_INGESTION / "requirements.txt"
     requirements = [
-        f"google-adk=={adk_ver}",
-        f"google-cloud-aiplatform=={aipt_ver}",
-        "python-dotenv>=1.0.1",
-        "litellm>=1.83.0",
-        "openai>=1.0.0",
-        "google-genai>=1.0.0",
-        "PyMuPDF>=1.24.0",
-        "python-docx>=1.1.0",
-        "python-pptx>=1.0.0",
-        "openpyxl>=3.1.0",
-        "SQLAlchemy>=2.0.0",
-        "aiosqlite>=0.20.0",
-        "azure-storage-blob>=12.0.0",
-        "azure-cosmos>=4.0.0",
-        "azure-identity>=1.15.0",
-        "pydantic>=2.0.0",
-        "cloudpickle>=3.0.0",
+        line.strip()
+        for line in req_file.read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.strip().startswith("#")
     ]
+    print(f"  Loaded {len(requirements)} requirements from {req_file.name}")
 
     # --- Create ---
     print(f"\nDeploying '{args.display_name}' to Agent Engine ...")

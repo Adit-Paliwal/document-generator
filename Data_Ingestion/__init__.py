@@ -22,9 +22,13 @@
 # HOW TO DEPLOY (Agent Engine):
 #   adk deploy agent_engine \
 #     --project=$GCP_PROJECT_ID \
-#     --region=us-central1 \
+#     --region=asia-south1 \
 #     --display_name="IntelliDraft Document Generator" \
+#     --requirements_file=Data_Ingestion/requirements-agent-engine.txt \
 #     Data_Ingestion
+#
+# IMPORTANT: use requirements-agent-engine.txt (not requirements.txt) —
+#   requirements.txt contains pywin32 which breaks the Linux cloud build.
 #
 # DO NOT run from inside Data_Ingestion\ — doubled path breaks ADK discovery.
 #
