@@ -42,23 +42,29 @@ RUN mkdir -p /app/Data_Ingestion/local_storage
 # ── Working directory for the server ─────────────────────────────────────────
 WORKDIR /app/Data_Ingestion
 
+# PORT env var:
+#   Cloud Run injects $PORT automatically (usually 8080).
+#   Local Docker / docker-compose: falls back to 7071.
+#   The health check and EXPOSE both use 7071 for local compat;
+#   Cloud Run overrides via the $PORT variable at runtime.
 EXPOSE 7071
 
 # ── Health check — lightweight /api/health (zero DB cost) ────────────────────
 HEALTHCHECK --interval=30s --timeout=10s --start-period=25s --retries=3 \
-    CMD curl -sf http://localhost:7071/api/health > /dev/null || exit 1
+    CMD curl -sf http://localhost:${PORT:-7071}/api/health > /dev/null || exit 1
 
 # ── Start with Gunicorn (production WSGI) ────────────────────────────────────
 # --workers=2          : 2 processes (enough for staging/prod single-instance)
 # --worker-class=gthread: thread-based workers — safe with SQLite WAL + background gen threads
 # --threads=4          : 4 threads per worker → handles concurrent polls during generation
 # --timeout=200        : derive-fields uses 180s LLM timeout; 200s gives headroom above that
-# --access-logfile=-   : stream access logs to stdout (captured by Docker)
-CMD ["gunicorn", \
-     "--workers=2", \
-     "--worker-class=gthread", \
-     "--threads=4", \
-     "--bind=0.0.0.0:7071", \
-     "--timeout=200", \
-     "--access-logfile=-", \
-     "run_server:app"]
+# --access-logfile=-   : stream access logs to stdout (captured by Cloud Run / Docker)
+# --bind uses $PORT    : Cloud Run sets PORT; local falls back to 7071
+CMD exec gunicorn \
+    --workers=2 \
+    --worker-class=gthread \
+    --threads=4 \
+    --bind=0.0.0.0:${PORT:-7071} \
+    --timeout=200 \
+    --access-logfile=- \
+    run_server:app

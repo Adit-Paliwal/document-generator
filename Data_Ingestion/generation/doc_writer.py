@@ -67,6 +67,7 @@ def export_job(job_id: str, output_format: Optional[str] = None) -> tuple[Path, 
             chosen   = accepted or latest
 
             sections_content.append({
+                "key":     getattr(sec, "section_key", None) or "",
                 "title":   sec.section_title,
                 "content": chosen.content,
                 "version": chosen.version_number,
@@ -86,7 +87,12 @@ def export_job(job_id: str, output_format: Optional[str] = None) -> tuple[Path, 
         filename  = f"{safe_name}_{timestamp}.docx"
         out_path  = out_dir / filename
         mime_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        _write_docx(out_path, doc_type, project_name, sections_content)
+        if _is_brd(doc_type):
+            from generation.brd_formatter import format_brd_docx
+            sections_by_key = {s["key"]: s["content"] for s in sections_content if s.get("key")}
+            format_brd_docx(sections_by_key, project_name, out_path)
+        else:
+            _write_docx(out_path, doc_type, project_name, sections_content)
 
     elif "pdf" in fmt.lower():
         pdf_path  = out_dir / f"{safe_name}_{timestamp}.pdf"
@@ -103,7 +109,12 @@ def export_job(job_id: str, output_format: Optional[str] = None) -> tuple[Path, 
             filename  = f"{safe_name}_{timestamp}.docx"
             out_path  = out_dir / filename
             mime_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            _write_docx(out_path, doc_type, project_name, sections_content)
+            if _is_brd(doc_type):
+                from generation.brd_formatter import format_brd_docx
+                sections_by_key = {s["key"]: s["content"] for s in sections_content if s.get("key")}
+                format_brd_docx(sections_by_key, project_name, out_path)
+            else:
+                _write_docx(out_path, doc_type, project_name, sections_content)
         filename = out_path.name
 
     else:   # Markdown (default)
@@ -568,6 +579,12 @@ def _inline(text: str) -> str:
 def _output_dir(job_id: str) -> Path:
     # Absolute path — works regardless of the working directory at runtime.
     return Path(__file__).parent.parent / "local_storage" / "outputs" / job_id
+
+
+def _is_brd(doc_type: Optional[str]) -> bool:
+    if not doc_type:
+        return False
+    return "brd" in doc_type.lower() or "business requirements" in doc_type.lower()
 
 
 def _extract_project_name(user_inputs_json: Optional[str]) -> str:

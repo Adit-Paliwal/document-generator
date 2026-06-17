@@ -51,7 +51,9 @@ def get_agent_model(agent_name: str = "Agent"):
     Args:
         agent_name: Used only for the startup print — e.g. "DocParserAgent".
     """
-    provider = os.getenv("MODEL_PROVIDER", "gemini").lower()
+    # Use empty string as default so we can distinguish "explicitly set to gemini"
+    # from "not set at all" — important for the GCP Agent Engine container.
+    provider = os.getenv("MODEL_PROVIDER", "").lower()
 
     # ── Explicit Azure overrides ──────────────────────────────────────────────
     if provider == "azure_gpt5":
@@ -60,12 +62,20 @@ def get_agent_model(agent_name: str = "Agent"):
     if provider == "azure_openai":
         return _azure_openai(agent_name)
 
-    # ── Gemini (default) — check that credentials exist ───────────────────────
-    # If no Gemini credentials are found, automatically fall back to Azure GPT-5
+    # ── Explicit Gemini ───────────────────────────────────────────────────────
+    # When MODEL_PROVIDER=gemini is set, trust it unconditionally — do NOT check
+    # credentials here. This prevents container startup crashes on Agent Engine
+    # where GOOGLE_CLOUD_PROJECT may not yet be visible to Python at import time
+    # even though ADC is fully available at API-call time.
+    if provider == "gemini":
+        return _gemini(agent_name)
+
+    # ── Auto-detect (MODEL_PROVIDER not set) ──────────────────────────────────
+    # Credential check only runs when provider is not explicitly specified.
     if _gemini_credentials_available():
         return _gemini(agent_name)
 
-    # No Gemini credentials → fall back
+    # No Gemini credentials and no explicit provider → fall back to Azure GPT-5
     print(
         f"[{agent_name}] Gemini credentials not found — falling back to Azure GPT-5.\n"
         f"  TIP: Add  GEMINI_API_KEY=<your-key>  to Data_Ingestion/.env\n"

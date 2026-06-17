@@ -1,0 +1,588 @@
+"""
+BRD Document Formatter
+=======================
+Produces a styled Business Requirements Document (.docx) from AI-generated
+section content, matching the Adani BRD template (Blockchain Platform.docx).
+
+Structure: 13 numbered top-level sections, 23 generated content blocks,
+6 table-based requirement sections.
+
+Entry point:  format_brd_docx(sections_by_key, project_name, out_path)
+Called from:  doc_writer.export_job() when doc_type is BRD and format is DOCX.
+"""
+from __future__ import annotations
+
+import re
+from datetime import datetime
+from pathlib import Path
+from typing import Optional
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Adani brand colours (hex strings, no #)
+# ─────────────────────────────────────────────────────────────────────────────
+_DARK_BLUE   = "1F3763"   # H3 text, table header fill
+_MID_BLUE    = "2E75B6"   # header rule line
+_LIGHT_BLUE  = "D6E4F7"   # table alt-row fill (unused by default, kept for future)
+_WHITE       = "FFFFFF"
+_BLACK       = "000000"
+_GRAY        = "595959"   # sub-text, footer
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Document structure
+# ─────────────────────────────────────────────────────────────────────────────
+# key=None entries are pure heading rows — the formatter injects them as headings
+# with no AI content.  key=<str> entries pull from sections_by_key dict.
+BRD_STRUCTURE = [
+    {"num": "1",      "key": "purpose",                      "title": "Purpose",                                                        "level": 1},
+    {"num": "2",      "key": "scope",                        "title": "Scope",                                                          "level": 1},
+    {"num": "3",      "key": "terms_and_definitions",        "title": "Terms and Definition",                                           "level": 1},
+    {"num": "4",      "key": None,                           "title": "Business requirements summary",                                  "level": 1},
+    {"num": "4.1",    "key": "business_need",                "title": "Business need and why?",                                         "level": 2},
+    {"num": "4.2",    "key": "business_context",             "title": "Context for business need",                                      "level": 2},
+    {"num": "4.3",    "key": "problem_statement",            "title": "Problem statement",                                              "level": 2},
+    {"num": "4.4",    "key": "business_value",               "title": "Business value delivered",                                       "level": 2},
+    {"num": "4.5",    "key": None,                           "title": "Competitor Landscape and Positioning",                           "level": 2},
+    {"num": "4.5.1",  "key": "competitor_landscape",         "title": "Competitor landscape",                                           "level": 3},
+    {"num": "4.5.2",  "key": "similar_digital_solutions",    "title": "Similar digital solutions",                                      "level": 3},
+    {"num": "4.5.3",  "key": "positioning",                  "title": "Positioning",                                                    "level": 3},
+    {"num": "4.6",    "key": "critical_success_factors",     "title": "Critical success factors",                                       "level": 2},
+    {"num": "5",      "key": None,                           "title": "Business process",                                               "level": 1},
+    {"num": "5.1",    "key": "pain_areas_operational",       "title": "Pain areas or opportunities in existing operational process",    "level": 2},
+    {"num": "5.2",    "key": "pain_areas_technology",        "title": "Pain areas or opportunities in existing technology/systems",     "level": 2},
+    {"num": "5.3",    "key": "business_functionality_impact","title": "Business functionality impact",                                  "level": 2},
+    {"num": "5.4",    "key": None,                           "title": "Business process impacted",                                      "level": 2},
+    {"num": "5.4.1",  "key": "as_is_process",                "title": "As-Is Business Process",                                        "level": 3},
+    {"num": "6",      "key": "business_use_cases",           "title": "Business use cases",                                            "level": 1},
+    {"num": "7",      "key": "business_requirements_list",   "title": "Business requirements",                                          "level": 1},
+    {"num": "8",      "key": "functional_requirements",      "title": "Functional requirements",                                        "level": 1},
+    {"num": "9",      "key": "non_functional_requirements",  "title": "Non-functional requirements",                                    "level": 1},
+    {"num": "10",     "key": "solution_overview",            "title": "Solution overview-Cloud first approach",                         "level": 1},
+    {"num": "11",     "key": "key_constraints",              "title": "Key constraints",                                                "level": 1},
+    {"num": "12",     "key": "project_schedule",             "title": "Project schedule",                                               "level": 1},
+    {"num": "13",     "key": "other_constraints_assumptions","title": "Other constraints and assumptions if any",                       "level": 1},
+]
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Public entry point
+# ─────────────────────────────────────────────────────────────────────────────
+
+def format_brd_docx(
+    sections_by_key: dict[str, str],
+    project_name: str,
+    out_path: Path,
+    *,
+    client_name: str = "Adani Energy Solutions",
+    doc_version: str = "1.0",
+) -> None:
+    """
+    Build a styled BRD Word document from AI-generated section content.
+
+    Args:
+        sections_by_key:  {section_key: markdown_content_string}
+        project_name:     Used in header, cover, and document control table.
+        out_path:         Destination .docx path (must include .docx extension).
+        client_name:      Override the client name shown on cover / control table.
+        doc_version:      Document version string (e.g. "1.0").
+    """
+    from docx import Document
+
+    doc = Document()
+    _setup_page(doc)
+    _setup_styles(doc)
+    _add_header(doc, project_name)
+    _add_footer(doc)
+    _add_cover(doc, project_name, client_name, doc_version)
+    _add_all_sections(doc, sections_by_key)
+    doc.save(str(out_path))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Page and style setup
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _setup_page(doc) -> None:
+    from docx.shared import Cm
+    sec = doc.sections[0]
+    sec.page_width    = Cm(21)
+    sec.page_height   = Cm(29.7)
+    sec.left_margin   = Cm(2.54)
+    sec.right_margin  = Cm(2.54)
+    sec.top_margin    = Cm(2.54)
+    sec.bottom_margin = Cm(2.0)
+
+
+def _setup_styles(doc) -> None:
+    from docx.shared import Pt, RGBColor
+
+    styles = doc.styles
+
+    # Normal body text
+    normal = styles["Normal"]
+    normal.font.name = "Calibri"
+    normal.font.size = Pt(11)
+
+    # Heading 1: 16pt, black, bold
+    h1 = styles["Heading 1"]
+    h1.font.name  = "Calibri"
+    h1.font.size  = Pt(16)
+    h1.font.bold  = True
+    h1.font.color.rgb = RGBColor(0x00, 0x00, 0x00)
+    h1.font.underline = False
+    h1.paragraph_format.space_before = Pt(14)
+    h1.paragraph_format.space_after  = Pt(6)
+    h1.paragraph_format.keep_with_next = True
+
+    # Heading 2: 13pt, black, bold
+    h2 = styles["Heading 2"]
+    h2.font.name  = "Calibri"
+    h2.font.size  = Pt(13)
+    h2.font.bold  = True
+    h2.font.color.rgb = RGBColor(0x00, 0x00, 0x00)
+    h2.font.underline = False
+    h2.paragraph_format.space_before = Pt(10)
+    h2.paragraph_format.space_after  = Pt(4)
+    h2.paragraph_format.keep_with_next = True
+
+    # Heading 3: 12pt, Adani dark blue, bold
+    h3 = styles["Heading 3"]
+    h3.font.name  = "Calibri"
+    h3.font.size  = Pt(12)
+    h3.font.bold  = True
+    h3.font.color.rgb = RGBColor(0x1F, 0x37, 0x63)
+    h3.font.underline = False
+    h3.paragraph_format.space_before = Pt(8)
+    h3.paragraph_format.space_after  = Pt(3)
+    h3.paragraph_format.keep_with_next = True
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Header and footer
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _add_header(doc, project_name: str) -> None:
+    from docx.shared import Pt, RGBColor
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+
+    section = doc.sections[0]
+    header  = section.header
+
+    # Clear any default content
+    for para in header.paragraphs:
+        for run in para.runs:
+            run.text = ""
+    hp = header.paragraphs[0] if header.paragraphs else header.add_paragraph()
+
+    hp.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    _set_para_border_bottom(hp, _MID_BLUE, size=6)
+
+    run = hp.add_run(f"Detailed BRD  |  {project_name}")
+    run.font.name  = "Calibri"
+    run.font.size  = Pt(9)
+    run.font.color.rgb = RGBColor(0x59, 0x59, 0x59)
+    run.font.italic = True
+
+
+def _add_footer(doc) -> None:
+    from docx.shared import Pt, RGBColor
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.oxml.ns import qn
+    from docx.oxml import OxmlElement
+
+    section = doc.sections[0]
+    footer  = section.footer
+
+    for para in footer.paragraphs:
+        for run in para.runs:
+            run.text = ""
+    fp = footer.paragraphs[0] if footer.paragraphs else footer.add_paragraph()
+    fp.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+    # "Page X of Y" using Word field codes
+    run = fp.add_run()
+    run.font.name  = "Calibri"
+    run.font.size  = Pt(9)
+    run.font.color.rgb = RGBColor(0x59, 0x59, 0x59)
+    _append_field(run, "PAGE")
+
+    run2 = fp.add_run(" of ")
+    run2.font.name  = "Calibri"
+    run2.font.size  = Pt(9)
+    run2.font.color.rgb = RGBColor(0x59, 0x59, 0x59)
+
+    run3 = fp.add_run()
+    run3.font.name  = "Calibri"
+    run3.font.size  = Pt(9)
+    run3.font.color.rgb = RGBColor(0x59, 0x59, 0x59)
+    _append_field(run3, "NUMPAGES")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Cover page  (title + document control table + revision history)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _add_cover(doc, project_name: str, client_name: str, doc_version: str) -> None:
+    from docx.shared import Pt, RGBColor, Cm
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+
+    today = datetime.utcnow().strftime("%d %B %Y")
+
+    # Main title
+    t = doc.add_paragraph()
+    t.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    t.paragraph_format.space_before = Pt(72)
+    t.paragraph_format.space_after  = Pt(6)
+    run = t.add_run("BUSINESS REQUIREMENTS DOCUMENT")
+    run.font.name  = "Calibri"
+    run.font.size  = Pt(24)
+    run.font.bold  = True
+    run.font.color.rgb = RGBColor(0x1F, 0x37, 0x63)
+
+    # Sub-title
+    sub = doc.add_paragraph()
+    sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    sub.paragraph_format.space_after = Pt(4)
+    r2 = sub.add_run(project_name)
+    r2.font.name  = "Calibri"
+    r2.font.size  = Pt(16)
+    r2.font.bold  = True
+    r2.font.color.rgb = RGBColor(0x2E, 0x75, 0xB6)
+
+    doc.add_paragraph()  # spacer
+
+    # Document control table
+    ctrl_data = [
+        ("Document Title",  "Business Requirements Document"),
+        ("Project",         project_name),
+        ("Client",          client_name),
+        ("Prepared By",     "Intellidraft AI"),
+        ("Date",            today),
+        ("Version",         doc_version),
+        ("Status",          "Draft"),
+    ]
+    ctrl_tbl = doc.add_table(rows=len(ctrl_data), cols=2)
+    ctrl_tbl.style = _safe_table_style(doc)
+    col_w = [Cm(5), Cm(11.5)]
+    for r_idx, (label, value) in enumerate(ctrl_data):
+        row = ctrl_tbl.rows[r_idx]
+        _set_cell_text(row.cells[0], label, bold=True, bg=_DARK_BLUE, fg=_WHITE)
+        _set_cell_text(row.cells[1], value)
+        for c_idx, w in enumerate(col_w):
+            row.cells[c_idx].width = w
+
+    doc.add_paragraph()  # spacer
+
+    # Revision history heading
+    rh = doc.add_paragraph()
+    rh.paragraph_format.space_before = Pt(14)
+    r3 = rh.add_run("Revision History")
+    r3.font.name  = "Calibri"
+    r3.font.size  = Pt(12)
+    r3.font.bold  = True
+
+    rev_tbl = doc.add_table(rows=2, cols=4)
+    rev_tbl.style = _safe_table_style(doc)
+    rev_headers = ["Revision", "Date of Change", "Revision Description", "Author"]
+    for c_idx, hdr in enumerate(rev_headers):
+        _set_cell_text(rev_tbl.rows[0].cells[c_idx], hdr, bold=True, bg=_DARK_BLUE, fg=_WHITE)
+    for c_idx, val in enumerate(["1.0", today, "Initial draft", "Intellidraft AI"]):
+        _set_cell_text(rev_tbl.rows[1].cells[c_idx], val)
+
+    doc.add_paragraph()  # spacer before confidentiality
+
+    conf = doc.add_paragraph()
+    conf.paragraph_format.space_before = Pt(20)
+    cr = conf.add_run(
+        "CONFIDENTIAL — This document contains proprietary information of Adani Energy Solutions. "
+        "Distribution is restricted to authorised personnel only."
+    )
+    cr.font.name   = "Calibri"
+    cr.font.size   = Pt(9)
+    cr.font.italic = True
+    cr.font.color.rgb = RGBColor(0x59, 0x59, 0x59)
+
+    # Page break to start content on a new page
+    doc.add_page_break()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Section rendering
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _add_all_sections(doc, sections_by_key: dict[str, str]) -> None:
+    for entry in BRD_STRUCTURE:
+        num   = entry["num"]
+        key   = entry["key"]
+        title = entry["title"]
+        level = entry["level"]
+
+        # Build the heading text with section number prefix
+        sep = ". " if "." not in num else " "
+        heading_text = f"{num}{sep}{title}"
+
+        doc.add_heading(heading_text, level=level)
+
+        if key is None:
+            # Parent-only heading — no content
+            continue
+
+        content = sections_by_key.get(key, "").strip()
+        if not content:
+            p = doc.add_paragraph()
+            p.add_run("[Content not yet generated]").italic = True
+            continue
+
+        _render_brd_markdown(doc, content)
+        doc.add_paragraph()  # spacer after each section
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Markdown renderer  (fork of doc_writer._render_markdown_to_docx with
+# Adani-styled table headers)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _render_brd_markdown(doc, md_text: str) -> None:
+    """
+    Parse Markdown and add styled content to the Document.
+    Handles: headings (## / ###), bold/italic/code spans, bullet lists,
+    numbered lists, code blocks, horizontal rules, plain paragraphs,
+    and pipe tables (with Adani-styled header row).
+    """
+    from docx.shared import Pt
+
+    lines     = md_text.split("\n")
+    i         = 0
+    in_code   = False
+    code_buf: list[str] = []
+    table_buf: list[str] = []
+
+    while i < len(lines):
+        line = lines[i]
+
+        # ── Code block ─────────────────────────────────────────────────
+        if line.strip().startswith("```"):
+            if in_code:
+                if code_buf:
+                    p   = doc.add_paragraph()
+                    run = p.add_run("\n".join(code_buf))
+                    run.font.name = "Courier New"
+                    run.font.size = Pt(9)
+                code_buf = []
+                in_code  = False
+            else:
+                in_code = True
+            i += 1
+            continue
+
+        if in_code:
+            code_buf.append(line)
+            i += 1
+            continue
+
+        # ── Pipe table ──────────────────────────────────────────────────
+        if line.strip().startswith("|"):
+            table_buf.append(line)
+            i += 1
+            while i < len(lines) and lines[i].strip().startswith("|"):
+                table_buf.append(lines[i])
+                i += 1
+            _add_brd_table(doc, table_buf)
+            table_buf = []
+            continue
+
+        # ── Headings (avoid re-adding headings the LLM may have prefixed) ──
+        if line.startswith("### "):
+            doc.add_heading(_strip_md(line[4:]), level=3)
+        elif line.startswith("## "):
+            doc.add_heading(_strip_md(line[3:]), level=2)
+        elif line.startswith("# "):
+            doc.add_heading(_strip_md(line[2:]), level=1)
+
+        # ── Horizontal rule ────────────────────────────────────────────
+        elif line.strip() in ("---", "***", "___"):
+            pass  # skip HRs — section spacing handles visual separation
+
+        # ── Bullet (- or *) ────────────────────────────────────────────
+        elif line.startswith("- ") or line.startswith("* "):
+            _inline_runs(doc.add_paragraph(style="List Bullet"), line[2:])
+
+        # ── Numbered list ──────────────────────────────────────────────
+        elif re.match(r"^\d+\.\s", line):
+            text = re.sub(r"^\d+\.\s", "", line)
+            _inline_runs(doc.add_paragraph(style="List Number"), text)
+
+        # ── Sub-bullet (  - ) ──────────────────────────────────────────
+        elif re.match(r"^\s{2,}[-*] ", line):
+            _inline_runs(doc.add_paragraph(style="List Bullet 2"), line.strip()[2:])
+
+        # ── **Bold heading** pattern used in mixed sections ────────────
+        elif re.match(r"^\*\*.+\*\*$", line.strip()):
+            p = doc.add_paragraph()
+            p.paragraph_format.space_before = Pt(6)
+            _inline_runs(p, line.strip())
+
+        # ── Empty line ─────────────────────────────────────────────────
+        elif not line.strip():
+            pass
+
+        # ── Normal paragraph ───────────────────────────────────────────
+        else:
+            _inline_runs(doc.add_paragraph(), line)
+
+        i += 1
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Adani-styled table (dark blue header row)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _add_brd_table(doc, table_lines: list[str]) -> None:
+    """Convert Markdown pipe table lines to a styled python-docx Table."""
+    from docx.shared import Pt
+
+    rows: list[list[str]] = []
+    for raw in table_lines:
+        if re.match(r"^\|[-| :]+\|$", raw.strip()):
+            continue  # skip separator row
+        cells = [c.strip() for c in raw.strip().strip("|").split("|")]
+        rows.append(cells)
+
+    if not rows:
+        return
+
+    max_cols = max(len(r) for r in rows)
+    tbl      = doc.add_table(rows=len(rows), cols=max_cols)
+    tbl.style = _safe_table_style(doc)
+
+    for r_idx, row_cells in enumerate(rows):
+        for c_idx in range(max_cols):
+            cell_text = row_cells[c_idx] if c_idx < len(row_cells) else ""
+            cell      = tbl.rows[r_idx].cells[c_idx]
+            is_header = (r_idx == 0)
+            _set_cell_text(
+                cell,
+                _strip_md(cell_text),
+                bold=is_header,
+                bg=_DARK_BLUE if is_header else None,
+                fg=_WHITE    if is_header else None,
+            )
+
+    doc.add_paragraph()  # spacing after table
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Cell helpers
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _set_cell_text(
+    cell,
+    text: str,
+    *,
+    bold: bool = False,
+    bg: Optional[str] = None,
+    fg: Optional[str] = None,
+) -> None:
+    from docx.shared import Pt, RGBColor
+    from docx.oxml.ns import qn
+    from docx.oxml import OxmlElement
+
+    para = cell.paragraphs[0]
+    run  = para.add_run(text)
+    run.font.name = "Calibri"
+    run.font.size = Pt(10)
+    run.font.bold = bold
+    if fg:
+        r, g, b = int(fg[0:2], 16), int(fg[2:4], 16), int(fg[4:6], 16)
+        run.font.color.rgb = RGBColor(r, g, b)
+
+    if bg:
+        tc   = cell._tc
+        tcPr = tc.get_or_add_tcPr()
+        shd  = OxmlElement("w:shd")
+        shd.set(qn("w:val"),   "clear")
+        shd.set(qn("w:color"), "auto")
+        shd.set(qn("w:fill"),  bg)
+        tcPr.append(shd)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Inline Markdown runs (bold / italic / code)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _inline_runs(para, text: str) -> None:
+    """Add runs to a paragraph, applying **bold**, *italic*, and `code` spans."""
+    from docx.shared import Pt
+
+    pattern = re.compile(r"(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)")
+    for part in pattern.split(text):
+        if part.startswith("**") and part.endswith("**"):
+            r      = para.add_run(part[2:-2])
+            r.bold = True
+        elif part.startswith("*") and part.endswith("*"):
+            r        = para.add_run(part[1:-1])
+            r.italic = True
+        elif part.startswith("`") and part.endswith("`"):
+            r           = para.add_run(part[1:-1])
+            r.font.name = "Courier New"
+            r.font.size = Pt(9)
+        else:
+            para.add_run(part)
+
+
+def _strip_md(text: str) -> str:
+    """Strip inline Markdown markers from a string."""
+    text = re.sub(r"\*\*(.+?)\*\*", r"\1", text)
+    text = re.sub(r"\*(.+?)\*",     r"\1", text)
+    text = re.sub(r"`(.+?)`",       r"\1", text)
+    return text.strip()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# XML / style helpers
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _set_para_border_bottom(para, color_hex: str, size: int = 6) -> None:
+    """Add a bottom border to a paragraph via OOXML pPr/pBdr."""
+    from docx.oxml.ns import qn
+    from docx.oxml import OxmlElement
+
+    pPr  = para._p.get_or_add_pPr()
+    pBdr = OxmlElement("w:pBdr")
+    bot  = OxmlElement("w:bottom")
+    bot.set(qn("w:val"),   "single")
+    bot.set(qn("w:sz"),    str(size))
+    bot.set(qn("w:space"), "1")
+    bot.set(qn("w:color"), color_hex)
+    pBdr.append(bot)
+    pPr.append(pBdr)
+
+
+def _append_field(run, field_name: str) -> None:
+    """Append a simple Word field code (e.g. PAGE, NUMPAGES) to a run element."""
+    from docx.oxml.ns import qn
+    from docx.oxml import OxmlElement
+
+    begin = OxmlElement("w:fldChar")
+    begin.set(qn("w:fldCharType"), "begin")
+
+    instr = OxmlElement("w:instrText")
+    instr.text = f" {field_name} "
+
+    sep = OxmlElement("w:fldChar")
+    sep.set(qn("w:fldCharType"), "separate")
+
+    end = OxmlElement("w:fldChar")
+    end.set(qn("w:fldCharType"), "end")
+
+    for el in (begin, instr, sep, end):
+        run._r.append(el)
+
+
+def _safe_table_style(doc):
+    """Return 'Table Grid' if available, otherwise the first table style."""
+    for name in ("Table Grid", "Normal Table", "Table Normal"):
+        try:
+            return doc.styles[name]
+        except KeyError:
+            continue
+    return None

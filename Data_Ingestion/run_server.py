@@ -871,6 +871,122 @@ def generate_from_project(project_id):
 
 
 # ═════════════════════════════════════════════════════════════════════════════
+# CHAT STUDIO ENDPOINTS
+# ═════════════════════════════════════════════════════════════════════════════
+
+@app.route("/api/chat/init", methods=["POST"])
+def chat_init():
+    """Create a new chat session + opening message. Body: { project_id, document_type, project_name? }"""
+    try:
+        body         = request.get_json() or {}
+        project_id   = body.get("project_id", "").strip()
+        doc_type     = body.get("document_type", "brd").strip()
+        project_name = body.get("project_name", "").strip()
+        if not project_id:
+            return json_resp({"error": "project_id is required"}, 400)
+        from api.chat_handler import init_session
+        return json_resp(init_session(project_id, doc_type, project_name), 201)
+    except Exception as e:
+        logger.exception("chat/init failed")
+        return json_resp({"error": str(e)}, 500)
+
+
+@app.route("/api/chat/message", methods=["POST"])
+def chat_message():
+    """Send a user message and receive an assistant response. Body: { session_id, message, project_id?, document_type? }"""
+    try:
+        body       = request.get_json() or {}
+        session_id = body.get("session_id", "").strip()
+        message    = body.get("message", "").strip()
+        project_id = body.get("project_id")
+        doc_type   = body.get("document_type")
+        if not session_id:
+            return json_resp({"error": "session_id is required"}, 400)
+        if not message:
+            return json_resp({"error": "message is required"}, 400)
+        from api.chat_handler import process_message
+        return json_resp(process_message(session_id, message, project_id, doc_type))
+    except Exception as e:
+        logger.exception("chat/message failed")
+        return json_resp({"error": str(e)}, 500)
+
+
+@app.route("/api/chat/<session_id>/history", methods=["GET"])
+def chat_history(session_id):
+    """Return full ChatSession with all messages."""
+    try:
+        from api.chat_handler import get_history
+        return json_resp(get_history(session_id))
+    except ValueError as e:
+        return json_resp({"error": str(e)}, 404)
+    except Exception as e:
+        logger.exception("chat_history failed")
+        return json_resp({"error": str(e)}, 500)
+
+
+@app.route("/api/templates/<template_id>/reseed", methods=["POST"])
+def reseed_template_route(template_id):
+    """Force re-seed a system template from its JSON file. Use after editing a template JSON."""
+    try:
+        from generation.template_manager import reseed_template
+        ok = reseed_template(template_id)
+        if not ok:
+            return json_resp({"error": f"Template JSON not found: {template_id}.json"}, 404)
+        return json_resp({"status": "reseeded", "template_id": template_id})
+    except Exception as e:
+        logger.exception("reseed_template failed")
+        return json_resp({"error": str(e)}, 500)
+
+
+@app.route("/api/chat/<session_id>/upload", methods=["POST"])
+def chat_upload(session_id):
+    """
+    Upload a document via the chat UI.
+    Parses the file, stores it, attaches to the session's project,
+    and returns a chat-style confirmation response.
+    Body: multipart/form-data with 'file' field.
+    """
+    try:
+        from parsers.parser_factory import parse_document, SUPPORTED_EXTENSIONS
+        from api.chat_handler import attach_document_to_session
+
+        file_data = request.files.get("file")
+        if not file_data:
+            return json_resp({"error": "No file provided. Send as multipart field 'file'."}, 400)
+
+        filename = file_data.filename or "upload"
+        ext      = Path(filename).suffix.lower()
+
+        if ext not in SUPPORTED_EXTENSIONS:
+            return json_resp({"error": f"Unsupported file type '{ext}'.",
+                              "supported": SUPPORTED_EXTENSIONS}, 415)
+
+        raw = file_data.read()
+        if len(raw) > MAX_UPLOAD_BYTES:
+            return json_resp({"error": "File too large. Max 50 MB."}, 413)
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
+            tmp.write(raw)
+            tmp_path = Path(tmp.name)
+
+        try:
+            parsed_doc = parse_document(tmp_path)
+            parsed_doc.source_filename = filename
+            parsed_doc = _get_store().persist_all(parsed_doc, tmp_path)
+        finally:
+            tmp_path.unlink(missing_ok=True)
+
+        result = attach_document_to_session(session_id, parsed_doc.document_id, filename)
+        return json_resp(result, 201)
+
+    except ValueError as e:
+        return json_resp({"error": str(e)}, 400)
+    except Exception as e:
+        logger.exception("chat_upload failed")
+        return json_resp({"error": str(e)}, 500)
+
+
+# ═════════════════════════════════════════════════════════════════════════════
 # ENTRY POINT
 # ═════════════════════════════════════════════════════════════════════════════
 

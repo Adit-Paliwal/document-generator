@@ -545,9 +545,23 @@ select{cursor:pointer}
   </div><!-- /main -->
 
   <div class="bottom-bar">
-    <button class="btn btn-outline" onclick="saveDraft()">Save Draft</button>
-    <button class="btn btn-success" onclick="goStep2()">
-      Next &#8594;
+    <div style="display:flex;align-items:center;gap:10px">
+      <button class="btn btn-outline" onclick="saveDraft()">Save Draft</button>
+      <div style="display:flex;align-items:center;gap:8px">
+        <label style="font-size:12px;font-weight:600;color:var(--label);white-space:nowrap">Doc Type:</label>
+        <select id="f-doctype" style="padding:8px 10px;border:1.5px solid var(--border);
+                border-radius:6px;font-size:13px;min-width:140px">
+          <option value="brd">BRD</option>
+          <option value="rfp">RFP</option>
+          <option value="sow">SOW</option>
+          <option value="proposal">Proposal</option>
+          <option value="techspec">TechSpec</option>
+          <option value="scope">Scope</option>
+        </select>
+      </div>
+    </div>
+    <button class="btn btn-success" onclick="goChatFromCreate()">
+      &#128172; Open in Chat &#8594;
     </button>
   </div>
 </div><!-- /pg-create -->
@@ -1040,6 +1054,11 @@ function show(id){
   window.scrollTo(0,0);
 }
 function goProjects(){ show('pg-home'); loadProjects(); checkDraftBanner(); }
+function openChat(projectId, docType, projectName){
+  const dt  = (docType || 'brd').toLowerCase().replace(/[^a-z]/g,'');
+  const url = `chat.html?project_id=${encodeURIComponent(projectId)}&doc_type=${dt}`;
+  window.location.href = url;
+}
 function newProject(){
   // Reset state for a brand-new project
   S.files=[]; S.stakeholders=[]; S.projectId=null; S.jobId=null;
@@ -1259,6 +1278,14 @@ async function extractData(){
     }catch(saveErr){
       // Non-fatal: log and continue — we'll fill form from extracted data as fallback
       console.warn('[extractData] DB save failed:', saveErr);
+    }
+
+    // ── Fire background derive-fields so Derived Details tab is pre-populated ──
+    if(S.projectId){
+      fetch(`${API.base}/projects/${S.projectId}/derive-fields`,{method:'POST'})
+        .then(()=>toast('AI derive complete ✓','ok',3000))
+        .catch(()=>{});
+      toast('AI deriving project insights in background — Derived Details will be pre-populated','ok',4000);
     }
 
     // ── Step 3: Re-read form data from DB so the form is always DB-backed
@@ -1583,7 +1610,51 @@ async function saveDraft(){
   }catch(e){ toast('Save failed: '+e.message,'err',6000); }
 }
 
-// ── Step 2 ────────────────────────────────────────────────────────────────
+// ── Open Chat from Create Project (replaces goStep2) ─────────────────────
+async function goChatFromCreate(){
+  const pname = document.getElementById('f-pname').value.trim();
+  const bu    = document.getElementById('f-bu').value;
+  if(!pname){ toast('Please enter a Project Name','warn'); return; }
+  if(!bu){    toast('Please select a Business Unit','warn'); return; }
+
+  S.projectName = pname;
+  autosave();
+
+  // Save (or update) project in DB before leaving this page
+  try{
+    const d = collect();
+    const docType = document.getElementById('f-doctype')?.value || 'brd';
+    d.document_type = docType.toUpperCase();
+
+    if(S.projectId){
+      await fetch(`${API.base}/projects/${S.projectId}`,{
+        method:'PATCH', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(d)
+      });
+    } else {
+      const r = await fetch(`${API.base}/projects/draft`,{
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(d)
+      });
+      if(r.ok){
+        const pd = await r.json();
+        S.projectId = pd.project_id;
+        autosave();
+      } else {
+        const err = await r.json().catch(()=>({}));
+        throw new Error(err.error || 'Save failed');
+      }
+    }
+  } catch(e){
+    toast('Could not save project: '+e.message,'err'); return;
+  }
+
+  // Navigate to chat for this project
+  const docType = document.getElementById('f-doctype')?.value || 'brd';
+  openChat(S.projectId, docType, pname);
+}
+
+// ── Step 2 (kept for direct access; no longer the primary flow) ───────────
 function goStep2(){
   if(!document.getElementById('f-pname').value.trim()){
     toast('Please enter a Project Name','warn'); return;
@@ -1593,7 +1664,6 @@ function goStep2(){
   }
   S.projectName = document.getElementById('f-pname').value.trim();
   autosave();
-  // Fill step2 summary
   const d=collect();
   const docsEl=document.getElementById('s2-docs-list');
   docsEl.innerHTML=S.files.length
@@ -1808,7 +1878,11 @@ async function loadProjects(){
                   onclick="openProjectData('${p.project_id}')">
             &#128196; Details
           </button>
-          ${p.job_id?`<button class="btn btn-sm btn-primary"
+          <button class="btn btn-sm btn-primary"
+                  onclick="openChat('${p.project_id}','${x(p.document_type||'brd')}','${x(p.project_name||'')}')">
+            &#128172; Chat
+          </button>
+          ${p.job_id?`<button class="btn btn-sm btn-ghost"
                        onclick="resumeJob('${p.job_id}')">
                        &#9654; Status</button>`:''}
           <button class="btn btn-sm btn-ghost"
@@ -2121,51 +2195,10 @@ async function runDerive(){
 // ── Generate from project-data page ──────────────────────────────────────
 
 function genFromProject(){
-  // If there's already a generation job for this project, resume status view
-  if(S.pdJobId){ resumeJob(S.pdJobId); return; }
-
-  // Transfer the project-data page's project into the Step 2 generate flow
-  S.projectId    = S.pdProjectId;
-  S.documentType = S.pdDocumentType || 'BRD';
-  S.projectName  = document.getElementById('pd-name')?.textContent || null;
-  // S.files may be empty here (we came from the project-data page, not create-project)
-  // but document_ids are stored in the DB — startGen() will skip re-creating the project
-  // and just update generation settings.
-
-  // Pre-fill Step 2 form with the project's saved generation settings
-  const dtEl  = document.getElementById('s2-dt');
-  const fmtEl = document.getElementById('s2-fmt');
-  if(dtEl  && S.pdDocumentType) dtEl.value  = S.pdDocumentType;
-  if(fmtEl && S.pdOutputFormat) fmtEl.value = S.pdOutputFormat;
-
-  // Populate the "Attached Documents" summary from the project's stored doc IDs
-  const docsEl = document.getElementById('s2-docs-list');
-  if(docsEl){
-    docsEl.innerHTML = S.pdDocumentIds.length
-      ? S.pdDocumentIds.map(id=>`
-          <div class="file-row ok" style="margin-bottom:6px">
-            <span class="file-icon">📄</span>
-            <div class="file-info">
-              <div class="file-name" style="font-size:12px;color:var(--muted)">doc: ${x(id)}</div>
-            </div>
-            <span class="file-badge ok">✓ Attached</span>
-          </div>`).join('')
-      : '<p style="font-size:12px;color:var(--muted)">No documents attached — AI will use form data only.</p>';
-  }
-
-  // Show a project summary
-  const name  = document.getElementById('pd-name').textContent  || '';
-  const code  = document.getElementById('pd-code').textContent  || '';
-  const sumEl = document.getElementById('s2-summary');
-  if(sumEl){
-    sumEl.innerHTML=[
-      name && `<div><b>Project:</b> ${x(name)}</div>`,
-      code && `<div><b>${x(code)}</b></div>`,
-      `<div><b>Docs attached:</b> ${S.pdDocumentIds.length}</div>`,
-    ].filter(Boolean).join('');
-  }
-
-  show('pg-step2');
+  const pid   = S.pdProjectId;
+  const dtype = (S.pdDocumentType || 'brd').toLowerCase();
+  const name  = document.getElementById('pd-name')?.textContent?.trim() || S.projectName || '';
+  openChat(pid, dtype, name);
 }
 
 // ── Delete project ────────────────────────────────────────────────────────

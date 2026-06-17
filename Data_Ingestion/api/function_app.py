@@ -459,6 +459,21 @@ def get_templates(req: func.HttpRequest) -> func.HttpResponse:
         return _json({"error": "Failed to list templates."}, 500)
 
 
+@app.route(route="templates/{template_id}/reseed", methods=["POST"])
+def reseed_template_route(req: func.HttpRequest) -> func.HttpResponse:
+    """Force re-seed a system template from its JSON file (use after editing a template JSON)."""
+    template_id = req.route_params.get("template_id", "")
+    try:
+        from generation.template_manager import reseed_template
+        ok = reseed_template(template_id)
+        if not ok:
+            return _json({"error": f"Template JSON not found: {template_id}.json"}, 404)
+        return _json({"status": "reseeded", "template_id": template_id})
+    except Exception as e:
+        logger.exception("reseed_template failed")
+        return _json({"error": str(e)}, 500)
+
+
 @app.route(route="templates", methods=["POST"])
 def create_template(req: func.HttpRequest) -> func.HttpResponse:
     """
@@ -643,6 +658,42 @@ def create_project(req: func.HttpRequest) -> func.HttpResponse:
     except Exception as e:
         logger.exception("create_project failed")
         return _json({"error": f"Failed to save project: {e}"}, 500)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 17b. POST /api/projects/draft  — create a draft project (no field validation)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.route(route="projects/draft", methods=["POST"])
+def create_draft_project(req: func.HttpRequest) -> func.HttpResponse:
+    """
+    Persist a draft project without requiring all mandatory fields.
+    Used by the frontend immediately after AI extraction (before the user has
+    filled every required field), so data is safely stored in DB.
+
+    Body: any subset of project fields (all optional).
+    Returns: { project_id, status: "draft", message }
+    """
+    try:
+        body = req.get_json() or {}
+        from generation.db import Project as _Project, DerivedData as _DerivedData, get_session
+        from uuid import uuid4 as _uuid4
+
+        project_id = str(_uuid4())
+        proj = _Project(project_id=project_id)
+        proj.status = "draft"
+        _apply_project_fields(proj, body)
+
+        with get_session() as session:
+            session.add(proj)
+            session.add(_DerivedData(project_id=project_id))
+            session.commit()
+
+        return _json({"project_id": project_id, "status": "draft",
+                      "message": "Draft project created."}, 201)
+    except Exception as e:
+        logger.exception("create_draft_project failed")
+        return _json({"error": f"Failed to create draft project: {e}"}, 500)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1225,3 +1276,145 @@ def generate_from_project(req: func.HttpRequest) -> func.HttpResponse:
     except Exception as e:
         logger.exception("generate_from_project failed")
         return _json({"error": f"Failed to start generation: {e}"}, 500)
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# CHAT STUDIO ENDPOINTS
+# ═════════════════════════════════════════════════════════════════════════════
+
+# ─────────────────────────────────────────────────────────────────────────────
+# POST /api/chat/init  — create session + opening assistant message
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.route(route="chat/init", methods=["POST"])
+def chat_init(req: func.HttpRequest) -> func.HttpResponse:
+    """
+    Create a new chat session for a project + document type.
+    Returns the session_id and an opening assistant message.
+
+    Body: { project_id, document_type, project_name? }
+    """
+    try:
+        body         = req.get_json() or {}
+        project_id   = body.get("project_id", "").strip()
+        doc_type     = body.get("document_type", "brd").strip()
+        project_name = body.get("project_name", "").strip()
+
+        if not project_id:
+            return _json({"error": "project_id is required"}, 400)
+
+        from api.chat_handler import init_session
+        result = init_session(project_id, doc_type, project_name)
+        return _json(result, 201)
+
+    except Exception as e:
+        logger.exception("chat/init failed")
+        return _json({"error": f"Failed to init chat: {e}"}, 500)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# POST /api/chat/message  — process a user message
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.route(route="chat/message", methods=["POST"])
+def chat_message(req: func.HttpRequest) -> func.HttpResponse:
+    """
+    Send a user message and receive an assistant response.
+    The handler classifies intent and routes to the right action.
+
+    Body: { session_id, message, project_id?, document_type? }
+    """
+    try:
+        body       = req.get_json() or {}
+        session_id = body.get("session_id", "").strip()
+        message    = body.get("message", "").strip()
+        project_id = body.get("project_id")
+        doc_type   = body.get("document_type")
+
+        if not session_id:
+            return _json({"error": "session_id is required"}, 400)
+        if not message:
+            return _json({"error": "message is required"}, 400)
+
+        from api.chat_handler import process_message
+        result = process_message(session_id, message, project_id, doc_type)
+        return _json(result)
+
+    except Exception as e:
+        logger.exception("chat/message failed")
+        return _json({"error": f"Failed to process message: {e}"}, 500)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# GET /api/chat/{session_id}/history  — fetch full message history
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.route(route="chat/{session_id}/history", methods=["GET"])
+def chat_history(req: func.HttpRequest) -> func.HttpResponse:
+    """Return the full ChatSession record including all messages."""
+    session_id = req.route_params.get("session_id")
+    try:
+        from api.chat_handler import get_history
+        return _json(get_history(session_id))
+    except ValueError as e:
+        return _json({"error": str(e)}, 404)
+    except Exception as e:
+        logger.exception("chat_history failed")
+        return _json({"error": "Failed to retrieve chat history."}, 500)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# POST /api/chat/{session_id}/upload  — upload a document via chat
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.route(route="chat/{session_id}/upload", methods=["POST"])
+def chat_upload(req: func.HttpRequest) -> func.HttpResponse:
+    """
+    Parse and store a file uploaded from the chat UI.
+    Attaches the resulting document_id to the session's project.
+    Body: multipart/form-data with 'file' field.
+    """
+    import tempfile
+    from pathlib import Path as _Path
+
+    session_id = req.route_params.get("session_id")
+    try:
+        from parsers.parser_factory import parse_document, SUPPORTED_EXTENSIONS
+        from storage.azure_storage import get_storage_service
+        from api.chat_handler import attach_document_to_session
+
+        file_data = req.files.get("file")
+        if not file_data:
+            return _json({"error": "No file provided. Send as multipart field 'file'."}, 400)
+
+        filename = getattr(file_data, "filename", None) or "upload"
+        ext = _Path(filename).suffix.lower()
+
+        if ext not in SUPPORTED_EXTENSIONS:
+            return _json({"error": f"Unsupported file type '{ext}'.",
+                          "supported": SUPPORTED_EXTENSIONS}, 415)
+
+        raw = file_data.read() if hasattr(file_data, "read") else file_data
+        if len(raw) > 50 * 1024 * 1024:
+            return _json({"error": "File too large. Max 50 MB."}, 413)
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
+            tmp.write(raw)
+            tmp_path = _Path(tmp.name)
+
+        try:
+            parsed_doc = parse_document(tmp_path)
+            parsed_doc.source_filename = filename
+            store      = get_storage_service()
+            parsed_doc = store.persist_all(parsed_doc, tmp_path)
+        finally:
+            tmp_path.unlink(missing_ok=True)
+
+        result = attach_document_to_session(session_id, parsed_doc.document_id, filename)
+        return _json(result, 201)
+
+    except ValueError as e:
+        return _json({"error": str(e)}, 400)
+    except Exception as e:
+        logger.exception("chat_upload failed")
+        return _json({"error": f"Upload failed: {e}"}, 500)

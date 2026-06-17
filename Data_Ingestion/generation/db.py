@@ -115,7 +115,53 @@ def get_engine():
     if _engine is None:
         _engine = _make_engine()
         Base.metadata.create_all(_engine)   # idempotent — creates missing tables only
+        _migrate_sqlite_columns(_engine)    # add new nullable columns to existing tables
     return _engine
+
+
+def _migrate_sqlite_columns(engine) -> None:
+    """
+    SQLite-safe column migration.
+    SQLAlchemy's create_all() creates missing *tables* but never adds columns to
+    existing ones.  This function fills that gap by inspecting each table with
+    PRAGMA table_info and issuing ALTER TABLE … ADD COLUMN for any column that
+    is present in the ORM model but absent from the live table.
+
+    Only runs on SQLite (dev).  On PostgreSQL / Azure SQL, use proper Alembic
+    migrations — create_all() won't be the engine path in production.
+    """
+    if not engine.url.drivername.startswith("sqlite"):
+        return
+
+    # Map: table_name → {column_name → SQLAlchemy column object}
+    table_columns: dict[str, dict] = {}
+    for mapper in Base.registry.mappers:
+        tbl = mapper.local_table
+        table_columns[tbl.name] = {c.name: c for c in tbl.columns}
+
+    with engine.connect() as conn:
+        for table_name, columns in table_columns.items():
+            rows = conn.execute(
+                __import__("sqlalchemy").text(f"PRAGMA table_info({table_name})")
+            ).fetchall()
+            existing = {r[1] for r in rows}  # column names already in the live table
+
+            for col_name, col_obj in columns.items():
+                if col_name in existing:
+                    continue
+                # Build a minimal DDL type string SQLite understands
+                col_type = col_obj.type.compile(dialect=engine.dialect)
+                nullable  = "" if col_obj.nullable else " NOT NULL"
+                default   = ""
+                if col_obj.default is not None and col_obj.default.is_scalar:
+                    default = f" DEFAULT {col_obj.default.arg!r}"
+                sql = f"ALTER TABLE {table_name} ADD COLUMN {col_name} {col_type}{default}{nullable}"
+                conn.execute(__import__("sqlalchemy").text(sql))
+                conn.commit()
+                import logging as _logging
+                _logging.getLogger(__name__).info(
+                    "[db] Auto-migrated: %s.%s (%s)", table_name, col_name, col_type
+                )
 
 
 @contextmanager
@@ -515,4 +561,73 @@ class DerivedData(Base):
             "constraints_dependencies":    self.constraints_dependencies    or "",
             "generated_at":  self.generated_at.isoformat() if self.generated_at else None,
             "updated_at":    self.updated_at.isoformat()   if self.updated_at   else None,
+        }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ChatSession — persists conversation state for the Document Chat Studio
+# ─────────────────────────────────────────────────────────────────────────────
+
+class ChatSession(Base):
+    """
+    One row per chat conversation in the Document Chat Studio.
+    Tracks which project + job the conversation is about, and stores
+    the full message history as a JSON array.
+
+    Phases:
+      context    → user is setting up, generation not started
+      generating → generation job is running (polling active)
+      review     → generation complete, user reviewing / modifying sections
+    """
+    __tablename__ = "chat_sessions"
+
+    session_id    = Column(String(36),  primary_key=True)
+    project_id    = Column(String(36),  nullable=True, index=True)
+    job_id        = Column(String(36),  nullable=True)
+    document_type = Column(String(100), nullable=True)
+    phase         = Column(String(20),  nullable=False, default="context")
+    messages_json = Column(Text,        nullable=False, default="[]")
+    pending_json  = Column(Text,        nullable=True)   # pending op awaiting user confirmation
+    created_at    = Column(DateTime,    default=datetime.utcnow)
+    updated_at    = Column(DateTime,    default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def get_messages(self) -> list:
+        try:
+            return json.loads(self.messages_json or "[]")
+        except Exception:
+            return []
+
+    def add_message(self, role: str, content: str, data: dict = None) -> None:
+        msgs = self.get_messages()
+        msg  = {"role": role, "content": content, "ts": datetime.utcnow().isoformat()}
+        if data:
+            msg["data"] = data
+        msgs.append(msg)
+        self.messages_json = json.dumps(msgs)
+        self.updated_at    = datetime.utcnow()
+
+    def set_pending(self, data: dict) -> None:
+        self.pending_json = json.dumps(data)
+
+    def get_pending(self):
+        if not self.pending_json:
+            return None
+        try:
+            return json.loads(self.pending_json)
+        except Exception:
+            return None
+
+    def clear_pending(self) -> None:
+        self.pending_json = None
+
+    def to_dict(self) -> dict:
+        return {
+            "session_id":    self.session_id,
+            "project_id":    self.project_id,
+            "job_id":        self.job_id,
+            "document_type": self.document_type,
+            "phase":         self.phase,
+            "messages":      self.get_messages(),
+            "created_at":    self.created_at.isoformat() if self.created_at else None,
+            "updated_at":    self.updated_at.isoformat() if self.updated_at else None,
         }

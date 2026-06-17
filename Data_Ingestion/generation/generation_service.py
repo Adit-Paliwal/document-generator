@@ -322,12 +322,20 @@ def _load_job_context(job_id: str) -> tuple[str, dict, str]:
             logger.warning("[gen] Could not load document %s: %s", doc_id, e)
 
     if not contexts:
-        raise FileNotFoundError(
-            f"No documents could be loaded for job {job_id}. "
-            f"Checked document IDs: {all_doc_ids}"
+        logger.warning(
+            "[gen] No documents loaded for job %s — generating from form data only. "
+            "Checked doc IDs: %s", job_id, all_doc_ids,
         )
+    llm_context = "\n\n---\n\n".join(contexts) if contexts else ""
 
-    llm_context = "\n\n---\n\n".join(contexts)[:60_000]
+    # Append AI-derived project analysis (from DerivedData table) when available.
+    # This gives the LLM pre-analysed context even when raw documents are absent.
+    derived_ctx = user_inputs.get("derived_context", "")
+    if derived_ctx:
+        sep = "\n\n---\n\n" if llm_context else ""
+        llm_context = llm_context + sep + derived_ctx
+
+    llm_context = llm_context[:60_000]
 
     # ── Get template system instructions ─────────────────────────────────────
     # template_id is stored on the job record (set by start_job).
@@ -573,7 +581,11 @@ def list_jobs(document_id: Optional[str] = None) -> list[dict]:
 # Convenience wrapper — project-based generation (used by Flask + ADK agent)
 # ─────────────────────────────────────────────────────────────────────────────
 
-def start_job_from_project(project_id: str) -> dict:
+def start_job_from_project(
+    project_id:       str,
+    doc_type_override: Optional[str] = None,
+    allow_no_docs:    bool = False,
+) -> dict:
     """
     Start a generation job from a fully saved project.
 
@@ -584,16 +596,19 @@ def start_job_from_project(project_id: str) -> dict:
     It is called by:
       - run_server.py  →  POST /api/generate/project/<project_id>
       - agents/document_generator/tools.py  →  start_generation ADK tool
+      - api/chat_handler.py  →  Document Chat Studio
 
     Args:
-        project_id: UUID of the saved project (must have source docs attached).
+        project_id:        UUID of the saved project.
+        doc_type_override: Override the project's document_type (e.g. from the chat tab).
+        allow_no_docs:     If True, generate from form data only when no docs are attached.
 
     Returns:
         Same dict as start_job() — { job_id, status, sections, total_sections, ... }
 
     Raises:
         FileNotFoundError: project not found.
-        ValueError:        no source documents attached.
+        ValueError:        no source documents attached (when allow_no_docs=False).
     """
     import json as json_mod
 
@@ -608,7 +623,7 @@ def start_job_from_project(project_id: str) -> dict:
         doc_ids = json_mod.loads(proj.document_ids_json or "[]")
         sths    = json_mod.loads(proj.stakeholders_json  or "[]")
 
-    if not doc_ids:
+    if not doc_ids and not allow_no_docs:
         raise ValueError(
             "No source documents attached to this project. "
             "Please upload and parse a document first, "
@@ -640,10 +655,38 @@ def start_job_from_project(project_id: str) -> dict:
     if fd.get("estimated_cost_crores"):
         extra_parts.append(f"Estimated Cost: Rs.{fd['estimated_cost_crores']} Crores")
 
+    # ── Load AI-derived fields from DerivedData (if the user ran derive-fields) ──
+    from generation.db import DerivedData as _DerivedData
+    with _get_session() as session:
+        derived_row = session.get(_DerivedData, project_id)
+        derived_ctx_parts: list[str] = []
+        if derived_row:
+            for label, key in [
+                ("Current Challenges",           "current_challenges"),
+                ("To-Be Process",                "to_be_process"),
+                ("Success Criteria",             "success_criteria"),
+                ("Business Requirements",        "business_requirements"),
+                ("Functional Requirements",      "functional_requirements"),
+                ("Non-Functional Requirements",  "non_functional_requirements"),
+                ("Workflow",                     "workflow"),
+                ("Analytics Requirements",       "analytics_requirements"),
+                ("Systems Involved",             "systems_involved"),
+                ("Data Sources",                 "data_sources"),
+                ("Constraints & Dependencies",   "constraints_dependencies"),
+            ]:
+                val = getattr(derived_row, key, None)
+                if val and val.strip():
+                    derived_ctx_parts.append(f"### {label}\n{val.strip()}")
+        derived_ctx = (
+            "## AI-Derived Project Analysis\n\n" + "\n\n".join(derived_ctx_parts)
+            if derived_ctx_parts else ""
+        )
+
     # ── Assemble user_inputs for start_job ───────────────────────────────────
+    effective_doc_type = doc_type_override or fd.get("document_type", "BRD")
     user_inputs = {
         "project_name":            fd.get("project_name", ""),
-        "document_type":           fd.get("document_type", "BRD"),
+        "document_type":           effective_doc_type,
         "output_format":           fd.get("output_format", "Word (.docx)"),
         "stakeholders":            sth_str,
         # Prefer proposed_solution (richer) over project_objective for description
@@ -655,10 +698,15 @@ def start_job_from_project(project_id: str) -> dict:
         "document_ids":            doc_ids,
         # Pass template_id so _run_generation_job resolves the correct section list
         "template_id":             fd.get("template_id"),
+        # AI-derived extended context — appended to llm_context in _load_job_context
+        "derived_context":         derived_ctx,
     }
 
     # ── Start the job ─────────────────────────────────────────────────────────
-    job = start_job(doc_ids[0], user_inputs, fd.get("template_id"))
+    # When no docs attached (allow_no_docs=True), use project_id as a placeholder
+    # document_id — the generator will proceed with form data only (llm_context="").
+    primary_doc_id = doc_ids[0] if doc_ids else project_id
+    job = start_job(primary_doc_id, user_inputs, fd.get("template_id"))
 
     # ── Flip project status → 'generating' ───────────────────────────────────
     with _get_session() as session:

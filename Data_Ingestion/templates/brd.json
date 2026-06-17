@@ -2,92 +2,192 @@
   "id": "brd",
   "name": "Business Requirements Document",
   "document_type": "Business Requirements Document (BRD)",
-  "description": "Comprehensive document describing business needs, stakeholder requirements, and scope for a project or system.",
-  "system_instructions": "You are a senior business analyst writing a formal Business Requirements Document (BRD). Write in clear, professional business language. Requirements must be specific, measurable, and testable. Avoid technical jargon unless the audience is technical. Each requirement should have a clear business justification. Draw directly from the provided document context — cite specific numbers, processes, or entities when they appear in the source material.",
+  "description": "Formal BRD following the Adani 13-section template structure with numbered headings, sub-sections, and table-based requirements.",
+  "system_instructions": "You are a senior business analyst writing a formal Business Requirements Document (BRD) for an Adani enterprise project. Write in clear, professional business language. Be specific and extract concrete facts, numbers, and entities from the provided source documents. Each section should stand alone — write complete sentences, not fragments. Avoid repeating content from other sections. For table sections, always output valid markdown pipe tables with a header row and separator row.",
   "sections": [
     {
-      "key": "executive_summary",
-      "title": "Executive Summary",
+      "key": "purpose",
+      "title": "Purpose",
       "order": 1,
-      "instructions": "Write a concise executive summary that a C-level executive can read in 2 minutes. Cover: (1) the business problem or opportunity being addressed, (2) the proposed solution at a high level, (3) expected business benefits and ROI indicators, (4) high-level scope and timeline context. Do NOT include detailed requirements here — just the strategic picture.",
-      "target_words": 300
-    },
-    {
-      "key": "business_objectives",
-      "title": "Business Objectives",
-      "order": 2,
-      "instructions": "List the specific, measurable business objectives this project must achieve. Format each objective as a numbered list item starting with an action verb (e.g., 'Reduce processing time by 40%', 'Increase customer satisfaction score to 4.5/5'). For each objective, add a sub-bullet explaining the business rationale. Extract concrete numbers and targets from the source document where available.",
-      "target_words": 250
+      "render_hint": "prose",
+      "instructions": "Write the Purpose section for this BRD. Explain WHY this document exists: (1) the business initiative or project it describes, (2) the intended audience (business stakeholders, project team, approvers), and (3) how this document should be used. Keep it concise — 2-3 short paragraphs. Extract the project name, sponsoring entity, and strategic context from the source documents.",
+      "target_words": 200
     },
     {
       "key": "scope",
-      "title": "Project Scope",
-      "order": 3,
-      "instructions": "Define what is IN scope and OUT of scope. Use two clear subsections: **In Scope** and **Out of Scope**. For in-scope items, describe the functional areas, processes, and systems included. For out-of-scope items, explicitly list exclusions to prevent scope creep. Include any phase-based delivery scope if applicable. Be specific — vague scope leads to project failure.",
+      "title": "Scope",
+      "order": 2,
+      "render_hint": "mixed",
+      "instructions": "Write the Scope section. Define exactly what this project covers and what it excludes. Structure as: (1) a brief opening paragraph describing the overall scope, (2) an **In Scope** bullet list of included functional areas, modules, processes, and integrations, (3) an **Out of Scope** bullet list of explicit exclusions to prevent scope creep. Be specific — reference actual systems, teams, or process names from the source documents.",
       "target_words": 350
     },
     {
-      "key": "stakeholders",
-      "title": "Stakeholders & Roles",
-      "order": 4,
-      "instructions": "Create a stakeholder register. For each stakeholder or stakeholder group listed by the user, describe: their role in the project, their primary interest/concern, their level of involvement (decision maker / approver / consulted / informed), and any specific requirements or constraints they have. Present as a table if there are 4+ stakeholders.",
+      "key": "terms_and_definitions",
+      "title": "Terms and Definition",
+      "order": 3,
+      "render_hint": "table",
+      "instructions": "Create a Terms and Definitions table. Extract all domain-specific terms, acronyms, abbreviations, and technical phrases from the source documents. Output as a markdown pipe table with exactly two columns:\n\n| Term | Definition |\n|------|------------|\n| ... | ... |\n\nInclude 10-20 terms. Write definitions in plain English — no jargon in the definition of a jargon term.",
       "target_words": 300
     },
     {
-      "key": "current_state",
-      "title": "Current State & Pain Points",
+      "key": "business_need",
+      "title": "Business need and why?",
+      "order": 4,
+      "render_hint": "prose",
+      "instructions": "Write the 'Business need and why?' sub-section (under Business Requirements Summary). Explain the core business problem or opportunity that is driving this project. Answer: What gap or pain point exists today? Why does the business need this solution now? What will happen if nothing is done? Draw specific facts, numbers, and business context from the source documents. Write 2-3 focused paragraphs.",
+      "target_words": 200
+    },
+    {
+      "key": "business_context",
+      "title": "Context for business need",
       "order": 5,
-      "instructions": "Describe the current business process, system, or situation that this project addresses. Cover: how things work today, what the key pain points are, where inefficiencies exist, what manual steps could be automated, and what risks or compliance issues exist in the current state. Draw from any workflow diagrams or process descriptions in the source document.",
-      "target_words": 350
+      "render_hint": "prose",
+      "instructions": "Write the 'Context for business need' sub-section. Provide background context: the industry environment, regulatory landscape, strategic direction, or market forces that make this initiative necessary. Link the business need to broader organisational goals. Reference specific market conditions, government mandates, or Adani strategic priorities mentioned in the source documents. Write 2-3 paragraphs.",
+      "target_words": 200
+    },
+    {
+      "key": "problem_statement",
+      "title": "Problem statement",
+      "order": 6,
+      "render_hint": "prose",
+      "instructions": "Write a clear Problem Statement. This should be a precise, factual description of the current-state problem — not the solution. Structure: (1) what the current situation is, (2) the specific pain points or inefficiencies (use numbers or percentages if available), (3) the consequence of not solving this problem (financial, operational, compliance risk). Keep focused — 1-2 paragraphs maximum.",
+      "target_words": 180
+    },
+    {
+      "key": "business_value",
+      "title": "Business value delivered",
+      "order": 7,
+      "render_hint": "mixed",
+      "instructions": "Write the 'Business value delivered' sub-section. Describe the tangible and intangible business benefits this solution will deliver. Start with a brief paragraph summarising the overall value proposition, then list specific benefits as bullets:\n- Quantitative benefits (cost savings, time reduction, throughput increase)\n- Qualitative benefits (improved visibility, regulatory compliance, risk reduction)\n- Strategic benefits (competitive advantage, scalability, new capabilities)\nExtract any ROI figures, efficiency metrics, or benefit estimates from the source documents.",
+      "target_words": 250
+    },
+    {
+      "key": "competitor_landscape",
+      "title": "Competitor landscape",
+      "order": 8,
+      "render_hint": "bullets",
+      "instructions": "Write the 'Competitor landscape' sub-section. List existing solutions or competitors in the market that address a similar problem. For each, provide a brief description of what they offer and any key differentiators. Format as bullets:\n- **[Competitor/Solution Name]**: brief description of their approach\nIf source documents mention specific vendors or alternative approaches, reference them. Include 4-8 entries. If no competitor info is in the source, describe the general market landscape for this type of solution.",
+      "target_words": 150
+    },
+    {
+      "key": "similar_digital_solutions",
+      "title": "Similar digital solutions",
+      "order": 9,
+      "render_hint": "bullets",
+      "instructions": "Write the 'Similar digital solutions' sub-section. List digital/technology solutions (platforms, tools, frameworks) that are similar to or could be considered for this project. For each, briefly note what it does and why it may or may not fit. Format as bullets:\n- **[Solution Name]**: what it is and relevance to this project\nDraw from any technology references in the source documents. Include 3-6 entries.",
+      "target_words": 120
+    },
+    {
+      "key": "positioning",
+      "title": "Positioning",
+      "order": 10,
+      "render_hint": "prose",
+      "instructions": "Write the 'Positioning' sub-section. Explain how the proposed solution is positioned relative to competitors and similar solutions. What makes this approach unique or better suited to the organisation's needs? Cover: differentiation factors, fit with Adani's technology strategy, and why this solution is preferred over alternatives. Write 1-2 paragraphs.",
+      "target_words": 130
+    },
+    {
+      "key": "critical_success_factors",
+      "title": "Critical success factors",
+      "order": 11,
+      "render_hint": "bullets",
+      "instructions": "Write the 'Critical success factors' sub-section. List the 5-8 most critical factors that must be in place for this project to succeed. These are not requirements — they are pre-conditions, enablers, or environmental factors. Format as a bullet list where each item starts with a bold title followed by a colon and explanation:\n- **[Factor Name]**: why it is critical and what it means in practice\nExamples: executive sponsorship, data quality, user adoption, integration readiness.",
+      "target_words": 200
+    },
+    {
+      "key": "pain_areas_operational",
+      "title": "Pain areas or opportunities in existing operational process",
+      "order": 12,
+      "render_hint": "bullets",
+      "instructions": "Identify pain areas and improvement opportunities in the OPERATIONAL processes that this project addresses. Focus on human/business process inefficiencies — not technology issues. Format as a bullet list where each item starts with a bold label:\n- **[Pain Area Name]**: specific description of the operational problem, its frequency or scale, and its business impact\nExtract specific process names, teams, or workflows from the source documents. Include 5-8 pain areas.",
+      "target_words": 220
+    },
+    {
+      "key": "pain_areas_technology",
+      "title": "Pain areas or opportunities in existing technology/systems",
+      "order": 13,
+      "render_hint": "bullets",
+      "instructions": "Identify pain areas and improvement opportunities in the TECHNOLOGY and SYSTEMS that this project addresses. Focus on system limitations, integration gaps, data quality issues, and technical debt. Format as a bullet list where each item starts with a bold label:\n- **[Technology Pain Point]**: what the limitation is, which system or integration it affects, and the business consequence\nExtract specific system names, tools, or platforms from the source documents. Include 4-7 pain areas.",
+      "target_words": 180
+    },
+    {
+      "key": "business_functionality_impact",
+      "title": "Business functionality impact",
+      "order": 14,
+      "render_hint": "prose",
+      "instructions": "Write the 'Business functionality impact' sub-section. Describe which business functions and departments will be affected by this project — and how. Cover both the areas that will directly use the new solution and areas impacted indirectly (e.g., finance, compliance, operations, field teams). Write 2-3 paragraphs discussing the nature and degree of the impact.",
+      "target_words": 180
+    },
+    {
+      "key": "as_is_process",
+      "title": "As-Is Business Process",
+      "order": 15,
+      "render_hint": "prose",
+      "instructions": "Describe the As-Is (current) business process that this project will change. Walk through the current process step by step: who does what, what systems are used, where manual work happens, where data is captured, and where handoffs occur between teams. Highlight the most inefficient or error-prone steps. Write as a narrative description — do NOT use a process table format. 2-4 paragraphs.",
+      "target_words": 220
+    },
+    {
+      "key": "business_use_cases",
+      "title": "Business use cases",
+      "order": 16,
+      "render_hint": "table",
+      "instructions": "Create a Business Use Cases table listing all key business use cases for this solution. Output as a markdown pipe table with these exact columns:\n\n| Use Case # | Use Case Name | Trigger Event | Primary Actor | Description |\n|------------|--------------|--------------|---------------|-------------|\n| UC-01 | ... | ... | ... | ... |\n\nInclude 8-15 use cases. Trigger Event = what starts this use case. Primary Actor = the role or system that initiates it. Description = 1-2 sentence explanation of what happens and the expected outcome. Extract from source documents — use actual business activities described there.",
+      "target_words": 400
+    },
+    {
+      "key": "business_requirements_list",
+      "title": "Business requirements",
+      "order": 17,
+      "render_hint": "table",
+      "instructions": "Create a Business Requirements table. These are high-level WHAT the business needs — not HOW the system will do it (that goes in functional requirements). Output as a markdown pipe table:\n\n| Req ID | Business Requirement | Business Value | Priority |\n|--------|---------------------|---------------|----------|\n| BR-001 | ... | ... | Must Have |\n\nPriority values: Must Have / Should Have / Could Have / Won't Have (MoSCoW). Include 10-18 business requirements grouped by theme. Each requirement should be a single clear statement of business need.",
+      "target_words": 400
     },
     {
       "key": "functional_requirements",
-      "title": "Functional Requirements",
-      "order": 6,
-      "instructions": "List all functional requirements the system/solution must deliver. Use the format: FR-001, FR-002, etc. For each requirement write: the requirement statement (what the system SHALL do), the business justification (why it's needed), and the priority (Must Have / Should Have / Could Have / Won't Have — MoSCoW). Group related requirements under sub-headings. Extract requirements from the source document — look for features described, processes that need automation, and user needs mentioned.",
+      "title": "Functional requirements",
+      "order": 18,
+      "render_hint": "table",
+      "instructions": "Create a Functional Requirements table. These describe HOW the system must behave — specific capabilities the solution must provide. Output as a markdown pipe table:\n\n| Req # | Functional Requirement | Phase | Description |\n|-------|----------------------|-------|-------------|\n| FR-001 | ... | Phase 1 | ... |\n\nPhase values: Phase 1 (MVP) / Phase 2 / Phase 3. Include 15-25 functional requirements. Each 'Functional Requirement' cell should start with 'The system SHALL...' or 'The system MUST...'. Description provides detail and business justification. Extract from source documents — map each described feature to a clear FR.",
       "target_words": 600
     },
     {
       "key": "non_functional_requirements",
-      "title": "Non-Functional Requirements",
-      "order": 7,
-      "instructions": "Define the quality attributes and constraints the solution must meet. Cover these categories with specific, measurable criteria: Performance (response times, throughput), Availability & Reliability (uptime SLA, RTO, RPO), Security (authentication, authorisation, data encryption, compliance requirements), Scalability (concurrent users, data volume growth), Usability (accessibility standards, browser/device support), Integration (APIs, data formats, protocols), Compliance & Regulatory requirements. Use NFR-001, NFR-002 numbering.",
+      "title": "Non-functional requirements",
+      "order": 19,
+      "render_hint": "table",
+      "instructions": "Create a Non-Functional Requirements table covering quality attributes. Output as a markdown pipe table:\n\n| NFR # | Category | Phase | Description | Rationale |\n|-------|----------|-------|-------------|----------|\n| NFR-001 | Performance | Phase 1 | ... | ... |\n\nCategories to include: Performance, Availability, Security, Scalability, Usability, Integration, Compliance, Data Retention, Disaster Recovery. Include 12-20 NFRs. Each Description must be specific and measurable (e.g., 'API response time < 2 seconds for 95th percentile under 500 concurrent users'). Rationale explains the business reason for the constraint.",
       "target_words": 400
     },
     {
-      "key": "data_requirements",
-      "title": "Data Requirements",
-      "order": 8,
-      "instructions": "Describe the data aspects of the solution: what data needs to be captured, stored, processed, or migrated; data sources and owners; data volume and retention policies; data quality requirements; any data migration from legacy systems; reporting and analytics data needs; data privacy and masking requirements. Reference specific tables or datasets from the source document if present.",
+      "key": "solution_overview",
+      "title": "Solution overview-Cloud first approach",
+      "order": 20,
+      "render_hint": "mixed",
+      "instructions": "Write the 'Solution Overview – Cloud First Approach' section. Describe the proposed solution architecture and approach. Cover: (1) a paragraph summarising the overall solution concept and technology approach (cloud-first, microservices, API-driven etc.), (2) bullet list of key technical components or modules, (3) a paragraph on the cloud deployment strategy (which cloud platform, deployment model, data residency). Reference any specific technologies, platforms, or architectural patterns mentioned in the source documents.",
       "target_words": 300
     },
     {
-      "key": "assumptions_constraints",
-      "title": "Assumptions & Constraints",
-      "order": 9,
-      "instructions": "List project assumptions (things believed to be true that haven't been confirmed) and constraints (fixed limits within which the project must operate). Format as two sub-sections: **Assumptions** and **Constraints**. Constraints should cover: budget, timeline, technology stack, regulatory, organisational, and resource constraints. Each assumption should note the risk if the assumption proves false.",
-      "target_words": 250
+      "key": "key_constraints",
+      "title": "Key constraints",
+      "order": 21,
+      "render_hint": "bullets",
+      "instructions": "List the key constraints that the project team must operate within. These are fixed limits — not risks or assumptions. Format as bullets grouped by type:\n\n**Budget Constraints**\n- ...\n\n**Timeline Constraints**\n- ...\n\n**Technical Constraints**\n- ...\n\n**Regulatory / Compliance Constraints**\n- ...\n\n**Organisational Constraints**\n- ...\n\nExtract specific constraints from the source documents. Include 2-3 bullets per category.",
+      "target_words": 220
     },
     {
-      "key": "risks",
-      "title": "Risks & Mitigations",
-      "order": 10,
-      "instructions": "Create a risk register table with columns: Risk ID | Risk Description | Likelihood (H/M/L) | Impact (H/M/L) | Risk Rating | Mitigation Strategy | Owner. Identify 6-10 realistic business and project risks. Focus on risks that could cause the project to fail or not deliver the expected benefits.",
-      "target_words": 350
-    },
-    {
-      "key": "acceptance_criteria",
-      "title": "Acceptance Criteria",
-      "order": 11,
-      "instructions": "Define how the business will confirm that requirements have been met. Write acceptance criteria for each major functional requirement area using Given/When/Then format or clear pass/fail statements. Include: UAT approach, who signs off, what test scenarios must pass, and what metrics must be achieved before go-live.",
-      "target_words": 300
-    },
-    {
-      "key": "glossary",
-      "title": "Glossary",
-      "order": 12,
-      "instructions": "Define domain-specific terms, acronyms, and abbreviations used in this document. Format as a two-column table: Term | Definition. Include business terms from the source document that may not be universally understood, plus any technical terms used in the requirements.",
+      "key": "project_schedule",
+      "title": "Project schedule",
+      "order": 22,
+      "render_hint": "table",
+      "instructions": "Create a Project Schedule / Milestone table. Output as a markdown pipe table:\n\n| S.N. | Project Milestone | Time Duration |\n|------|------------------|---------------|\n| 1 | ... | ... weeks / Month YYYY |\n\nInclude 6-12 milestones covering: project kickoff, requirements sign-off, design, development phases, testing (SIT/UAT), go-live, and hypercare. If the source document mentions specific timelines, dates, or phases, use them. Otherwise create a realistic timeline for this type of project. Time Duration should be specific (e.g., '4 weeks', 'Month 3', 'Q2 2025').",
       "target_words": 200
+    },
+    {
+      "key": "other_constraints_assumptions",
+      "title": "Other constraints and assumptions if any",
+      "order": 23,
+      "render_hint": "table",
+      "instructions": "Create an Other Constraints and Assumptions table. This captures additional assumptions (things believed true but unconfirmed) and constraints not covered elsewhere. Output as a markdown pipe table:\n\n| Sr. No. | Topic | Comments |\n|---------|-------|----------|\n| 1 | ... | ... |\n\nInclude 8-15 entries covering: data migration assumptions, third-party dependency assumptions, user training assumptions, infrastructure assumptions, regulatory assumptions, vendor assumptions, and any project-specific constraints or dependencies. Be specific — each Comment should be a clear statement.",
+      "target_words": 250
     }
   ]
 }

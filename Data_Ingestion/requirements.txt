@@ -41,7 +41,7 @@ msal-extensions==1.3.1
 cryptography==48.0.0
 
 # ── Google ADK + LLM ─────────────────────────────────────────────────────────
-google-adk==2.0.0
+google-adk==2.2.0
 google-cloud-aiplatform>=1.91.0  # Vertex AI SDK — required for Agent Engine deployment
 litellm==1.83.7             # Unified LLM interface (Azure GPT-5 / Gemini)
 openai==2.30.0              # Used by litellm for Azure OpenAI calls
@@ -148,13 +148,13 @@ pyasn1==0.6.3
 pyasn1_modules==0.4.2
 
 # ── Windows ──────────────────────────────────────────────────────────────────
-pywin32==311               # Windows only — remove on Linux/Mac
+pywin32==311; sys_platform == "win32"   # Windows only — auto-skipped on Linux/GCP
 
 # ── Misc ─────────────────────────────────────────────────────────────────────
 setuptools==82.0.1
-opentelemetry-api==1.41.1
-opentelemetry-sdk==1.41.1
-opentelemetry-semantic-conventions==0.62b1
+opentelemetry-api==1.42.1
+opentelemetry-sdk==1.42.1
+opentelemetry-semantic-conventions==0.63b1
 isodate==0.7.2
 regex==2026.5.9
 beautifulsoup4==4.14.3

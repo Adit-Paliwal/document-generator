@@ -173,6 +173,49 @@ def get_sections_for_job(
     return sections
 
 
+def reseed_template(template_id: str) -> bool:
+    """
+    Delete an existing system template from the DB and re-seed it from its JSON file.
+    Use this after updating a template JSON (e.g. brd.json) to push the changes to DB.
+
+    Returns True if the template was re-seeded successfully, False if the JSON wasn't found.
+    """
+    global _seeded
+
+    json_path = _TEMPLATES_DIR / f"{template_id}.json"
+    if not json_path.exists():
+        logger.error("Template JSON not found: %s", json_path)
+        return False
+
+    data = json.loads(json_path.read_text(encoding="utf-8"))
+    if data.get("id") != template_id:
+        logger.error("Template ID mismatch in %s: expected %s", json_path, template_id)
+        return False
+
+    with get_session() as session:
+        existing = session.get(Template, template_id)
+        if existing:
+            session.delete(existing)
+            session.commit()
+            logger.info("Deleted existing template: %s", template_id)
+
+        tmpl = Template(
+            template_id         = template_id,
+            name                = data["name"],
+            document_type       = data["document_type"],
+            description         = data.get("description"),
+            sections_config     = json.dumps(data.get("sections", [])),
+            system_instructions = data.get("system_instructions"),
+            is_system           = True,
+        )
+        session.add(tmpl)
+        session.commit()
+        logger.info("Re-seeded template: %s (%s sections)", template_id, len(data.get("sections", [])))
+
+    _seeded = False   # force next ensure_seeded() to refresh
+    return True
+
+
 def save_user_template(
     name: str,
     document_type: str,
