@@ -22,6 +22,21 @@
 #   source .env.deploy
 #   bash deploy_agent_engine.sh
 #
+# PYTHON VERSION NOTE:
+#   Python 3.11 is required (matches the Agent Engine container).
+#   Use the project venv:  source env/bin/activate  (Linux/Mac)
+#                          env\Scripts\activate      (Windows)
+#
+# CRITICAL — MUST run from Intellidraft/ (the PARENT of Data_Ingestion/)
+#   CORRECT:  cd Intellidraft && bash deploy_agent_engine.sh
+#   WRONG:    cd Data_Ingestion && bash ../deploy_agent_engine.sh
+#   WRONG:    adk deploy agent_engine agents   ← packages only agents/, missing parsers etc.
+#
+# Why it matters: ADK discovers root_agent from Data_Ingestion/__init__.py.
+#   On the container, Data_Ingestion/ is extracted and its parent is on sys.path,
+#   so "import Data_Ingestion" works. Running from inside Data_Ingestion/ would
+#   cause the container to get "No module named 'Data_Ingestion'" at runtime.
+#
 # ══════════════════════════════════════════════════════════════════════════════
 
 set -euo pipefail
@@ -80,8 +95,24 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 
 if [[ ! -d "Data_Ingestion" ]]; then
-  echo "✗  Data_Ingestion/ folder not found."
-  echo "   Run this script from the Intellidraft/ project root."
+  echo ""
+  echo "✗  Data_Ingestion/ folder not found in $(pwd)"
+  echo "   This script MUST be run from the Intellidraft/ project root."
+  echo "   It CANNOT be run from inside Data_Ingestion/ — that breaks the"
+  echo "   module import path and causes 'No module named Data_Ingestion' on the container."
+  echo ""
+  echo "   Fix:  cd Intellidraft && bash deploy_agent_engine.sh"
+  echo ""
+  exit 1
+fi
+
+# Guard against a common mistake: being inside Data_Ingestion/
+if [[ "$(basename "$SCRIPT_DIR")" == "Data_Ingestion" ]]; then
+  echo ""
+  echo "✗  You are inside the Data_Ingestion/ directory."
+  echo "   This script must run from its PARENT (Intellidraft/)."
+  echo "   Fix:  cd .. && bash deploy_agent_engine.sh"
+  echo ""
   exit 1
 fi
 

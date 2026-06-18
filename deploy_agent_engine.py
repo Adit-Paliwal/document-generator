@@ -62,21 +62,44 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).parent.resolve()
 DATA_INGESTION = REPO_ROOT / "Data_Ingestion"
 
-# ── Requirements for Agent Engine (Linux — no pywin32) ───────────────────────
+# ── Requirements for Agent Engine (Linux — strip packages not needed on container) ──
+#
+# These packages are EXCLUDED from the Agent Engine container because:
+#   - azure-functions : Azure HTTP-trigger runtime — Agent Engine is NOT Azure Functions
+#   - Flask / gunicorn / fastapi / uvicorn / starlette : web servers — not used on Agent Engine
+#   - Jinja2 / MarkupSafe / itsdangerous / Werkzeug : Flask deps — same reason
+#   - xlsxwriter : Excel export writer — agents never write Excel files
+#   - pywin32 : Windows-only — container is Linux
+#
+_AGENT_ENGINE_EXCLUDE = {
+    "azure-functions",
+    "flask",
+    "werkzeug",
+    "gunicorn",
+    "fastapi",
+    "uvicorn",
+    "starlette",
+    "jinja2",
+    "markupsafe",
+    "itsdangerous",
+    "xlsxwriter",
+    "pywin32",
+}
+
 def _load_requirements() -> list[str]:
-    """Read requirements.txt and strip Windows-only + comment lines."""
+    """Read requirements.txt and filter out packages not needed on Agent Engine."""
     req_path = DATA_INGESTION / "requirements.txt"
     reqs = []
     for line in req_path.read_text(encoding="utf-8").splitlines():
         stripped = line.strip()
         if not stripped or stripped.startswith("#"):
             continue
-        # Strip inline comments
         pkg = stripped.split("#")[0].strip()
         if not pkg:
             continue
-        # Skip Windows-only packages
-        if "pywin32" in pkg.lower():
+        # Determine package name (before any version specifier)
+        pkg_name = pkg.split("==")[0].split(">=")[0].split("<=")[0].split(";")[0].strip().lower()
+        if pkg_name in _AGENT_ENGINE_EXCLUDE:
             continue
         reqs.append(pkg)
     return reqs
@@ -172,11 +195,26 @@ def deploy(args: argparse.Namespace) -> None:
     print("  ✓ Runtime env configured")
 
     # ── Step 2: Import the root agent ─────────────────────────────────────────
+    #
+    # CRITICAL — import path must match what the container sees after pip install.
+    #
+    # When Agent Engine builds the container it runs:
+    #   pip install <DATA_INGESTION_dir>
+    # setup.py's find_packages() runs from INSIDE Data_Ingestion/, so it finds:
+    #   agents, api, generation, parsers, storage, ...   (flat top-level packages)
+    # It does NOT produce a "Data_Ingestion" package.
+    #
+    # Therefore we must import root_agent using the FLAT path ("agents.orchestrator"),
+    # NOT "Data_Ingestion.agents.orchestrator". cloudpickle serialises the module
+    # path at deploy time; the container must be able to reconstruct the same path.
+    #
+    # Rule: sys.path entry = DATA_INGESTION (not REPO_ROOT).
+    #
     print("▶ Step 2/4 — Importing root_agent …")
-    sys.path.insert(0, str(REPO_ROOT))
+    sys.path.insert(0, str(DATA_INGESTION))   # ← DATA_INGESTION, not REPO_ROOT
 
     try:
-        from Data_Ingestion.agents.orchestrator import root_agent  # noqa: E402
+        from agents.orchestrator import root_agent   # ← flat path matches container
         print(f"  ✓ root_agent loaded: {root_agent.name!r}")
     except Exception as exc:
         print(f"\n✗  Failed to import root_agent: {exc}")
