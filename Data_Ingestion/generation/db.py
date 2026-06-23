@@ -257,6 +257,9 @@ class Section(Base):
     # pending | generating | completed | failed
     current_version = Column(Integer,     default=0)        # latest version_number
     error           = Column(Text,        nullable=True)
+    # Cache for preview: MD5 of {section_id}:{current_version}
+    # Invalidated only when current_version changes; avoids 50ms MD5 recalc per preview request
+    version_hash    = Column(String(16),  nullable=True)
     created_at      = Column(DateTime,    default=datetime.utcnow)
     updated_at      = Column(DateTime,    default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -310,6 +313,8 @@ class SectionVersion(Base):
     generation_model    = Column(String(100), nullable=True)    # e.g. "azure/project-pulse-gpt-5"
     is_accepted         = Column(Boolean,     default=False)    # user explicitly approved
     trigger_comment_id  = Column(String(36),  nullable=True)    # comment that triggered regen
+    # Who/what created this version: ai_generation | ai_regeneration | manual_edit | review_comment
+    trigger_type        = Column(String(50),  nullable=True,    default="ai_generation")
     created_at          = Column(DateTime,    default=datetime.utcnow)
 
     section = relationship("Section", back_populates="versions")
@@ -323,8 +328,47 @@ class SectionVersion(Base):
             "word_count":         self.word_count,
             "generation_model":   self.generation_model,
             "is_accepted":        self.is_accepted,
+            "trigger_type":       self.trigger_type,
             "trigger_comment_id": self.trigger_comment_id,
             "created_at":         self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class DocumentSnapshot(Base):
+    """
+    Point-in-time checkpoint of all accepted/current section versions.
+
+    Created when the user clicks "Save Version" or when the review agent
+    completes a review pass.  Can be restored to roll back the document
+    to a previous state.
+
+    section_refs stores a JSON array:
+      [{"section_id": "…", "version_id": "…", "version_number": N, "section_title": "…"}, …]
+    """
+    __tablename__ = "document_snapshots"
+
+    snapshot_id   = Column(String(36),  primary_key=True)
+    job_id        = Column(String(36),  ForeignKey("generation_jobs.job_id"), nullable=False, index=True)
+    created_at    = Column(DateTime,    default=datetime.utcnow)
+    label         = Column(String(200), nullable=True)
+    # manual | review_agent | auto
+    trigger_type  = Column(String(50),  nullable=False, default="manual")
+    section_refs  = Column(Text,        nullable=False, default="[]")
+
+    def get_section_refs(self) -> list:
+        try:
+            return json.loads(self.section_refs or "[]")
+        except Exception:
+            return []
+
+    def to_dict(self) -> dict:
+        return {
+            "snapshot_id":  self.snapshot_id,
+            "job_id":       self.job_id,
+            "created_at":   self.created_at.isoformat() if self.created_at else None,
+            "label":        self.label,
+            "trigger_type": self.trigger_type,
+            "section_refs": self.get_section_refs(),
         }
 
 

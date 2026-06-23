@@ -25,17 +25,27 @@ _TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
 # Both long-form (canonical) and short-form (from user_input_schema.py dropdown)
 # are registered explicitly — no fragile fuzzy matching needed.
 _DOC_TYPE_MAP: dict[str, str] = {
-    # Long-form canonical names
-    "Business Requirements Document (BRD)": "brd",
-    "Request for Proposal (RFP)":           "rfp",
-    "Statement of Work (SOW)":              "sow",
-    "Project Proposal":                     "proposal",
-    "Technical Specification":              "tech_spec",
-    "Scope Document":                       "scope",
-    # Short-form aliases (from frontend dropdowns)
-    "BRD":                                  "brd",
-    "RFP":                                  "rfp",
-    "SOW":                                  "sow",
+    # Long-form canonical names (match what template JSON files store in document_type)
+    "Business Requirements Document (BRD)":         "brd",
+    "Request for Proposal (RFP)":                   "rfp",
+    "Statement of Work (SOW)":                      "sow",
+    "Project Proposal":                             "proposal",
+    "Technical Specification":                      "tech_spec",
+    "Scope Document":                               "scope",
+    "Non-Detailed Project Report (NDPR)":           "ndpr",
+    "Note for Approval (NFA)":                      "nfa",
+    "Notice Inviting Tender (NIT)":                 "nit",
+    "Bill of Quantities (BOQ)":                     "boq",
+    "Architecture Review Board (ARB) Submission":   "arb",
+    # Short-form aliases (from frontend document_type dropdowns)
+    "BRD":      "brd",
+    "RFP":      "rfp",
+    "SOW":      "sow",
+    "NDPR":     "ndpr",
+    "NFA":      "nfa",
+    "NIT":      "nit",
+    "BOQ":      "boq",
+    "ARB":      "arb",
 }
 
 _seeded = False   # guard against repeated seeding in the same process
@@ -112,13 +122,22 @@ def get_template_by_id(template_id: str) -> Optional[Template]:
 def list_templates(document_type: Optional[str] = None) -> list[dict]:
     """
     Return all templates, optionally filtered by document_type.
-    Returns list of template.to_dict() dicts.
+    Accepts both short aliases ("BRD") and canonical names
+    ("Business Requirements Document (BRD)") — both return the same results.
     """
     ensure_seeded()
     with get_session() as session:
         q = session.query(Template)
         if document_type:
-            q = q.filter(Template.document_type == document_type)
+            resolved_id = _DOC_TYPE_MAP.get(document_type)
+            if resolved_id:
+                from sqlalchemy import or_
+                q = q.filter(or_(
+                    Template.document_type == document_type,
+                    Template.template_id == resolved_id,
+                ))
+            else:
+                q = q.filter(Template.document_type == document_type)
         return [t.to_dict() for t in q.order_by(Template.is_system.desc(), Template.name).all()]
 
 

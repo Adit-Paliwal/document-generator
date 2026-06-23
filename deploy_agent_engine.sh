@@ -9,7 +9,7 @@
 #   1. bash gcp_setup.sh                        → creates .env.deploy + enables APIs
 #   2. gcloud auth login                        → authenticate with GCP account
 #   3. gcloud auth application-default login    → set Application Default Credentials (ADC)
-#   4. source .env.deploy                       → loads GCP_PROJECT_ID, GCP_REGION, GCS_STAGING_BUCKET
+#   4. source .env.deploy                       → loads GCP_PROJECT_ID, GCP_REGION
 #   5. pip install --upgrade google-adk          → install/upgrade to latest version
 #
 # NOTE: GEMINI_API_KEY is NOT required — ADC (Application Default Credentials) is used instead.
@@ -48,18 +48,19 @@ if [[ -f ".env.deploy" ]]; then
 fi
 
 # ── Validate required vars ────────────────────────────────────────────────────
+# GCS_STAGING_BUCKET is NOT needed by the ADK CLI (--staging_bucket is deprecated).
+# It IS needed only if you also run deploy_agent_engine.py (Python SDK approach).
 MISSING=()
-[[ -z "${GCP_PROJECT_ID:-}"      ]] && MISSING+=("GCP_PROJECT_ID")
-[[ -z "${GCP_REGION:-}"          ]] && MISSING+=("GCP_REGION")
-[[ -z "${GCS_STAGING_BUCKET:-}"  ]] && MISSING+=("GCS_STAGING_BUCKET")
-# NOTE: GEMINI_API_KEY is optional — ADC is used if not set
+[[ -z "${GCP_PROJECT_ID:-}" ]] && MISSING+=("GCP_PROJECT_ID")
+[[ -z "${GCP_REGION:-}"     ]] && MISSING+=("GCP_REGION")
+# NOTE: GEMINI_API_KEY is optional — ADC (gcloud auth) is used instead.
 
 if [[ ${#MISSING[@]} -gt 0 ]]; then
   echo ""
   echo "✗  Missing required variables: ${MISSING[*]}"
   echo ""
   echo "   Fix:"
-  echo "     source .env.deploy   # loads GCP_PROJECT_ID, GCP_REGION, GCS_STAGING_BUCKET"
+  echo "     source .env.deploy   # loads GCP_PROJECT_ID and GCP_REGION"
   echo ""
   echo "   Also ensure you are authenticated:"
   echo "     gcloud auth login"
@@ -123,34 +124,46 @@ echo "║   IntelliDraft — Agent Engine Deploy (Step 3/4)     ║"
 echo "╚══════════════════════════════════════════════════════╝"
 echo "  Project : ${GCP_PROJECT_ID}"
 echo "  Region  : ${GCP_REGION}"
-echo "  Bucket  : gs://${GCS_STAGING_BUCKET}"
 echo ""
 echo "  This takes 8-12 minutes — GCP is building and packaging"
 echo "  the agent container. The terminal will show progress."
 echo ""
 
 # ── Locate env.agent_engine (runtime env vars for the container) ──────────────
-# NOTE: --set_env_vars is NOT supported in the current ADK CLI.
-#       The correct flag is --env_file pointing to a .env file.
+# NOTE: --env_file is the correct flag for environment variables.
 #       GOOGLE_CLOUD_PROJECT and GOOGLE_CLOUD_LOCATION are RESERVED by GCP —
-#       never put them in this file or the deployment will fail.
+#       never put them in env.agent_engine or the deployment will fail.
 ENV_FILE="${SCRIPT_DIR}/env.agent_engine"
 if [[ ! -f "${ENV_FILE}" ]]; then
   echo "✗  env.agent_engine file not found at: ${ENV_FILE}"
   echo "   This file should have been included in the deployment zip."
   exit 1
 fi
-echo "  Env   : Using ${ENV_FILE}"
-echo "  Auth  : Application Default Credentials (ADC)"
+
+# ── Locate requirements file (filter out Windows-only / Azure Functions) ──────
+REQ_FILE="${SCRIPT_DIR}/Data_Ingestion/requirements.txt"
+if [[ ! -f "${REQ_FILE}" ]]; then
+  echo "✗  requirements.txt not found at: ${REQ_FILE}"
+  exit 1
+fi
+
+echo "  Env      : Using ${ENV_FILE}"
+echo "  Reqs     : Using ${REQ_FILE}"
+echo "  Auth     : Application Default Credentials (ADC)"
 echo ""
 
+# NOTE: --staging_bucket is DEPRECATED in ADK ≥ 2.x and is silently ignored.
+#       It has been removed from this command.
+#       The GCS_STAGING_BUCKET variable is still used by deploy_agent_engine.py
+#       (Python SDK approach) if you run that script instead.
 adk deploy agent_engine \
   --project="${GCP_PROJECT_ID}" \
   --region="${GCP_REGION}" \
-  --staging_bucket="gs://${GCS_STAGING_BUCKET}" \
   --display_name="IntelliDraft Document Generator" \
   --description="IntelliDraft multi-agent system: document parsing, context loading, and generation with chat-based section modification." \
   --env_file="${ENV_FILE}" \
+  --requirements_file="${REQ_FILE}" \
+  --trace_to_cloud \
   Data_Ingestion
 
 # ── Done ──────────────────────────────────────────────────────────────────────

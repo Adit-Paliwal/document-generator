@@ -557,6 +557,11 @@ select{cursor:pointer}
           <option value="proposal">Proposal</option>
           <option value="techspec">TechSpec</option>
           <option value="scope">Scope</option>
+          <option value="arb">ARB</option>
+          <option value="boq">BOQ</option>
+          <option value="ndpr">NDPR</option>
+          <option value="nfa">NFA</option>
+          <option value="nit">NIT</option>
         </select>
       </div>
     </div>
@@ -1632,9 +1637,11 @@ async function goChatFromCreate(){
         body: JSON.stringify(d)
       });
     } else {
+      // Client-generated UUID makes this call idempotent — safe to retry on autosave
+      const clientId = crypto.randomUUID();
       const r = await fetch(`${API.base}/projects/draft`,{
         method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify(d)
+        body: JSON.stringify({...d, project_id: clientId})
       });
       if(r.ok){
         const pd = await r.json();
@@ -1648,6 +1655,16 @@ async function goChatFromCreate(){
   } catch(e){
     toast('Could not save project: '+e.message,'err'); return;
   }
+
+  // Pre-flight validation — warn but never block navigation
+  try {
+    const vr = await fetch(`${API.base}/projects/${S.projectId}/validate`, { method:'POST' });
+    if(vr.ok) {
+      const vd = await vr.json();
+      if (!vd.valid && vd.missing_required?.length)
+        toast('Some fields are empty: '+vd.missing_required.join(', ')+'. AI will generate with available data.','warn',6000);
+    }
+  } catch {}
 
   // Navigate to chat for this project
   const docType = document.getElementById('f-doctype')?.value || 'brd';
@@ -1724,6 +1741,19 @@ async function startGen(){
       S.projectId=sd.project_id;
       autosave(); // persist to localStorage
     }
+
+    // ── Pre-flight validate before starting generation
+    try {
+      const vr = await fetch(`${API.base}/projects/${S.projectId}/validate`, { method:'POST' });
+      if(vr.ok) {
+        const vd = await vr.json();
+        if (!vd.ready_to_generate && vd.missing_required?.length) {
+          const missing = vd.missing_required.join(', ');
+          const go = confirm('Required fields are missing: '+missing+'\n\nGenerate anyway with available data?');
+          if(!go){ btn.disabled=false; btn.innerHTML='&#10024; Generate Document'; return; }
+        }
+      }
+    } catch {}
 
     // ── Start generation for the project
     const gr=await fetch(`${API.base}/generate/project/${S.projectId}`,{
@@ -2194,10 +2224,18 @@ async function runDerive(){
 
 // ── Generate from project-data page ──────────────────────────────────────
 
-function genFromProject(){
+async function genFromProject(){
   const pid   = S.pdProjectId;
   const dtype = (S.pdDocumentType || 'brd').toLowerCase();
   const name  = document.getElementById('pd-name')?.textContent?.trim() || S.projectName || '';
+  try {
+    const vr = await fetch(`${API.base}/projects/${pid}/validate`, { method:'POST' });
+    if(vr.ok) {
+      const vd = await vr.json();
+      if (!vd.valid && vd.missing_required?.length)
+        toast('Missing fields: '+vd.missing_required.join(', ')+'. AI will generate with available data.','warn',5000);
+    }
+  } catch {}
   openChat(pid, dtype, name);
 }
 

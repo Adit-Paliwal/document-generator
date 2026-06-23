@@ -76,7 +76,7 @@ _GENERATION_PROMPT = """Generate the **{section_title}** section.
 SECTION INSTRUCTIONS:
 {section_instructions}
 
-Write this section now. Start directly with the content — no preamble, no "Here is the section:" opener."""
+{mapping_guidance_block}Write this section now. Start directly with the content — no preamble, no "Here is the section:" opener."""
 
 _REVISION_PROMPT = """The user has reviewed the **{section_title}** section and requested changes.
 
@@ -89,7 +89,7 @@ USER EDIT REQUEST:
 SECTION INSTRUCTIONS (for reference):
 {section_instructions}
 
-Rewrite the **{section_title}** section incorporating the user's requested changes.
+{mapping_guidance_block}Rewrite the **{section_title}** section incorporating the user's requested changes.
 Preserve any parts the user did not ask to change. Start directly with the revised content."""
 
 
@@ -145,17 +145,25 @@ def generate_section(
         target_words         = target_words,
     )
 
+    # Enrich the section prompt with per-section guidance from the Adani mapping document.
+    # Falls back gracefully (empty string) if the section or doc type isn't in the mapping.
+    from generation.section_mapping import build_section_guidance
+    mapping_guidance = build_section_guidance(document_type, section_title)
+    mapping_guidance_block = f"{mapping_guidance}\n\n" if mapping_guidance else ""
+
     if edit_comment and previous_content:
         user_prompt = _REVISION_PROMPT.format(
-            section_title        = section_title,
-            previous_content     = previous_content,
-            edit_comment         = edit_comment,
-            section_instructions = section_instructions,
+            section_title          = section_title,
+            previous_content       = previous_content,
+            edit_comment           = edit_comment,
+            section_instructions   = section_instructions,
+            mapping_guidance_block = mapping_guidance_block,
         )
     else:
         user_prompt = _GENERATION_PROMPT.format(
             section_title        = section_title,
             section_instructions = section_instructions,
+            mapping_guidance_block = mapping_guidance_block,
         )
 
     full_prompt_for_log = f"SYSTEM:\n{system_prompt}\n\nUSER:\n{user_prompt}"

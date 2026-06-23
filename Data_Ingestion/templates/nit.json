@@ -1,0 +1,169 @@
+{
+  "id": "nit",
+  "name": "Notice Inviting Tender",
+  "document_type": "Notice Inviting Tender (NIT)",
+  "description": "Formal Notice Inviting Tender (NIT) for enterprise IT platform procurement. Covers organization background, digital context, enterprise roadmap, purpose and objectives of the procurement, name and description of work, project details, eligibility and technical qualification criteria, instructions to bidders, bid submission/evaluation/award procedures, and standard forms (Bid Form, Reverse Auction Acceptance, Bank Guarantee/EMD, Deviation Schedules, Bidder Contact, Submission Checklist).",
+  "system_instructions": "You are a senior procurement and commercial officer at Adani Energy Solutions Limited (AESL) / Adani Electricity Mumbai Limited (AEML) drafting a formal Notice Inviting Tender (NIT) for an enterprise IT procurement. This is a legally binding tender document. Write in formal, precise, third-person procurement language — structured, unambiguous, and professional. Use Indian procurement conventions: amounts in Rs. (Indian Rupees), dates as DD.MM.YYYY, financial years as FY YYYY-YY. Eligibility criteria and procedural instructions must be specific and verifiable. The document addresses bidders/vendors directly. Legal disclaimers, bank guarantee clauses, and form texts must be reproduced accurately from source templates. Do not add informal language, enthusiasm, or opinions — only factual, legally precise content is appropriate for this document type.",
+  "sections": [
+    {
+      "key": "organization_background",
+      "title": "About the Organisation — Adani Group, AESL & AEML",
+      "order": 1,
+      "render_hint": "prose",
+      "instructions": "Write three sub-sections introducing the organisation context:\n\n**About Adani Group:** 2-3 sentences on the Group's scale, sectors, and strategic role in India's infrastructure. Mention: largest conglomerate, sectors (energy, logistics, ports, infrastructure, digital), mission of nation-building and sustainable development.\n\n**About Adani Energy Solutions Limited (AESL):** 2-3 sentences. Formerly Adani Transmission Limited. Covers power transmission, distribution, smart energy solutions. Focus on digital enablement, AI/ML, cloud, and smart grid technologies for grid reliability and operational excellence.\n\n**About Adani Electricity Mumbai Limited (AEML):** 3-4 sentences. Power distribution arm of AESL. Largest private-sector electricity distributor in India with 3.2+ million consumers in Mumbai. Multi-channel digital engagement (website, app, chatbot, call centre). Strategic investment in next-generation AI, analytics, blockchain, and data platforms.\n\nExtract exact figures (consumer count, years in operation) from source documents where available.",
+      "target_words": 250
+    },
+    {
+      "key": "digital_transformation_context",
+      "title": "Data, Analytics and Digital Transformation Context",
+      "order": 2,
+      "render_hint": "prose",
+      "instructions": "Write 2-3 paragraphs describing AEML's current data and digital landscape and the need for the next phase of transformation:\n\n- Paragraph 1: Evolving customer and business expectations in the energy sector; need for personalized, proactive, digital-first services across residential, commercial, and industrial segments.\n- Paragraph 2: What has already been implemented — the existing Enterprise Data Lake, which systems it consolidates, what analytics capabilities it provides, and that it is currently operational.\n- Paragraph 3: Why the next phase is now needed — growing data scale, complex use cases, regulatory requirements, need for AI/ML, GenAI, real-time intelligence, and enterprise-wide governance.\n\nExtract system names and specific details from source documents. Maintain formal procurement document tone.",
+      "target_words": 200
+    },
+    {
+      "key": "enterprise_roadmap",
+      "title": "Enterprise Data & AI Roadmap",
+      "order": 3,
+      "render_hint": "mixed",
+      "instructions": "Write the Enterprise Data & AI Roadmap section describing the phased transformation plan:\n\nOpening sentence: 'AESL has defined a phased enterprise Data, Analytics, and AI transformation roadmap, of which [Platform Name] represents the foundational platform.'\n\nNote that the roadmap is indicative and non-binding. Then describe each phase:\n\n**Phase I — [Platform Name] (Current RFP Scope):** Establishment of a scalable, governed, cloud-first data platform. Key capabilities: data ingestion (batch and streaming), lakehouse architecture (Medallion), domain data modeling, data governance and quality, analytics/BI, MLOps/LLMOps/GenAI foundation.\n\n**Phase II — Digital Control Tower (Out of Scope):** Centralised real-time visibility across the power distribution value chain. Explicitly excluded from this RFP.\n\n**Phase III — GenAI / Agentic AI Use Cases (Out of Scope):** AI agents for natural language data access, multilingual support, domain-specific agents. Out of scope for this RFP.\n\nClose with: 'Vendors are expected to design the platform with extensibility for Phase II and III, without including development or commercial assumptions for these future phases.'",
+      "target_words": 220
+    },
+    {
+      "key": "purpose_and_objectives",
+      "title": "Purpose and Objectives of the RFP",
+      "order": 4,
+      "render_hint": "mixed",
+      "instructions": "Write the Purpose and Objectives section with three sub-sections:\n\n**Purpose of the RFP:** 2-3 sentences stating the purpose — to invite comprehensive techno-commercial proposals from qualified vendors for design, implementation, integration, and support of the named platform. Mention the platform is cloud-first, scalable, secure, and governed. State vendor responsibility: end-to-end delivery including architecture, platform implementation, integration, operationalization, knowledge transfer, and ongoing support.\n\n**Objectives of the RFP:** Bullet list of 6-8 key objectives. Include: (1) Transform existing data landscape into modern enterprise platform, (2) Establish unified enterprise data foundation, (3) Enable advanced analytics and AI/ML capabilities, (4) Promote data democratization and self-service analytics, (5) Ensure enterprise-grade governance, security, and compliance (DPDP Act, ISO 27001), (6) Support scalability and resiliency, (7) Align with cloud strategy and digital roadmap, (8) Obtain structured techno-commercial proposals for objective evaluation.\n\n**Expected Outcomes:** 4-5 bullet points on what AEML expects upon implementation completion. Include: strategic data/AI backbone, improved operational efficiency and decision quality, accelerated time-to-insight, enabling future digital initiatives.\n\nExtract exact platform name, standards, and specific expected outcomes from source documents.",
+      "target_words": 280
+    },
+    {
+      "key": "name_of_work_description",
+      "title": "Name of the Work",
+      "order": 5,
+      "render_hint": "prose",
+      "instructions": "Write the 'Name of the Work' section — a formal scope summary paragraph that describes exactly what the selected bidder is being entrusted with. Structure:\n\n- Sentence 1: State the full name of the work (e.g., 'End-to-end design, development, implementation, integration, testing, deployment, and support of [Platform Name] — the Enterprise Data, Analytics & AI Platform for AESL.')\n- Paragraph 2: Describe the start of engagement — Requirements Analysis and Solution Design phase, working with business and technical stakeholders, resulting in solution architecture, implementation plan, and delivery roadmap.\n- Paragraph 3: Testing phases — unit, system, integration, performance, security testing.\n- Paragraph 4: Post Go-Live — Hypercare support (1 month), then Annual Maintenance & Support (AMS) for [3] years per SLA.\n- Closing sentence: 'Bidders are advised to refer to the Scope of Work, Functional and Non-Functional Requirements, and SLA sections of this RFP for complete details.'\n\nExtract platform name, support duration, and specific scope from source documents.",
+      "target_words": 220
+    },
+    {
+      "key": "project_details_contact",
+      "title": "Project Details and Contact Information",
+      "order": 6,
+      "render_hint": "table",
+      "instructions": "Generate the project details and contact information as two markdown pipe tables:\n\n**Table 1 — Tender Details:**\n| Field | Details |\n|-------|--------|\n| NIT/Bid Document Name | [Full project name with support period] |\n| NIT/Bid Document No | [NIT number, e.g., AEML/MDB/2025-26/XX] |\n| Earnest Money Deposit (EMD) / Bid Security | Rs. [Amount] / ([Amount in words only]) — payable as Bank Guarantee or Online Transfer, valid 180 days from techno-commercial bid opening |\n| Contract Performance Bank Guarantee (CPBG) | 10% of Total Contract Value (incl. taxes and duties), to be submitted within 15 days of order issuance; valid till Warranty/CATS period + 3 months |\n| RFP Document Download | [Website URL] |\n| Last Date & Time for Online Bid Submission | [DD/MM/YYYY] (up to [HH:MM] hours IST) |\n| Pre-Bid Meeting Date & Time | [DD Mon YYYY], [HH:MM] Hrs. — conducted electronically on [Platform] |\n| Bid Validity Duration | 180 days from date of opening of techno-commercial bid |\n\n**Table 2 — Contact Persons:**\n| Purpose | Name | Mobile | Email |\n|---------|------|--------|-------|\n| Technical Queries | [Name] | [Mobile] | [Email] |\n| Technical Queries | [Name] | [Mobile] | [Email] |\n| Tender/Bid Queries | [Name] | — | — |\n\nExtract all figures (EMD amount, dates, contacts) from source documents. Use placeholders for missing values.",
+      "target_words": 220
+    },
+    {
+      "key": "eligibility_qualification_criteria",
+      "title": "Eligibility & Qualification Criteria",
+      "order": 7,
+      "render_hint": "table",
+      "instructions": "Generate the financial/general Eligibility Criteria table:\n\nOpening paragraph: 'Apart from the criteria below, past performance of bidder(s) with AEML related to quality, supply, and performance shall also be considered. AEML reserves the right to independently verify all documents and may reject bids if false claims or forged documents are found.'\n\nThen generate a markdown pipe table:\n\n| Sr. No. | Eligibility Criteria | Documents to be Submitted |\n|---------|---------------------|---------------------------|\n| 1 | Entity structure: Indian company per Companies Act 2013 or foreign company. Consortiums permitted (max 2 members including lead bidder). Consortium Agreement required with clear role/responsibility bifurcation. | Signed Declaration (standalone or consortium), Consortium Agreement with role delineation, Power of Attorney |\n| 2 | OEM Authorization: Bidder must provide OEM authorization to offer OEM products and services with back-to-back warranty for 3 years. Technical collaboration or JV agreement with OEM must be valid through ATS period. | Signed agreement between bidder and OEM authorizing resell/distribution/implementation; agreement must explicitly outline partnership nature and limitations |\n| 3 | Local presence: Bidder must have India office and/or service-delivery capabilities for on-site/local support. | Declaration and evidence of India-based office address, contact information, services offered, and service hours |\n| 4 | Turnover: Annual average turnover of Rs. 200 Cr INR (Indian company) or 40 MN USD (international company) during the last 3 financial years (FY ending 31st March [YYYY] for Indian vendors). | Audited Balance Sheet and Chartered Accountant certificate |\n| 5 | Manpower: Minimum 200 full-time employees on payroll. | Written confirmation from HR department/management attesting employment strength |\n\nExtract exact figures from source documents. Include a note on use of parent/holding company credentials (51%+ shareholding).",
+      "target_words": 300
+    },
+    {
+      "key": "technical_qualification_criteria",
+      "title": "Technical Qualification Criteria",
+      "order": 8,
+      "render_hint": "table",
+      "instructions": "Generate the Technical Qualification Criteria table:\n\n| S.N. | Parameter | Requirement | Documents/Deliverables Required |\n|------|-----------|-------------|----------------------------------|\n| T1 | Experience | Bidder must demonstrate at least 1 (one) successful deployment of a similar enterprise-wide Data, Analytics & AI Platform (preferably for a large organization) in the last 3 years | Purchase Orders / Work Orders indicating award date, value, and timeline; completion reports / client testimonials |\n| T2 | Process Maturity and Quality Management | Bidder must hold industry-recognized certifications demonstrating software development and delivery process maturity. Acceptable certifications: CMMI Level 3 or above, ISO 9001:20XX, or equivalent | Relevant certification documentation confirming current status, appraisal/audit results; must be valid as of proposal submission date |\n| T3 | Technology Demonstration | Bidder must demonstrate platform capability relevant to AEML's expected architecture and functional requirements. Minimum 1 functional demo on Azure Databricks use case relevant to the platform | Successful Demonstration of Azure Databricks use case; proof of prior deployments at comparable scale |\n\nAdd note: 'Intending bidders bidding as individual entities may leverage financial and technical credentials of their holding/Parent company provided the Parent holds ≥ 51% shareholding in the bidder company.'\n\nAlso generate a table for additional documents required from all bidders:\n\n| Sr. No. | Particular | Remark |\n|---------|-----------|--------|\n| 1 | Composition of Firm | Full particulars (individual, partnership, or company); names, addresses of partners; Articles of Association / Power of Attorney |\n| 2 | Turnover | Audited financial statements for last 3 financial years; CA certificate indicating turnover for each year |\n| 3 | Client References | Names, addresses, contact details (phone, email, fax) of clients with relevant experience |\n| 4 | Registration Documents | PAN, GST registration, Office of Labor Commissioner registration (if applicable) |",
+      "target_words": 300
+    },
+    {
+      "key": "instructions_to_bidders_general",
+      "title": "Instructions to Bidders — General",
+      "order": 9,
+      "render_hint": "prose",
+      "instructions": "Write the General section of Instructions to Bidders (ITB). Include the following sub-sections as labelled paragraphs:\n\n**General:** State that AEML is desirous of implementing the named platform. Bidder must provide technical support for 3 years with required SLAs. Bidder must assess the entire scope of work and understand all deliverables before submitting a techno-commercial proposal.\n\n**Disclaimer:** AEML makes no representation on accuracy or completeness of the document. Each bidder must independently verify information. Neither AEML nor its employees will have any liability for loss or damage arising from reliance on this document. The document is strictly confidential and may not be copied or distributed to third parties.\n\n**Cost of Bidding:** The bidder bears all costs of preparing and submitting the bid. AEML is not responsible for these costs under any circumstances.\n\n**Amendments:** AEML may modify bidding documents at any time prior to bid submission deadline. Amendments are notified on the AEML website and are binding on all bidders. AEML reserves the right to extend the submission deadline, modify the tender document in part or whole, or cancel the entire tender.\n\n**Bidder's Responsibility:** Bidders must comply with all applicable Government of India, state, and local body regulations. Bidders sharing sensitive or copyright data outside authorised parties may face disqualification. Vendors who do not submit required documents may be disqualified.",
+      "target_words": 250
+    },
+    {
+      "key": "bid_preparation_requirements",
+      "title": "Preparation of Bids",
+      "order": 10,
+      "render_hint": "mixed",
+      "instructions": "Write the Bid Preparation section covering:\n\n**Language:** All bids and correspondence shall be in English. Technical literature in other languages must be accompanied by English translation (English governs).\n\n**Documents Comprising the Bid:** Bid Form, Price & Schedules (strictly as per format), Technical Data Sheets, EMD, Deviation Schedules.\n\n**EMD:** Amount as specified in Section I. Form: Bank Guarantee or Online Transfer valid for 180 days from bid submission due date, drawn in favour of ADANI ELECTRICITY MUMBAI LTD. EMD may be forfeited if: (a) bidder withdraws during validity period, (b) successful bidder fails to accept PO or furnish CPBG.\n\n**Bid Prices:** Quote for entire scope with itemised breakdown. Prices must be FIRM and not subject to adjustment during contract performance. Include all taxes, duties, levies. Alternative bids will not be considered.\n\n**Bid Currency:** Indian Rupees (INR) only.\n\n**Validity:** 180 days from bid submission due date.\n\n**Bid Format and Signing:** Signed by authorised signatory with Power of Attorney. No interlineations, erasures, or overwriting (corrections must be initialled by signatory).\n\n**Submission Format:**\n- Envelope I (Techno-Commercial, Unpriced): EMD, authorization letter, techno-commercial bid, qualifying documents, deviations, test certificates, signed original NIT documents\n- Envelope II (Financial/Price Bid): Price bid in prescribed BOQ format",
+      "target_words": 300
+    },
+    {
+      "key": "bid_submission_process",
+      "title": "Submission of Bids",
+      "order": 11,
+      "render_hint": "prose",
+      "instructions": "Write the bid submission process section covering:\n\n**E-Tendering:** Procurement is done through e-tendering. NIT is available on the AEML website. Bidders register on the e-tendering portal to access and download tender documents and submit bids online through the Ariba Portal.\n\n**EMD Payment:** Online Transfer or Bank Guarantee. For online transfer, provide bank details (Beneficiary: Adani Electricity Mumbai Ltd, specify bank name and IFSC if available from source). Bidder must inform the buyer post payment.\n\n**Bid Submission Steps:**\n1. Access published tenders on AEML website\n2. Register on e-tendering portal (fill details, upload PAN, GST, EMD)\n3. Receive system-generated login credentials via email\n4. Download tender documents\n5. Create or use existing Ariba Network ID (ANID) for Adani\n6. Upload filled bid documents on Ariba Portal before the deadline\n\n**Deadline:** Original bid must be received no later than the specified due date and time. Late bids will be declared 'Late' and returned unopened. Bid modifications or withdrawals after submission are not permitted.\n\n**One Bid Per Bidder:** A bidder (or lead consortium bidder) cannot participate in more than one bid. Multiple participation will result in rejection of all bids.\n\nExtract contact person names, bank details, and website URLs from source documents.",
+      "target_words": 250
+    },
+    {
+      "key": "bid_evaluation_process",
+      "title": "Evaluation of Bid",
+      "order": 12,
+      "render_hint": "prose",
+      "instructions": "Write the bid evaluation process section covering:\n\n**Confidentiality:** Information relating to examination, evaluation, and comparison of bids is confidential. Any attempt by a bidder to influence the evaluation may result in bid rejection.\n\n**Clarification of Bids:** AEML may request clarification from bidders. Clarifications must be in writing. No changes to bid price or substance are permitted.\n\n**Preliminary Examination:** AEML examines bids for completeness, arithmetic errors, required sureties, and proper signing. Arithmetic errors: unit price prevails over totals. Bids not substantially responsive to bid documents will be rejected.\n\n**Stage-Wise Evaluation:**\n- Stage 1: Responsiveness check — Technical Proposals and commercial conditionalities evaluated\n- Stage 2: Financial Proposals of technically and commercially qualified bidders evaluated\n\n**Evaluation Factors:** In addition to bid price, AEML will consider: Delivery Schedule, Conformance to Qualifying Criteria, Deviations from Bidding Documents. Cost of deviations will be assessed and added to evaluated bid price for comparison purposes only.\n\n**E-Bidding and Reverse Auction:** AEML reserves the right to use reverse auction as part of the tendering process. All techno-commercially qualified bidders must participate. Bidder's reverse auction bid price is binding. AEML's award decision is final.",
+      "target_words": 250
+    },
+    {
+      "key": "award_of_contract",
+      "title": "Award of Contract",
+      "order": 13,
+      "render_hint": "prose",
+      "instructions": "Write the Award of Contract section covering:\n\n**Contacting the Purchaser:** All post-bid-opening communication must be in writing only. Any attempt to influence evaluation or award decisions results in bid rejection.\n\n**AEML's Rights:** AEML reserves the right to: accept or reject any bid; annul the bidding process and reject all bids at any time prior to contract award; vary quantities by +/- 25% without change in terms and conditions; award the contract to one or more bidders to meet delivery requirements; nullify award decisions without reason.\n\n**Award Decision:** The Letter of Intent / Notification of Award shall be issued to the successful bidder (L1 — lowest evaluated responsive bid). Successful bidder must furnish acceptance letter within 7 days of LoI issuance.\n\n**Corrupt and Fraudulent Practices:** AEML requires highest ethical standards. 'Corrupt practice' means improperly and unlawfully enriching oneself through misuse of position in procurement. 'Fraudulent practice' means misrepresentation of facts or collusive behavior to influence procurement or execution. AEML will reject proposals and declare firms ineligible if corrupt or fraudulent practices are found.\n\n**Market Integrity:** Violations include failure to honour bid prices, breach of published tender terms. AEML reserves the right to exclude bidders from future markets for rule violations.",
+      "target_words": 220
+    },
+    {
+      "key": "form_bid_form",
+      "title": "Form 1 — Bid Form",
+      "order": 14,
+      "render_hint": "prose",
+      "instructions": "Generate the standard Bid Form text (Form 1). The form is addressed to: Head of Department, Techno Commercial, Adani Electricity Mumbai Ltd, [Address]. Structure:\n\nAddressee block, then formal bid submission text including:\n- Statement that bidder has examined all bidding documents and offers to deliver goods/services in full conformity with terms and conditions\n- Confirmation that amounts are per attached Price Schedules\n- Commitment to deliver per the schedule from date of award\n- Commitment to furnish CPBG for 10% of total contract value\n- Agreement to abide by the bid for [180] days from due date\n- Declaration of study of Indian Laws\n- Statement that bid with written acceptance constitutes binding contract\n- Understanding that AEML is not bound to accept lowest or any bid\n- Dispute resolution reference\n\nClose with signature block: Dated, Signature, Capacity/Designation, Company name (in block capitals), duly authorized signatory statement.\n\nUse formal, legal-style language appropriate for a binding tender document.",
+      "target_words": 200
+    },
+    {
+      "key": "form_reverse_auction",
+      "title": "Form 2 — Acceptance Form for Participation in Reverse Auction Event",
+      "order": 15,
+      "render_hint": "prose",
+      "instructions": "Generate the Reverse Auction Acceptance Form (Form 2). Opening: 'ADANI ELECTRICITY MUMBAI LTD intends to use reverse auction as an integral part of the tendering process. All bidders who are techno-commercially qualified shall participate.'\n\nList the following terms and conditions as numbered points:\n1. Bidder is responsible for all internet infrastructure, hardware, and software required to participate; AEML is not liable for internet/technical failures\n2. Non-participation in the reverse auction event means the bidder's initial bid price becomes the Final No Regret offer; offline price bids submitted in lieu of non-participation are rejected\n3. Bidder must understand the auto-bid process\n4. Bidder must be prepared with competitive price quotes on the day of the event\n5. Prices quoted in reverse auction are on FOR Landed Cost AEML Store/site basis, inclusive of all taxes, duties, levies, and transportation charges\n6. Prices submitted during the reverse auction are binding\n7. Bidder agrees to non-disclosure of bid details and trade information\n8. AEML's award decision is final and binding on the bidder\n9. Prices submitted during the reverse auction are binding (no double submission)\n10. No time extension requests will be entertained\n\nClose with signature block for signing and stamping by the bidder.",
+      "target_words": 200
+    },
+    {
+      "key": "form_bank_guarantee_emd",
+      "title": "Form 3 — Bank Guarantee in lieu of Earnest Money Deposit (EMD)",
+      "order": 16,
+      "render_hint": "prose",
+      "instructions": "Generate the Bank Guarantee / EMD Form (Form 3). This is a formal legal document. Structure:\n\nOpening WHEREAS clauses:\n- WHEREAS [Adani Entity] has floated a tender dated [date] constituting the Bid Documents for [project description]\n- AND WHEREAS [Bidder Name] is interested in submitting a bid in response to the Bid Documents\n- AND WHEREAS the Bidder is required to submit Rs. [amount] towards EMD\n- AND WHEREAS the Adani Entity has agreed to accept a Bank Guarantee in lieu of EMD\n- AND WHEREAS the Bank undertakes to furnish an unconditional and irrevocable bank guarantee\n\nTHEREFORE, [Bank Name] (the 'Bank') agrees and covenants:\n1. Irrevocable guarantee to pay the Guaranteed Amount on first written demand by Adani Entity without demur, reservation, contest, or protest for any breach by the Bidder\n2. Guarantee term: until bid process completion and successful bidder declaration; minimum validity till [date] with 1-year claim period\n3. Demand by Adani Entity is conclusive and binding on the Bank; Bank waives all defences\n4. Adani Entity may modify Bid Documents or extend timelines without releasing the Bank's obligation\n5. Guarantee unaffected by: constitution changes of Bidder or Bank; time extensions; unenforceability of any obligation; part performance; winding up of Bidder\n6. No failure or delay by Adani Entity constitutes waiver of rights under this Guarantee\n7. Guarantee is irrevocable and unconditional; Bank agrees to enforce as principal debtor, not merely as surety\n8. Notice provisions (electronic and physical)\n9. Assignment rights of Adani Entity to affiliates/lenders\n10. Bank confirmation: liability capped at Guaranteed Amount; validity period; payable at any Bank branch in Mumbai\n\nClose with dual signature blocks for Bank authorised signatories (Name, Designation, Place, Date).\n\nUse formal legal language throughout. Use [placeholder brackets] for all variable values (amounts, names, dates).",
+      "target_words": 350
+    },
+    {
+      "key": "form_technical_deviation",
+      "title": "Form 4 — Schedule of Deviation from Technical Specifications and Scope of Work",
+      "order": 17,
+      "render_hint": "table",
+      "instructions": "Generate Form 4 — Technical Deviation Schedule. Opening statement: 'Bidders shall mention in this Schedule all Departures from the various clauses of the Specifications. In the absence of any mention in this schedule, the clauses of these Specifications shall be binding on the tenderers. If the departure specified herein is found to be in contradiction to AEML requirements/specifications, such offers will be treated as non-responsive.'\n\nGenerate the deviation table:\n\n| Sr. No. | Ref. to Section No. / Specification No. | Deviation | Justification / Reasons |\n|---------|------------------------------------------|-----------|-------------------------|\n| 1 | | | |\n| 2 | | | |\n| 3 | | | |\n\nClose with: 'We have carefully gone through the specifications, and we undertake to meet clauses in the specifications in all respects, except for the deviations mentioned above.'\n\nSignature block: Authorized Signatory, Sign and Seal of the Company.",
+      "target_words": 100
+    },
+    {
+      "key": "form_commercial_deviation",
+      "title": "Form 5 — Schedule of Deviations from Commercial Terms & Conditions",
+      "order": 18,
+      "render_hint": "table",
+      "instructions": "Generate Form 5 — Commercial Deviation Schedule. Opening: 'Tenderers shall mention in this Schedule all Departures from the various clauses of the GTC & STC. In the absence of any mention in this schedule, these clauses shall be binding on the tenderers. If the departure specified herein is found to be in contradiction to AEML requirements, then such offers will be treated as non-responsive.'\n\nGenerate the commercial deviation table:\n\n| Sr. No. | Ref. to Section No. / Clause No. of GTC/STC | Deviation | Justification / Reasons |\n|---------|----------------------------------------------|-----------|-------------------------|\n| 1 | | | |\n| 2 | | | |\n| 3 | | | |\n\nClose with: 'We have carefully gone through the GTC & STC, and we undertake to meet clauses in all respects, except for the deviations mentioned above.'\n\nSignature block: Authorized Signatory, Sign and Seal of the Company.",
+      "target_words": 100
+    },
+    {
+      "key": "form_bidder_contact_details",
+      "title": "Form 6 — Bidder Contact Details",
+      "order": 19,
+      "render_hint": "table",
+      "instructions": "Generate Form 6 — Bidder Contact Details. State: 'The Bidder shall furnish the below details for future communication.'\n\nGenerate as two markdown pipe tables:\n\n**Table 1 — General Information / Vendor Credentials:**\n| Field | Details |\n|-------|--------|\n| Name of the Company | |\n| Postal Address | |\n| Details of offices in India (HQ, Development & Support centres) | |\n| Annual Turnover (average over last 3 financial years) | |\n| Turnover in last financial year | |\n| Headcount (Full-time payroll) | |\n| Global Customer Base | |\n| Indian Customer Base | |\n| Partners in India | |\n| Presence in Adani Group | |\n| Previous deployments of equal or larger scale | |\n\n**Table 2 — Contact Persons:**\n| Purpose | Name | Designation | Email | Mobile | Telephone |\n|---------|------|-------------|-------|--------|-----------|\n| Technical Query | | | | | |\n| Commercial Query | | | | | |\n\nLeave all detail cells blank for the bidder to fill.",
+      "target_words": 130
+    },
+    {
+      "key": "form_submission_checklist",
+      "title": "Form 7 — Submission Checklist",
+      "order": 20,
+      "render_hint": "table",
+      "instructions": "Generate Form 7 — Submission Checklist as a comprehensive markdown pipe table:\n\n| Sr. No. | Item / Description | Yes / No |\n|---------|-------------------|----------|\n| 1 | Covering Letter | Yes/No |\n| 2 | Bidder Contact Details (Form 6) | Yes/No |\n| 3 | Bid Form (Form 1) | Yes/No |\n| **4** | **Envelope I — Techno-Commercial Bid** | |\n| 4.1 | Bid Security (EMD — BG or Online Payment Details) in prescribed form (Form 3) | Yes/No |\n| 4.2 | Authority letter from bidder's organisation for signing representative | Yes/No |\n| 4.3 | Letter of Undertaking for Joint Venture / Consortium (if applicable) | Yes/No |\n| 4.4 | Techno-Commercial Bid Form (Unpriced) — Duly Signed | Yes/No |\n| 4.5 | Itemised / Detailed Bid Price Breakup (Unpriced) — Duly Signed | Yes/No |\n| 4.6 | Documents supporting Qualifying Criteria (financial and technical) | Yes/No |\n| 4.7 | Acceptance of Commercial Terms & Conditions | Yes/No |\n| 4.8 | Acceptance of Mandatory Technical Requirements (Scope of Work and SLA) | Yes/No |\n| 4.9 | Commercial Deviation Sheet (if any) | Yes/No |\n| 4.10 | Test / Compliance Certificates | Yes/No |\n| 4.11 | RFP Compliance — Duly Signed (Scope & Deliverables; Functional/Technical Specs; Standards & Compliance; Deviation Sheet; Solution Details including OOTB/Customized/Configurable; Detailed Architectures; Third-party/open-source dependencies; Cybersecurity assurance and VAPT reports; ITSM processes; SLA Response; Change Management; AMS Plan) | Yes/No |\n| 4.12 | Evaluation Criteria Documents (Experience Certificates, Client Testimonials, Case Studies; ISO/CMMI certifications) | Yes/No |\n| 4.13 | Project Implementation Methodology (Approach; PM Strategy; Resource Plan; L1/L2 Schedule; Assumptions & Exclusions) | Yes/No |\n| **5** | **Envelope II — Financial/Price Bid** | |\n| 5.1 | Financial Bid with Itemised Price Breakup per BOQ format | Yes/No |\n| 5.2 | Required documents as stated in Instructions to Bidder | Yes/No |",
+      "target_words": 250
+    }
+  ]
+}

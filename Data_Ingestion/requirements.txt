@@ -95,6 +95,10 @@ click==8.1.8
 markdown2==2.5.5            # Markdown → HTML
 xlsxwriter==3.2.9           # Excel export
 
+# ── Preview — LibreOffice async conversion ───────────────────────────────────
+celery==5.5.2               # Distributed task queue for LibreOffice conversions
+redis==5.2.1                # Redis client (Celery broker + result backend + HTML cache)
+
 # ── Utilities ────────────────────────────────────────────────────────────────
 python-dateutil==2.9.0.post0
 pytz==2026.2

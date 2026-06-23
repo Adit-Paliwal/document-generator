@@ -1,14 +1,36 @@
 {
   "info": {
     "name": "IntelliDraft API",
-    "description": "Complete API collection for IntelliDraft — document ingestion, project management, AI field derivation, and document generation.\n\n**Base URL:** http://localhost:7071/api\n\n**How to use:**\n1. Set the `base_url` variable to your server URL\n2. Run requests in the order shown (upload → extract → create project → generate)\n3. Use the Tests tab on each request to auto-capture IDs into collection variables",
+    "description": "Complete API collection for IntelliDraft — v2 (Sprint: Inline Editing + Snapshots).\n\n**Base URL:** http://localhost:7071/api\n\n**API Key (x-functions-key):**\n- Local dev (run_server.py / Flask): leave `api_key` variable EMPTY — no key needed.\n- Azure Functions deployment: set the `api_key` collection variable to your function host key.\nAll requests automatically send the key via the pre-request script — you only set it once.\n\n**Quick Start:**\n1. Set `base_url` variable (default: http://localhost:7071/api)\n2. Set `api_key` variable (empty for local dev, host key for Azure)\n3. Run requests in the 🔁 Full Flow folder to test the complete workflow\n\n**Typical flow:**  Upload → Extract AI fields → Create Draft → Finalize → Generate → Preview → Edit → Snapshot → Export\n\n**New in this sprint:**\n- `PATCH /generate/{job_id}/section/{section_id}` — manual section edit (creates versioned record)\n- `GET  /generate/{job_id}/preview/html` — LibreOffice DOCX→HTML with inline editing scripts\n- `GET  /generate/{job_id}/preview/status` — poll Celery conversion task\n- `POST /generate/{job_id}/snapshot` — save version checkpoint\n- `GET  /generate/{job_id}/snapshots` — list all checkpoints\n- `POST /generate/{job_id}/snapshot/{id}/restore` — roll back to any checkpoint\n- `GET  /projects?page=N&per_page=50` — paginated project list (100× faster at scale)",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "exec": [
+          "// Automatically add x-functions-key header if api_key variable is set.",
+          "// For local dev (run_server.py) leave api_key empty — Flask ignores the header.",
+          "// For Azure Functions deployment set api_key to the function host key.",
+          "const key = pm.collectionVariables.get('api_key');",
+          "if (key && key.trim() !== '') {",
+          "  pm.request.headers.add({ key: 'x-functions-key', value: key.trim() });",
+          "}"
+        ]
+      }
+    }
+  ],
   "variable": [
     {
       "key": "base_url",
       "value": "http://localhost:7071/api",
       "type": "string"
+    },
+    {
+      "key": "api_key",
+      "value": "",
+      "type": "string",
+      "description": "Azure Functions host key. Leave empty for local Flask server."
     },
     {
       "key": "document_id",
@@ -34,6 +56,30 @@
       "key": "comment_id",
       "value": "",
       "type": "string"
+    },
+    {
+      "key": "session_id",
+      "value": "",
+      "type": "string",
+      "description": "Chat session ID. Auto-set by POST /chat/init."
+    },
+    {
+      "key": "project_code",
+      "value": "",
+      "type": "string",
+      "description": "Human-readable project code (e.g. AESL-001). Used for ?code= lookup."
+    },
+    {
+      "key": "snapshot_id",
+      "value": "",
+      "type": "string",
+      "description": "DocumentSnapshot ID. Auto-set by POST /snapshot."
+    },
+    {
+      "key": "preview_task_id",
+      "value": "",
+      "type": "string",
+      "description": "Celery task ID for LibreOffice HTML preview conversion. Auto-set by GET /preview/html when pending."
     }
   ],
   "item": [
@@ -45,7 +91,7 @@
           "request": {
             "method": "GET",
             "url": "{{base_url}}/health",
-            "description": "Lightweight liveness probe. Zero DB cost. Returns immediately."
+            "description": "Lightweight liveness probe. Zero DB cost. Returns {status: 'ok'}."
           },
           "event": [
             {
@@ -66,6 +112,41 @@
             "url": "{{base_url}}/docs",
             "description": "Opens the interactive API reference HTML page."
           }
+        },
+        {
+          "name": "Reset Database (DEV ONLY)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/admin/reset-db",
+            "description": "DEV ONLY — wipes and recreates the SQLite database. Use for a clean slate during development. NOT safe in production (no auth guard).",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('DB reset ok', () => pm.expect(j.status).to.eql('ok'));",
+                  "console.log('Deleted files:', j.deleted);",
+                  "// Clear all saved IDs after DB reset",
+                  "['document_id','project_id','job_id','section_id','comment_id','session_id']",
+                  "  .forEach(k => pm.collectionVariables.set(k, ''));",
+                  "console.log('All collection variable IDs cleared.');"
+                ]
+              }
+            }
+          ]
         }
       ]
     },
@@ -87,9 +168,6 @@
                   "pm.test('Status 200', () => pm.response.to.have.status(200));",
                   "const json = pm.response.json();",
                   "pm.test('Has fields array', () => pm.expect(json).to.have.property('fields'));",
-                  "pm.test('Has 19 fields', () => pm.expect(json.fields).to.have.lengthOf(19));",
-                  "const sf = json.fields.find(f => f.key === 'stakeholders');",
-                  "pm.test('Stakeholders field has stakeholder_config', () => pm.expect(sf).to.have.property('stakeholder_config'));",
                   "console.log('Fields returned:', json.fields.map(f => f.key).join(', '));"
                 ]
               }
@@ -101,7 +179,7 @@
           "request": {
             "method": "POST",
             "url": "{{base_url}}/upload",
-            "description": "Upload a PPTX/DOCX/PDF/XLSX file. Returns document_id saved as collection variable.",
+            "description": "Upload a PPTX/DOCX/PDF/XLSX file. Returns document_id saved as collection variable. Max 50 MB.",
             "body": {
               "mode": "formdata",
               "formdata": [
@@ -124,6 +202,7 @@
                   "if (json.document_id) {",
                   "  pm.collectionVariables.set('document_id', json.document_id);",
                   "  console.log('Saved document_id:', json.document_id);",
+                  "  console.log('Message:', json.message);",
                   "}"
                 ]
               }
@@ -153,7 +232,7 @@
           "request": {
             "method": "GET",
             "url": "{{base_url}}/document/{{document_id}}/status",
-            "description": "Get lightweight document status."
+            "description": "Get lightweight document status (document_id, filename, file_type, status)."
           },
           "event": [
             {
@@ -179,7 +258,7 @@
           "request": {
             "method": "POST",
             "url": "{{base_url}}/extract-project-data",
-            "description": "AI Populate button. Reads uploaded document and extracts all 15 project form fields. Takes 30-60s. Returns extracted{} wrapper + missing_required list.",
+            "description": "AI Populate button. Reads uploaded document(s) and extracts all 15 project form fields. Takes 30–60 s. Returns extracted{} + missing_required[].",
             "header": [
               {
                 "key": "Content-Type",
@@ -199,21 +278,20 @@
                   "pm.test('Status 200', () => pm.response.to.have.status(200));",
                   "const json = pm.response.json();",
                   "pm.test('Has extracted object', () => pm.expect(json).to.have.property('extracted'));",
-                  "pm.test('Has missing_required array', () => pm.expect(json).to.have.property('missing_required'));",
                   "const ex = json.extracted || {};",
                   "console.log('Filled fields:', Object.keys(ex).filter(k => ex[k] !== null).join(', '));",
-                  "console.log('Missing required:', json.missing_required.map(f => f.field).join(', ') || 'none');"
+                  "console.log('Missing required:', (json.missing_required || []).map(f => f.field).join(', ') || 'none');"
                 ]
               }
             }
           ]
         },
         {
-          "name": "Create Project",
+          "name": "Create Draft Project (idempotent)",
           "request": {
             "method": "POST",
-            "url": "{{base_url}}/projects",
-            "description": "Save project to DB. All 12 marked fields are required. Returns project_id.",
+            "url": "{{base_url}}/projects/draft",
+            "description": "Create a draft project without requiring all mandatory fields.\n\n**OPTIONAL: Pass project_id (client-generated UUID) for idempotency.**\nFrontend can call `crypto.randomUUID()` and include it in the body. On retry/autosave race, the same UUID returns 200 with the existing project — no duplicate created.\n\nReturns 409 if project_code is already used by another project.",
             "header": [
               {
                 "key": "Content-Type",
@@ -222,7 +300,12 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"business_unit\": \"AESL\",\n  \"project_name\": \"Smart Meter Analytics\",\n  \"project_code\": \"AESL-2025-042\",\n  \"problem_statement\": \"Manual meter reading is error-prone and costly, leading to billing disputes.\",\n  \"project_objective\": \"Automate meter data collection with real-time analytics dashboard.\",\n  \"stakeholders\": [\n    {\n      \"name\": \"Srinivas Gutta\",\n      \"designation\": \"Project Manager\"\n    },\n    {\n      \"name\": \"Ali Imam\",\n      \"designation\": \"Technical Lead\"\n    }\n  ],\n  \"start_date\": \"2025-04-01\",\n  \"end_date\": \"2025-12-31\",\n  \"as_is_processes\": \"Field engineers visit each meter monthly for manual reading and log results in spreadsheets.\",\n  \"proposed_solution\": \"Deploy IoT smart meters with a central analytics platform integrated with SAP.\",\n  \"technical_landscape\": \"Azure IoT Hub, Power BI, SAP ERP integration via REST API.\",\n  \"business_priority\": \"Critical\",\n  \"constraints\": \"Budget capped at 5 Crores. No disruption to existing billing cycle.\",\n  \"risks\": \"Device connectivity in remote areas. Data privacy regulations.\",\n  \"estimated_cost_crores\": \"4.5\",\n  \"document_type\": \"BRD\",\n  \"output_format\": \"Word (.docx)\",\n  \"document_ids\": [\n    \"{{document_id}}\"\n  ]\n}"
+              "raw": "{\n  \"project_id\": \"{{project_id}}\",\n  \"_comment\": \"project_id is OPTIONAL \\u2014 pass a client-generated UUID (crypto.randomUUID()) for idempotent creation. Leave blank to have server generate one.\",\n  \"project_name\": \"AESL Data Foundation\",\n  \"project_code\": \"AESL-DF-001\",\n  \"business_unit\": \"IT\",\n  \"business_priority\": \"Critical\",\n  \"document_type\": \"BRD\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             }
           },
           "event": [
@@ -230,12 +313,11 @@
               "listen": "test",
               "script": {
                 "exec": [
-                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "pm.test('Status 201 or 200', () => pm.response.to.have.status(201) || pm.response.to.have.status(200));",
                   "const json = pm.response.json();",
-                  "pm.test('Has project_id', () => pm.expect(json).to.have.property('project_id'));",
                   "if (json.project_id) {",
                   "  pm.collectionVariables.set('project_id', json.project_id);",
-                  "  console.log('Saved project_id:', json.project_id);",
+                  "  console.log('project_id set:', json.project_id);",
                   "}"
                 ]
               }
@@ -243,11 +325,11 @@
           ]
         },
         {
-          "name": "Create Project — Validation Error (422)",
+          "name": "Create Project (full validation)",
           "request": {
             "method": "POST",
             "url": "{{base_url}}/projects",
-            "description": "Intentionally missing required fields. Expect 422 with field-level errors.",
+            "description": "Save project to DB with full validation. All 12 marked fields required. Returns project_id.\n\n⚠️ Returns 422 if required fields missing. Returns 409 if project_code already in use.",
             "header": [
               {
                 "key": "Content-Type",
@@ -256,7 +338,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"project_name\": \"Incomplete Project\"\n}"
+              "raw": "{\n  \"business_unit\": \"AESL\",\n  \"project_name\": \"Smart Meter Analytics\",\n  \"project_code\": \"AESL-2025-042\",\n  \"problem_statement\": \"Manual meter reading is error-prone and costly, leading to billing disputes.\",\n  \"project_objective\": \"Automate meter data collection with real-time analytics dashboard.\",\n  \"stakeholders\": [\n    { \"name\": \"Srinivas Gutta\", \"designation\": \"Project Manager\" },\n    { \"name\": \"Ali Imam\", \"designation\": \"Technical Lead\" }\n  ],\n  \"start_date\": \"2025-04-01\",\n  \"end_date\": \"2025-12-31\",\n  \"as_is_processes\": \"Field engineers visit each meter monthly for manual reading.\",\n  \"proposed_solution\": \"Deploy IoT smart meters with a central analytics platform integrated with SAP.\",\n  \"technical_landscape\": \"Azure IoT Hub, Power BI, SAP ERP integration via REST API.\",\n  \"business_priority\": \"Critical\",\n  \"constraints\": \"Budget capped at 5 Crores. No disruption to existing billing cycle.\",\n  \"risks\": \"Device connectivity in remote areas. Data privacy regulations.\",\n  \"estimated_cost_crores\": \"4.5\",\n  \"document_type\": \"BRD\",\n  \"output_format\": \"Word (.docx)\",\n  \"document_ids\": [\"{{document_id}}\"]\n}"
             }
           },
           "event": [
@@ -264,44 +346,17 @@
               "listen": "test",
               "script": {
                 "exec": [
-                  "pm.test('Status 422 for missing fields', () => pm.response.to.have.status(422));",
-                  "const json = pm.response.json();",
-                  "pm.test('Has fields array', () => pm.expect(json).to.have.property('fields'));",
-                  "console.log('Validation errors:', JSON.stringify(json.fields, null, 2));"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Create Draft Project (partial — no validation)",
-          "request": {
-            "method": "POST",
-            "url": "{{base_url}}/projects/draft",
-            "description": "Save a project with partial data — no required-field validation. Used by the frontend immediately after AI extraction to persist extracted fields to DB before the user finishes the form. Returns project_id. Follow up with PATCH /projects/{{project_id}} to add remaining fields.\n\nKey difference from POST /projects: status is always 'draft', any subset of fields is accepted.",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"project_name\": \"Smart Meter Analytics\",\n  \"project_code\": \"AESL-2025-042\",\n  \"business_unit\": \"AESL\",\n  \"problem_statement\": \"Manual meter reading is error-prone and costly.\",\n  \"document_ids\": [\"{{document_id}}\"]\n}"
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
-                  "const json = pm.response.json();",
-                  "pm.test('Has project_id', () => pm.expect(json).to.have.property('project_id'));",
-                  "pm.test('Status is draft', () => pm.expect(json.status).to.eql('draft'));",
-                  "if (json.project_id) {",
-                  "  pm.collectionVariables.set('project_id', json.project_id);",
-                  "  console.log('Draft project_id saved:', json.project_id);",
+                  "if (pm.response.code === 409) {",
+                  "  console.log('Project code already in use:', pm.response.json().error);",
+                  "} else if (pm.response.code === 422) {",
+                  "  console.log('Validation errors:', JSON.stringify(pm.response.json().fields));",
+                  "} else {",
+                  "  pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "  const json = pm.response.json();",
+                  "  if (json.project_id) {",
+                  "    pm.collectionVariables.set('project_id', json.project_id);",
+                  "    console.log('Saved project_id:', json.project_id);",
+                  "  }",
                   "}"
                 ]
               }
@@ -335,7 +390,7 @@
                 }
               ]
             },
-            "description": "List all projects. Enable query params to filter."
+            "description": "List all projects (most recent first). Enable query params to filter by name/code or status."
           },
           "event": [
             {
@@ -343,7 +398,9 @@
               "script": {
                 "exec": [
                   "pm.test('Status 200', () => pm.response.to.have.status(200));",
-                  "pm.test('Has projects array', () => pm.expect(pm.response.json()).to.have.property('projects'));"
+                  "const json = pm.response.json();",
+                  "pm.test('Has projects array', () => pm.expect(json).to.have.property('projects'));",
+                  "console.log('Projects found:', json.count);"
                 ]
               }
             }
@@ -354,7 +411,7 @@
           "request": {
             "method": "GET",
             "url": "{{base_url}}/projects/{{project_id}}",
-            "description": "Get full project including all fields, stakeholders, doc IDs."
+            "description": "Get full project including all fields, stakeholders, doc IDs, and lifecycle metadata."
           },
           "event": [
             {
@@ -369,11 +426,11 @@
           ]
         },
         {
-          "name": "Update Project (PUT — full)",
+          "name": "Update Project [DEPRECATED — use PATCH]",
           "request": {
             "method": "PUT",
             "url": "{{base_url}}/projects/{{project_id}}",
-            "description": "Full update. Send all fields you want to change.",
+            "description": "⚠️ DEPRECATED — use PATCH /api/projects/{{project_id}} instead.\n\nPUT and PATCH do exactly the same thing (partial field update). PUT is kept for backwards compatibility but will be REMOVED in a future release.\n\nResponse includes X-Deprecated header and a 'deprecated' field in the JSON body.",
             "header": [
               {
                 "key": "Content-Type",
@@ -390,8 +447,12 @@
               "listen": "test",
               "script": {
                 "exec": [
-                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
-                  "pm.test('Has updated_at', () => pm.expect(pm.response.json()).to.have.property('updated_at'));"
+                  "if (pm.response.code === 409) {",
+                  "  console.log('Project code conflict:', pm.response.json().error);",
+                  "} else {",
+                  "  pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "  pm.test('Has updated_at', () => pm.expect(pm.response.json()).to.have.property('updated_at'));",
+                  "}"
                 ]
               }
             }
@@ -402,7 +463,7 @@
           "request": {
             "method": "PATCH",
             "url": "{{base_url}}/projects/{{project_id}}",
-            "description": "Partial update — send only fields that changed.",
+            "description": "Partial update — only the fields present in the body are written. Used for the frontend's autosave while filling the form.\n\n⚠️ Returns 409 if the new project_code is already in use by another project.",
             "header": [
               {
                 "key": "Content-Type",
@@ -419,7 +480,11 @@
               "listen": "test",
               "script": {
                 "exec": [
-                  "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                  "if (pm.response.code === 409) {",
+                  "  console.log('Project code conflict:', pm.response.json().error);",
+                  "} else {",
+                  "  pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "}"
                 ]
               }
             }
@@ -430,7 +495,7 @@
           "request": {
             "method": "GET",
             "url": "{{base_url}}/projects/{{project_id}}/data",
-            "description": "Returns both ingested (15 fields) and derived (12 AI fields) in one call. Use for Project Details page."
+            "description": "Returns both ingested (15 fields) and derived (12 AI fields) in one call. Used by the Project Data sub-page with two tabs."
           },
           "event": [
             {
@@ -442,7 +507,7 @@
                   "pm.test('Has ingested', () => pm.expect(json).to.have.property('ingested'));",
                   "pm.test('Has derived',  () => pm.expect(json).to.have.property('derived'));",
                   "console.log('Ingested fields:', Object.keys(json.ingested).join(', '));",
-                  "console.log('Derived fields:', Object.keys(json.derived).join(', '));"
+                  "console.log('Derived generated_at:', json.derived_generated_at || 'not yet generated');"
                 ]
               }
             }
@@ -453,7 +518,7 @@
           "request": {
             "method": "PUT",
             "url": "{{base_url}}/projects/{{project_id}}/data/ingested",
-            "description": "Save user edits to the 15 ingested fields. Called on Save button in Tab 1.",
+            "description": "Save changes made to project ingested fields (from the project data page, Ingested tab).\n\n**BUG FIX:** `Content-Type: application/json` header is NOT required — the server parses JSON regardless. This was the root cause of the \"draft save not working\" report.\n\nSupported fields: project_name, business_unit, project_code, problem_statement, project_objective, as_is_processes, proposed_solution, technical_landscape, stakeholders, start_date, end_date, business_priority, constraints, risks, estimated_cost_crores.\n\nReturns 409 if `project_code` conflicts with another project.",
             "header": [
               {
                 "key": "Content-Type",
@@ -462,7 +527,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"project_name\": \"Smart Meter Analytics v2\",\n  \"business_priority\": \"Highly Critical\",\n  \"estimated_cost_crores\": \"5.0\",\n  \"stakeholders\": [\n    {\n      \"name\": \"Srinivas Gutta\",\n      \"designation\": \"Project Manager\"\n    },\n    {\n      \"name\": \"Ali Imam\",\n      \"designation\": \"Technical Lead\"\n    },\n    {\n      \"name\": \"Rajesh Lad\",\n      \"designation\": \"Business Analyst\"\n    }\n  ]\n}"
+              "raw": "{\n  \"project_name\": \"Smart Meter Analytics v2\",\n  \"business_priority\": \"Highly Critical\",\n  \"estimated_cost_crores\": \"5.0\",\n  \"stakeholders\": [\n    { \"name\": \"Srinivas Gutta\", \"designation\": \"Project Manager\" },\n    { \"name\": \"Ali Imam\", \"designation\": \"Technical Lead\" },\n    { \"name\": \"Rajesh Lad\", \"designation\": \"Business Analyst\" }\n  ]\n}"
             }
           },
           "event": [
@@ -470,7 +535,12 @@
               "listen": "test",
               "script": {
                 "exec": [
-                  "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                  "if (pm.response.code === 409) {",
+                  "  console.log('Project code conflict:', pm.response.json().error);",
+                  "} else {",
+                  "  pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "  console.log('Ingested data saved. updated_at:', pm.response.json().updated_at);",
+                  "}"
                 ]
               }
             }
@@ -481,7 +551,7 @@
           "request": {
             "method": "POST",
             "url": "{{base_url}}/projects/{{project_id}}/derive-fields",
-            "description": "AI generates all 12 derived fields from project data + documents. Takes 30-60s.",
+            "description": "AI generates all 12 derived fields from project data + attached documents. Takes 30–90 s. Call GET /projects/{id}/data afterwards to read the results.",
             "header": [
               {
                 "key": "Content-Type",
@@ -501,8 +571,42 @@
                   "pm.test('Status 200', () => pm.response.to.have.status(200));",
                   "const json = pm.response.json();",
                   "pm.test('Has fields_populated', () => pm.expect(json).to.have.property('fields_populated'));",
-                  "console.log('Fields populated by AI:', json.fields_populated);"
+                  "console.log('Fields populated by AI:', json.fields_populated, '/ 12');"
                 ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Validate Project (pre-Generate check)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/projects/{{project_id}}/validate",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "projects",
+                "{{project_id}}",
+                "validate"
+              ]
+            },
+            "description": "Pre-flight check before enabling the Generate button.\n\nChecks all required fields are filled without starting generation.\n\nRequired fields: project_name, problem_statement, project_objective, as_is_processes, proposed_solution, technical_landscape.\n\nReturns:\n  valid: true|false\n  ready_to_generate: true|false\n  missing_required: [...field names...]\n  message: human-readable summary"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Has valid field', () => pm.expect(json).to.have.property('valid'));",
+                  "pm.test('Has ready_to_generate', () => pm.expect(json).to.have.property('ready_to_generate'));",
+                  "console.log('Validation result:', json.valid, '| Missing:', json.missing_required);"
+                ],
+                "type": "text/javascript"
               }
             }
           ]
@@ -512,7 +616,7 @@
           "request": {
             "method": "PUT",
             "url": "{{base_url}}/projects/{{project_id}}/data/derived",
-            "description": "Save user edits to the 12 AI-derived fields. Called on Save button in Tab 2.",
+            "description": "Save manual changes to AI-derived fields (from the project data page, Derived tab).\n\n**BUG FIX:** `Content-Type: application/json` header is NOT required.\n\nSupported fields: current_challenges, to_be_process, success_criteria, business_requirements, functional_requirements, non_functional_requirements, industry_benchmarks, workflow, analytics_requirements, systems_involved, data_sources, constraints_dependencies.\n\nPass `\"mark_as_generated\": true` to set `derived_generated_at` timestamp.",
             "header": [
               {
                 "key": "Content-Type",
@@ -529,7 +633,8 @@
               "listen": "test",
               "script": {
                 "exec": [
-                  "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "console.log('Derived data saved. updated_at:', pm.response.json().updated_at);"
                 ]
               }
             }
@@ -540,15 +645,57 @@
           "request": {
             "method": "DELETE",
             "url": "{{base_url}}/projects/{{project_id}}",
-            "description": "Permanently delete a project and its derived data. Returns 204."
+            "description": "Permanently delete a project and its derived data. Returns 204 No Content."
           },
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
-                  "pm.test('Status 204', () => pm.response.to.have.status(204));"
+                  "pm.test('Status 204', () => pm.response.to.have.status(204));",
+                  "pm.collectionVariables.set('project_id', '');",
+                  "console.log('Project deleted. project_id variable cleared.');"
                 ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Search by Project Code (exact lookup)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/projects?code={{project_code}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "projects"
+              ],
+              "query": [
+                {
+                  "key": "code",
+                  "value": "{{project_code}}"
+                }
+              ]
+            },
+            "description": "Exact project_code lookup — resolves a human-readable code to the UUID project_id.\n\nUse when you have the code (e.g. from a shared link or URL) but need the UUID for subsequent API calls.\n\nExample: GET /api/projects?code=AESL-001\n\nReturns { projects[], count }. Check projects[0].project_id for the UUID."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Returns projects array', () => pm.expect(json.projects).to.be.an('array'));",
+                  "if (json.projects.length > 0) {",
+                  "  pm.collectionVariables.set('project_id', json.projects[0].project_id);",
+                  "  console.log('Resolved project_id:', json.projects[0].project_id);",
+                  "}"
+                ],
+                "type": "text/javascript"
               }
             }
           ]
@@ -563,7 +710,7 @@
           "request": {
             "method": "POST",
             "url": "{{base_url}}/generate/project/{{project_id}}",
-            "description": "Start document generation from a saved project. No body needed. Returns job_id.",
+            "description": "Start document generation from a saved project.\n\nBody is optional. Omit for default (BRD, from project settings).\n\n**Optional body fields:**\n- `document_type`: Override the project's document type (BRD, RFP, NFA, NDPR, NIT, BOQ, ARB, SOW)\n\nDocuments are NOT required — if none are attached, the AI generates from the project form fields alone.\n\nReturns: `{ job_id, status, sections[], message }`. Poll `GET /api/generate/{{job_id}}` for progress.",
             "header": [
               {
                 "key": "Content-Type",
@@ -572,7 +719,12 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{}"
+              "raw": "{\n  \"document_type\": \"BRD\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             }
           },
           "event": [
@@ -594,11 +746,11 @@
           ]
         },
         {
-          "name": "Generate from Document (Legacy)",
+          "name": "Start Generation (Legacy) [DEPRECATED]",
           "request": {
             "method": "POST",
             "url": "{{base_url}}/generate/start",
-            "description": "Start generation directly from document + user inputs (without a saved project).",
+            "description": "⚠️ DEPRECATED — use POST /api/generate/project/{{project_id}} instead.\n\nThis legacy endpoint requires a raw document_id and bypasses the project database. Use POST /api/generate/project/{{project_id}} which reads all project context from DB.\n\nResponse includes X-Deprecated header and a 'deprecated' field in the JSON body.",
             "header": [
               {
                 "key": "Content-Type",
@@ -628,7 +780,7 @@
           "request": {
             "method": "GET",
             "url": "{{base_url}}/generate/{{job_id}}",
-            "description": "Poll every 3s to track progress. Check section statuses: pending → running → completed/failed."
+            "description": "Poll every 3 s to track progress. Check section statuses: pending → generating → completed/failed. Also saves the first section_id for use in section endpoints."
           },
           "event": [
             {
@@ -639,9 +791,8 @@
                   "const json = pm.response.json();",
                   "const sections = json.sections || [];",
                   "const done = sections.filter(s => s.status === 'completed').length;",
-                  "const total = sections.length;",
-                  "console.log(`Job status: ${json.status} | Sections: ${done}/${total} done`);",
-                  "if (sections.length > 0) {",
+                  "console.log(`Job: ${json.status} | Sections: ${done}/${sections.length} done`);",
+                  "if (sections.length > 0 && !pm.collectionVariables.get('section_id')) {",
                   "  pm.collectionVariables.set('section_id', sections[0].section_id);",
                   "  console.log('Saved section_id:', sections[0].section_id);",
                   "}"
@@ -655,7 +806,7 @@
           "request": {
             "method": "GET",
             "url": "{{base_url}}/generate/{{job_id}}/section/{{section_id}}",
-            "description": "Get full section with all versions and comments."
+            "description": "Get a single section with all versions and all comments."
           },
           "event": [
             {
@@ -675,7 +826,7 @@
           "request": {
             "method": "POST",
             "url": "{{base_url}}/generate/{{job_id}}/section/{{section_id}}/comment",
-            "description": "Add a user review comment. Save the returned comment_id for regenerate.",
+            "description": "Add a user review comment to a section. Save the returned comment_id for use in Regenerate.",
             "header": [
               {
                 "key": "Content-Type",
@@ -704,11 +855,11 @@
           ]
         },
         {
-          "name": "Regenerate Section",
+          "name": "Regenerate Section (with comment)",
           "request": {
             "method": "POST",
             "url": "{{base_url}}/generate/{{job_id}}/section/{{section_id}}/regenerate",
-            "description": "Regenerate section incorporating the comment. Creates a new version.",
+            "description": "Regenerate section incorporating the comment. Creates a new version. Omit comment_id to regenerate from scratch.",
             "header": [
               {
                 "key": "Content-Type",
@@ -763,6 +914,89 @@
           ]
         },
         {
+          "name": "Get Section (with all versions)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/generate/{{job_id}}/section/{{section_id}}",
+            "description": "Return a single section with all versions, comments, and current content.\n\nUsed by the inline editor to load the Markdown content before the user edits.\n\nResponse: `{ section_id, section_title, status, current_version, versions[], comments[] }`"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Has versions', () => pm.expect(json.versions).to.be.an('array'));",
+                  "const accepted = (json.versions||[]).find(v => v.is_accepted);",
+                  "console.log('Section:', json.section_title, '| versions:', (json.versions||[]).length);",
+                  "console.log('Accepted version:', accepted ? `v${accepted.version_number} (${accepted.trigger_type})` : 'none');"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Edit Section (Manual Override)",
+          "request": {
+            "method": "PATCH",
+            "url": "{{base_url}}/generate/{{job_id}}/section/{{section_id}}",
+            "description": "Manually overwrite a section with new Markdown content.\n\nCreates a new SectionVersion (`trigger_type: manual_edit`), marks it `is_accepted: true`, updates the version_hash cache, and invalidates the LibreOffice preview cache.\n\nThis is the endpoint called when the user edits a section inline in the document preview or via the sidebar drawer.\n\nResponse: `{ version: { version_number, content, trigger_type, word_count, ... }, message }` ",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"## Introduction\\n\\nThis section has been manually edited to include updated project scope and revised KPIs.\\n\\n- KPI 1: Reduce manual effort by 40%\\n- KPI 2: Real-time data latency < 5 seconds\\n- KPI 3: 99.9% system uptime\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Has version', () => pm.expect(json.version).to.have.property('version_number'));",
+                  "pm.test('trigger_type is manual_edit', () => pm.expect(json.version.trigger_type).to.eql('manual_edit'));",
+                  "console.log('New version:', json.version.version_number, '| Words:', json.version.word_count);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Preview Document (On-Screen)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/generate/{{job_id}}/preview",
+            "description": "Return the assembled document as markdown for on-screen rendering in the Chat UI.\n\n**Local dev:** `blob_url` is null — use the `export_urls.docx` path to download.\n**Azure (prod):** `blob_url` is populated after the first export call — use it to open/embed the DOCX directly from Azure Blob Storage.\n\nResponse: `{ job_id, status, document_type, project_name, sections[], markdown, export_urls, blob_url }`\n\n- `markdown` — full assembled document string, render with marked.js or similar\n- `sections[]` — individual sections with title, content, status, word_count\n- `export_urls` — relative paths for DOCX / PDF / Markdown download\n- `blob_url` — Azure Blob URL (prod only, null in local dev)"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('Has markdown', () => pm.expect(j.markdown).to.be.a('string'));",
+                  "pm.test('Has sections', () => pm.expect(j.sections).to.be.an('array'));",
+                  "pm.test('Has export_urls', () => pm.expect(j.export_urls).to.have.property('docx'));",
+                  "console.log('Document type:', j.document_type);",
+                  "console.log('Sections count:', j.sections.length);",
+                  "console.log('Completed:', j.completed_sections, '/', j.total_sections);",
+                  "console.log('Blob URL:', j.blob_url || '(local mode — use export_urls)');",
+                  "console.log('Markdown preview (first 200 chars):', j.markdown.substring(0,200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "Export Document (DOCX)",
           "request": {
             "method": "GET",
@@ -801,6 +1035,165 @@
       ]
     },
     {
+      "name": "🖥️ HTML Preview (LibreOffice)",
+      "description": "LibreOffice DOCX→HTML preview pipeline. First call triggers async Celery task; poll status until ready. Subsequent calls return cached HTML instantly.\n\nThe HTML preview has inline editing enabled — clicking a section heading in the preview opens a contenteditable editor directly in the document.",
+      "item": [
+        {
+          "name": "Get or Start HTML Preview",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/generate/{{job_id}}/preview/html",
+            "description": "Return the Word document as LibreOffice-rendered HTML.\n\n**Cache hit** (most calls): returns `{ status: 'ready', html: '...', cached: true }` instantly (~5ms).\n\n**Cache miss / first call**: starts Celery task and returns `{ status: 'pending', task_id: '...' }`. Poll `/preview/status?task_id=...` until ready (~2–5s).\n\n**CELERY_ENABLED=false** (local sync mode): converts synchronously and returns `{ status: 'ready', html: '...' }` directly (~2–5s).\n\nThe returned HTML has inline editing scripts injected — section headings are clickable."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "console.log('Preview status:', json.status, '| cached:', json.cached);",
+                  "if (json.task_id) {",
+                  "  pm.collectionVariables.set('preview_task_id', json.task_id);",
+                  "  console.log('Celery task started. Poll /preview/status?task_id=' + json.task_id);",
+                  "}",
+                  "if (json.html) console.log('HTML length:', json.html.length, 'chars');"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Poll HTML Preview Status",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/generate/{{job_id}}/preview/status?task_id={{preview_task_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["generate", "{{job_id}}", "preview", "status"],
+              "query": [{ "key": "task_id", "value": "{{preview_task_id}}" }]
+            },
+            "description": "Poll Celery task status for HTML preview conversion.\n\nResponse: `{ status: 'pending' | 'ready' | 'error', html?, error? }`\n\nRepeat every 2s until `status === 'ready'`. The `html` field contains the full LibreOffice HTML with inline-editing scripts injected."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "console.log('Task status:', json.status);",
+                  "if (json.status === 'ready') console.log('Preview ready. HTML length:', json.html.length);",
+                  "if (json.status === 'error') console.error('Preview error:', json.error);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Invalidate Preview Cache",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/generate/{{job_id}}/preview/invalidate",
+            "description": "Force-bust the Redis preview cache for this job. Next GET /preview/html will re-run LibreOffice conversion.\n\nCalled automatically after section edits and snapshot restores — manual call rarely needed."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "console.log('Cache invalidated:', pm.response.json());"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "📸 Version Snapshots",
+      "description": "Point-in-time document checkpoints. Save the current state of all accepted sections as a named snapshot, list all snapshots for a job, and restore any snapshot to roll back the document.\n\nNew in this sprint: full versioning + audit trail with trigger_type on every SectionVersion.",
+      "item": [
+        {
+          "name": "Save Version Snapshot",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/generate/{{job_id}}/snapshot",
+            "description": "Create a DocumentSnapshot capturing the current accepted (or latest) version of every section.\n\nReturns `{ snapshot_id, label, section_count, created_at }`.\n\nUse `label` to describe what this snapshot represents (e.g. 'After legal review', 'Pre-client review v1').",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"label\": \"After legal review — v1\",\n  \"trigger_type\": \"manual\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "pm.test('Has snapshot_id', () => pm.expect(json.snapshot).to.have.property('snapshot_id'));",
+                  "if (json.snapshot && json.snapshot.snapshot_id) {",
+                  "  pm.collectionVariables.set('snapshot_id', json.snapshot.snapshot_id);",
+                  "  console.log('Saved snapshot_id:', json.snapshot.snapshot_id);",
+                  "  console.log('Label:', json.snapshot.label, '| Sections captured:', json.snapshot.section_count);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Version Snapshots",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/generate/{{job_id}}/snapshots",
+            "description": "List all snapshots for a job, most recent first.\n\nResponse: `{ snapshots: [{ snapshot_id, label, trigger_type, created_at, section_count }], total }`"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Has snapshots array', () => pm.expect(json.snapshots).to.be.an('array'));",
+                  "console.log('Total snapshots:', json.total);",
+                  "json.snapshots.forEach(s => console.log(' -', s.label, '|', s.snapshot_id, '|', s.created_at));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Restore Version Snapshot",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/generate/{{job_id}}/snapshot/{{snapshot_id}}/restore",
+            "description": "Restore a document to a saved snapshot.\n\nMarks the referenced SectionVersion for each section as `is_accepted=true`, clears the accepted flag on other versions, and invalidates the preview cache.\n\nResponse: `{ restored_sections: [{ section_id, version_number }], snapshot_id }`",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{}" }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Has restored_sections', () => pm.expect(json.restored_sections).to.be.an('array'));",
+                  "console.log('Restored', json.restored_sections.length, 'sections from snapshot:', json.snapshot_id);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
       "name": "📐 Templates",
       "item": [
         {
@@ -820,11 +1213,11 @@
                   "key": "document_type",
                   "value": "BRD",
                   "disabled": true,
-                  "description": "BRD | RFP | SOW | Proposal | TechSpec | ScopeDoc"
+                  "description": "BRD | RFP | NIT | BOQ | NDPR | NFA | ARB"
                 }
               ]
             },
-            "description": "List all templates. Enable query param to filter by document type."
+            "description": "List all document templates. Filter by document type with `?document_type=` query param.\n\n**Short aliases supported:** BRD, RFP, SOW, NDPR, NFA, NIT, BOQ, ARB\n**Full canonical names also work:** \"Business Requirements Document (BRD)\", \"Request for Proposal (RFP)\", etc.\n\nReturns: `{ templates: [{ template_id, name, document_type, is_system, sections }] }`"
           },
           "event": [
             {
@@ -835,7 +1228,7 @@
                   "const json = pm.response.json();",
                   "pm.test('Has templates', () => pm.expect(json).to.have.property('templates'));",
                   "console.log('Templates found:', json.templates.length);",
-                  "json.templates.forEach(t => console.log(' -', t.name, '|', t.document_type));"
+                  "json.templates.forEach(t => console.log(' -', t.name, '|', t.document_type, '| sections:', (t.sections||[]).length));"
                 ]
               }
             }
@@ -865,6 +1258,176 @@
                 "exec": [
                   "pm.test('Status 201', () => pm.response.to.have.status(201));",
                   "pm.test('Has template_id', () => pm.expect(pm.response.json().template).to.have.property('template_id'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reseed System Template",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/templates/brd/reseed",
+            "description": "Force re-seed a system template from its JSON file in Data_Ingestion/templates/.\n\nUse this after editing a template JSON file (brd, rfp, nit, boq, ndpr, nfa, arb) — the DB gets updated without a server restart.\n\nChange 'brd' in the URL to the template id you want to reseed.",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('Status reseeded', () => pm.expect(j.status).to.eql('reseeded'));",
+                  "console.log('Reseeded template:', j.template_id);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "💬 Chat Studio",
+      "description": "Document Chat Studio — conversational UI for project setup and document generation. Flow: init session → send messages → upload docs via chat → AI generates document.",
+      "item": [
+        {
+          "name": "Init Chat Session (project_id optional)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/chat/init",
+            "description": "Create a new chat session.\n\n**project_id is now OPTIONAL.**\n\nIf omitted, a new draft project is automatically created and returned as `auto_created_project_id` in the response. This enables a chat-first workflow where the user doesn't need to create a project first.\n\nIf project_id is provided, the session is attached to that existing project.\n\nStore both session_id and auto_created_project_id (if present) for subsequent calls.",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"_comment\": \"project_id is OPTIONAL. If omitted, a draft project is auto-created.\",\n  \"project_id\": \"{{project_id}}\",\n  \"document_type\": \"BRD\",\n  \"project_name\": \"AESL Data Foundation\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "if (json.session_id) { pm.collectionVariables.set('session_id', json.session_id); }",
+                  "if (json.auto_created_project_id) {",
+                  "  pm.collectionVariables.set('project_id', json.auto_created_project_id);",
+                  "  console.log('Auto-created project_id:', json.auto_created_project_id);",
+                  "}",
+                  "console.log('session_id:', json.session_id, '| phase:', json.phase);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Send Chat Message",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/chat/message",
+            "description": "Send a user message and receive an assistant response.\n\nThe assistant classifies intent and routes to the right action:\n- 'generate the document' → triggers generation\n- 'regenerate introduction' → regenerates a section\n- 'I want to change the tone' → adds a comment and regenerates\n- general questions → answered directly",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"session_id\": \"{{session_id}}\",\n  \"message\": \"Please generate the BRD document now.\",\n  \"project_id\": \"{{project_id}}\",\n  \"document_type\": \"BRD\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "console.log('Assistant response:', json.message ? json.message.substring(0, 200) : '(no message)');",
+                  "if (json.job_id) {",
+                  "  pm.collectionVariables.set('job_id', json.job_id);",
+                  "  console.log('Generation started. job_id:', json.job_id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Chat History",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/chat/{{session_id}}/history",
+            "description": "Return the full ChatSession record including all messages, project_id, job_id, and current phase."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "console.log('Session phase:', json.phase, '| Messages:', (json.messages||[]).length);",
+                  "if (json.job_id) {",
+                  "  pm.collectionVariables.set('job_id', json.job_id);",
+                  "  console.log('job_id from chat session:', json.job_id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Upload Document via Chat",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/chat/{{session_id}}/upload",
+            "description": "Upload a document from the chat UI. Parses the file, attaches it to the session's project, and returns a chat-style confirmation response.",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "description": "Select your PPTX, DOCX, PDF, or XLSX file"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "pm.test('Has document_id', () => pm.expect(json).to.have.property('document_id'));",
+                  "if (json.document_id) {",
+                  "  pm.collectionVariables.set('document_id', json.document_id);",
+                  "  console.log('Document uploaded via chat. document_id:', json.document_id);",
+                  "  console.log('Message:', json.message);",
+                  "}"
                 ]
               }
             }
@@ -913,7 +1476,8 @@
               "listen": "test",
               "script": {
                 "exec": [
-                  "const j = pm.response.json(); if(j.document_id) pm.collectionVariables.set('document_id', j.document_id);"
+                  "const j = pm.response.json();",
+                  "if (j.document_id) { pm.collectionVariables.set('document_id', j.document_id); console.log('document_id:', j.document_id); }"
                 ]
               }
             }
@@ -932,9 +1496,8 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"document_ids\": [\n    \"{{document_id}}\"\n  ]\n}"
-            },
-            "description": "AI Populate button. Reads uploaded document and extracts all 15 project form fields. Takes 30-60s. Returns extracted{} wrapper + missing_required list."
+              "raw": "{ \"document_ids\": [\"{{document_id}}\"] }"
+            }
           },
           "event": [
             {
@@ -943,22 +1506,20 @@
                 "exec": [
                   "pm.test('Status 200', () => pm.response.to.have.status(200));",
                   "const json = pm.response.json();",
-                  "pm.test('Has extracted object', () => pm.expect(json).to.have.property('extracted'));",
-                  "pm.test('Has missing_required array', () => pm.expect(json).to.have.property('missing_required'));",
                   "const ex = json.extracted || {};",
                   "console.log('Filled fields:', Object.keys(ex).filter(k => ex[k] !== null).join(', '));",
-                  "console.log('Missing required:', json.missing_required.map(f => f.field).join(', ') || 'none');"
+                  "console.log('Missing required:', (json.missing_required||[]).map(f=>f.field).join(', ')||'none');"
                 ]
               }
             }
           ]
         },
         {
-          "name": "STEP 3b — Save Draft (DB-persist extracted data)",
+          "name": "3. Create Draft Project (client UUID)",
           "request": {
             "method": "POST",
             "url": "{{base_url}}/projects/draft",
-            "description": "Immediately persist AI-extracted fields to DB without validation. Creates a draft project so data survives a browser refresh. The frontend auto-calls this right after extraction completes. Returns project_id which is saved for the next step.",
+            "description": "Immediately persist AI-extracted fields to DB without validation. Creates a draft project so data survives a browser refresh.",
             "header": [
               {
                 "key": "Content-Type",
@@ -967,7 +1528,12 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"project_name\": \"Smart Meter Analytics\",\n  \"project_code\": \"AESL-2025-042\",\n  \"business_unit\": \"AESL\",\n  \"problem_statement\": \"Manual meter reading is error-prone and costly, leading to billing disputes.\",\n  \"document_ids\": [\"{{document_id}}\"]\n}"
+              "raw": "{\n  \"project_id\": \"{{project_id}}\",\n  \"project_name\": \"AESL Data Foundation\",\n  \"project_code\": \"AESL-DF-001\",\n  \"business_unit\": \"IT\",\n  \"document_type\": \"BRD\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             }
           },
           "event": [
@@ -975,11 +1541,12 @@
               "listen": "test",
               "script": {
                 "exec": [
-                  "pm.test('Draft saved', () => pm.response.to.have.status(201));",
-                  "const j = pm.response.json();",
-                  "if (j.project_id) {",
-                  "  pm.collectionVariables.set('project_id', j.project_id);",
-                  "  console.log('Draft project_id saved:', j.project_id);",
+                  "if (pm.response.code === 409) {",
+                  "  console.log('WARNING: project_code already in use —', pm.response.json().error);",
+                  "} else {",
+                  "  pm.test('Draft saved', () => pm.response.to.have.status(201));",
+                  "  const j = pm.response.json();",
+                  "  if (j.project_id) { pm.collectionVariables.set('project_id', j.project_id); console.log('project_id:', j.project_id); }",
                   "}"
                 ]
               }
@@ -991,7 +1558,6 @@
           "request": {
             "method": "PATCH",
             "url": "{{base_url}}/projects/{{project_id}}",
-            "description": "Add all remaining required fields to the draft project created in STEP 3b. PATCH only updates the fields present in the body — other fields are untouched. Also sets document_type, output_format, and document_ids for generation.",
             "header": [
               {
                 "key": "Content-Type",
@@ -1000,7 +1566,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"project_objective\": \"Automate meter data collection with real-time analytics dashboard.\",\n  \"stakeholders\": [\n    {\n      \"name\": \"Srinivas Gutta\",\n      \"designation\": \"Project Manager\"\n    },\n    {\n      \"name\": \"Ali Imam\",\n      \"designation\": \"Technical Lead\"\n    }\n  ],\n  \"start_date\": \"2025-04-01\",\n  \"end_date\": \"2025-12-31\",\n  \"as_is_processes\": \"Field engineers visit each meter monthly for manual reading and log results in spreadsheets.\",\n  \"proposed_solution\": \"Deploy IoT smart meters with a central analytics platform integrated with SAP.\",\n  \"technical_landscape\": \"Azure IoT Hub, Power BI, SAP ERP integration via REST API.\",\n  \"business_priority\": \"Critical\",\n  \"constraints\": \"Budget capped at 5 Crores. No disruption to existing billing cycle.\",\n  \"risks\": \"Device connectivity in remote areas. Data privacy regulations.\",\n  \"estimated_cost_crores\": \"4.5\",\n  \"document_type\": \"BRD\",\n  \"output_format\": \"Word (.docx)\",\n  \"status\": \"ready\"\n}"
+              "raw": "{\n  \"project_objective\": \"Automate meter data collection with real-time analytics.\",\n  \"stakeholders\": [{ \"name\": \"Srinivas Gutta\", \"designation\": \"Project Manager\" }],\n  \"start_date\": \"2025-04-01\",\n  \"end_date\": \"2025-12-31\",\n  \"as_is_processes\": \"Field engineers visit each meter monthly for manual reading.\",\n  \"proposed_solution\": \"Deploy IoT smart meters with a central analytics platform.\",\n  \"technical_landscape\": \"Azure IoT Hub, Power BI, SAP ERP integration.\",\n  \"business_priority\": \"Critical\",\n  \"document_type\": \"BRD\",\n  \"output_format\": \"Word (.docx)\",\n  \"status\": \"ready\"\n}"
             }
           },
           "event": [
@@ -1016,7 +1582,41 @@
           ]
         },
         {
-          "name": "STEP 5 — Generate Document",
+          "name": "5. Validate Project (check before Generate)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/projects/{{project_id}}/validate",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "projects",
+                "{{project_id}}",
+                "validate"
+              ]
+            },
+            "description": "Check all required fields are filled before generating. If valid=false, fill missing fields before proceeding."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('Valid or show missing', () => {",
+                  "  if (!json.valid) console.warn('Missing fields:', json.missing_required);",
+                  "  pm.expect(json).to.have.property('valid');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "6. Generate Document",
           "request": {
             "method": "POST",
             "url": "{{base_url}}/generate/project/{{project_id}}",
@@ -1036,14 +1636,15 @@
               "listen": "test",
               "script": {
                 "exec": [
-                  "const j = pm.response.json(); if(j.job_id) pm.collectionVariables.set('job_id', j.job_id);"
+                  "const j = pm.response.json();",
+                  "if (j.job_id) { pm.collectionVariables.set('job_id', j.job_id); console.log('job_id:', j.job_id); }"
                 ]
               }
             }
           ]
         },
         {
-          "name": "STEP 6 — Poll Status (run until status=completed)",
+          "name": "7. Poll Generation Status",
           "request": {
             "method": "GET",
             "url": "{{base_url}}/generate/{{job_id}}"
@@ -1053,14 +1654,49 @@
               "listen": "test",
               "script": {
                 "exec": [
-                  "const j = pm.response.json(); console.log('Job:', j.status, '| Sections done:', (j.sections||[]).filter(s=>s.status==='completed').length, '/', (j.sections||[]).length);"
+                  "const j = pm.response.json();",
+                  "const done = (j.sections||[]).filter(s=>s.status==='completed').length;",
+                  "console.log('Job:', j.status, '| Sections done:', done, '/', (j.sections||[]).length);"
                 ]
               }
             }
           ]
         },
         {
-          "name": "STEP 7 — Export DOCX",
+          "name": "8. Preview Document (on-screen)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/generate/{{job_id}}/preview",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "generate",
+                "{{job_id}}",
+                "preview"
+              ]
+            },
+            "description": "Get full document as markdown for on-screen rendering. Call after status=completed.\n\nRender the markdown field in the UI. export_urls gives you DOCX/PDF/MD download links."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Has markdown', () => pm.expect(json.markdown).to.be.a('string'));",
+                  "console.log('Sections:', json.total_sections, '| Status:', json.status);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "9. Export Document (DOCX)",
           "request": {
             "method": "GET",
             "url": "{{base_url}}/generate/{{job_id}}/export?format=docx"

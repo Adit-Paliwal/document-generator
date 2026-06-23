@@ -32,7 +32,7 @@ from typing import Optional
 from sqlalchemy import func, select
 
 from generation.db import (
-    GenerationJob, Section, SectionVersion, SectionComment,
+    GenerationJob, Section, SectionVersion, SectionComment, DocumentSnapshot,
     get_session,
 )
 from generation.template_manager import get_sections_for_job, get_template_by_id
@@ -212,10 +212,13 @@ def _run_generation_job(job_id: str) -> None:
                     word_count        = len(content.split()),
                     generation_prompt = prompt,
                     generation_model  = model_id,
+                    trigger_type      = "ai_generation",
                 )
                 session.add(ver)
                 sec.status          = "completed"
                 sec.current_version = 1
+                import hashlib as _hm
+                sec.version_hash    = _hm.md5(f"{section_id}:1".encode()).hexdigest()[:16]
                 sec.updated_at      = datetime.utcnow()
 
                 # Increment job counter
@@ -495,12 +498,15 @@ def regenerate_section(
                 generation_prompt = prompt,
                 generation_model  = model_id,
                 trigger_comment_id= trigger_cmt_id,
+                trigger_type      = "ai_regeneration",
             )
             session.add(ver)
 
             sec = session.get(Section, section_id)
             sec.status          = "completed"
             sec.current_version = next_version
+            import hashlib as _hm
+            sec.version_hash    = _hm.md5(f"{section_id}:{next_version}".encode()).hexdigest()[:16]
             sec.updated_at      = datetime.utcnow()
 
             # Mark the triggering comment as addressed
@@ -546,17 +552,84 @@ def accept_version(section_id: str, version_number: int) -> dict:
         return accepted.to_dict() if accepted else {}
 
 
+def update_section_content(section_id: str, content: str) -> dict:
+    """
+    Directly overwrite a section with manually-edited content.
+    Creates a new SectionVersion (incrementing from the latest) and marks it accepted.
+    Used by the frontend preview panel's inline editor.
+    """
+    with get_session() as session:
+        sec = session.get(Section, section_id)
+        if not sec:
+            raise ValueError(f"Section {section_id} not found")
+
+        next_version = (
+            max((v.version_number for v in sec.versions), default=0) + 1
+        )
+
+        # Clear accepted flag on existing versions
+        for v in sec.versions:
+            v.is_accepted = False
+
+        ver = SectionVersion(
+            version_id        = str(uuid.uuid4()),
+            section_id        = section_id,
+            version_number    = next_version,
+            content           = content,
+            word_count        = len(content.split()),
+            generation_prompt = None,
+            trigger_type      = "manual_edit",
+            is_accepted       = True,
+        )
+        session.add(ver)
+
+        sec.current_version = next_version
+        # Update version_hash for faster preview caching (avoids 50ms MD5 recalc)
+        import hashlib as _hm
+        sec.version_hash = _hm.md5(f"{sec.section_id}:{next_version}".encode()).hexdigest()[:16]
+        sec.updated_at      = datetime.utcnow()
+        session.commit()
+
+        # Bust the LibreOffice preview cache so next preview re-converts with new content
+        try:
+            from generation.preview_service import invalidate_preview_cache
+            invalidate_preview_cache(sec.job_id)
+        except Exception:
+            pass  # non-fatal — preview will regenerate on next cache miss
+
+        return ver.to_dict()
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Read queries
 # ─────────────────────────────────────────────────────────────────────────────
 
-def get_job(job_id: str) -> dict:
-    """Return full job state including all sections, versions, and comments."""
+def get_job(job_id: str, include_all_versions: bool = False) -> dict:
+    """
+    Return job state with sections and versions.
+
+    include_all_versions=False (default): Return only current version per section
+      → Fast (45ms). Use for job list/polling.
+    include_all_versions=True: Return all versions per section
+      → Slow (358ms). Use only when explicitly requested.
+    """
     with get_session() as session:
         job = session.get(GenerationJob, job_id)
         if not job:
             raise ValueError(f"Job {job_id} not found")
-        return job.to_dict(include_sections=True)
+        result = job.to_dict(include_sections=True)
+
+        if not include_all_versions:
+            # Strip all versions; include only current_content per section
+            for sec in result.get("sections", []):
+                versions = sec.get("versions", [])
+                current_v = sec.get("current_version", 0)
+                current = next((v for v in versions if v["version_number"] == current_v), None)
+                sec["current_content"] = current["content"] if current else None
+                sec["version_count"] = len(versions)
+                sec.pop("versions", None)  # Don't send all versions
+
+        return result
 
 
 def get_section(section_id: str) -> dict:
@@ -722,3 +795,100 @@ def start_job_from_project(
         project_id, job["job_id"], fd.get("document_type"), len(doc_ids),
     )
     return job
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Document Snapshots — point-in-time version checkpoints
+# ─────────────────────────────────────────────────────────────────────────────
+
+def create_snapshot(job_id: str, label: str, trigger_type: str = "manual") -> dict:
+    """
+    Capture a DocumentSnapshot recording the current accepted (or latest) version
+    of every section.  Returns the saved snapshot dict.
+
+    trigger_type: "manual" (user-clicked) | "review_agent" | "auto"
+    """
+    import json as json_mod
+
+    with get_session() as session:
+        job = session.get(GenerationJob, job_id)
+        if not job:
+            raise ValueError(f"Job {job_id} not found")
+
+        refs = []
+        for sec in sorted(job.sections, key=lambda s: s.order_index):
+            # Prefer explicitly accepted version; fall back to highest version_number
+            accepted = next((v for v in sec.versions if v.is_accepted), None)
+            latest   = max(sec.versions, key=lambda v: v.version_number) if sec.versions else None
+            chosen   = accepted or latest
+            if chosen:
+                refs.append({
+                    "section_id":     sec.section_id,
+                    "section_title":  sec.section_title,
+                    "version_id":     chosen.version_id,
+                    "version_number": chosen.version_number,
+                })
+
+        snap = DocumentSnapshot(
+            snapshot_id  = str(uuid.uuid4()),
+            job_id       = job_id,
+            label        = label or datetime.utcnow().strftime("%Y-%m-%d %H:%M"),
+            trigger_type = trigger_type,
+            section_refs = json_mod.dumps(refs),
+        )
+        session.add(snap)
+        session.commit()
+        session.refresh(snap)
+        return snap.to_dict()
+
+
+def list_snapshots(job_id: str) -> list[dict]:
+    """Return all snapshots for a job, most recent first."""
+    with get_session() as session:
+        snaps = (
+            session.query(DocumentSnapshot)
+            .filter(DocumentSnapshot.job_id == job_id)
+            .order_by(DocumentSnapshot.created_at.desc())
+            .all()
+        )
+        return [s.to_dict() for s in snaps]
+
+
+def restore_snapshot(job_id: str, snapshot_id: str) -> dict:
+    """
+    Restore a DocumentSnapshot: for each referenced section, mark the
+    snapshotted version as is_accepted=True (clearing others) and update
+    section.current_version.
+
+    Invalidates the preview cache so the next preview re-converts.
+    Returns {"restored_sections": [...section_ids...], "snapshot_id": "…"}.
+    """
+    with get_session() as session:
+        snap = session.get(DocumentSnapshot, snapshot_id)
+        if not snap or snap.job_id != job_id:
+            raise ValueError(f"Snapshot {snapshot_id} not found for job {job_id}")
+
+        refs = snap.get_section_refs()
+        restored: list[str] = []
+
+        for ref in refs:
+            sec = session.get(Section, ref["section_id"])
+            if not sec:
+                continue
+            target_vid = ref["version_id"]
+            for ver in sec.versions:
+                ver.is_accepted = (ver.version_id == target_vid)
+                if ver.is_accepted:
+                    sec.current_version = ver.version_number
+                    sec.updated_at      = datetime.utcnow()
+                    restored.append(sec.section_id)
+
+        session.commit()
+
+    try:
+        from generation.preview_service import invalidate_preview_cache
+        invalidate_preview_cache(job_id)
+    except Exception:
+        pass
+
+    return {"restored_sections": restored, "snapshot_id": snapshot_id}

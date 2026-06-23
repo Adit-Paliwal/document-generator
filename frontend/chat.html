@@ -102,6 +102,7 @@ input,textarea,select{font-family:inherit;font-size:14px}
   border-left:3px solid transparent;
 }
 .sec-item:hover{background:var(--bg);border-left-color:var(--purple-mid)}
+.sec-item:hover .sec-edit-btn{opacity:1}
 .sec-item.active{background:var(--purple-light);border-left-color:var(--purple);
                   color:var(--purple);font-weight:600}
 .sec-icon{font-size:11px;width:18px;height:18px;border-radius:50%;
@@ -112,6 +113,64 @@ input,textarea,select{font-family:inherit;font-size:14px}
 .sec-icon.failed{background:#fee2e2;color:var(--red)}
 .sec-title{flex:1;line-height:1.3}
 .sec-wc{font-size:11px;color:var(--muted2)}
+/* edit icon — always visible so users know they can edit */
+.sec-edit-btn{
+  opacity:0.45;flex-shrink:0;font-size:12px;padding:2px 6px;border-radius:4px;
+  border:1px solid var(--border);background:var(--card);color:var(--purple);
+  cursor:pointer;transition:opacity .12s;line-height:1.4;
+}
+.sec-item:hover .sec-edit-btn{opacity:1}
+.sec-edit-btn:hover{background:var(--purple-light)}
+
+/* ── Section edit drawer (overlays sidebar) ────────────── */
+.sidebar{position:relative}
+.sec-edit-drawer{
+  position:absolute;inset:0;background:var(--card);z-index:50;
+  display:flex;flex-direction:column;border-right:1px solid var(--border);
+}
+.sec-edit-drawer.hidden{display:none!important}
+.sec-edit-drawer-header{
+  flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;
+  padding:12px 14px;border-bottom:1px solid var(--border);
+}
+.sec-edit-drawer-title{font-size:13px;font-weight:700;color:var(--text);
+                        white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px}
+.sec-edit-close{
+  flex-shrink:0;border:none;background:none;font-size:16px;color:var(--muted);
+  cursor:pointer;padding:2px 6px;border-radius:4px;
+}
+.sec-edit-close:hover{background:var(--bg);color:var(--text)}
+.sec-edit-body{flex:1 1 auto;padding:12px 14px;overflow:hidden;display:flex;flex-direction:column;gap:6px}
+.sec-edit-hint{font-size:11px;color:var(--muted)}
+.sec-edit-ta{
+  flex:1 1 auto;width:100%;padding:10px;border:1.5px solid var(--border);
+  border-radius:6px;font-size:12px;font-family:'Courier New',monospace;line-height:1.55;
+  resize:none;background:#fafbfc;color:var(--text);transition:border-color .12s;
+}
+.sec-edit-ta:focus{outline:none;border-color:var(--purple-mid)}
+.sec-edit-footer{
+  flex:0 0 auto;display:flex;align-items:center;gap:8px;
+  padding:10px 14px;border-top:1px solid var(--border);
+}
+
+/* ── Docx-preview container ────────────────────────────── */
+.docx-wrap{
+  width:100%;height:100%;overflow:auto;background:#525659;
+  display:flex;flex-direction:column;align-items:center;padding:20px;
+}
+/* docx-preview injects .docx-viewer class; give it page-shadow styling */
+.docx-wrap .docx-viewer{background:#fff;box-shadow:0 2px 12px rgba(0,0,0,.35);
+                         min-width:600px;max-width:900px;width:100%}
+.preview-loading{
+  display:flex;align-items:center;justify-content:center;gap:10px;
+  height:100%;font-size:13px;color:var(--muted);
+}
+.spin{
+  display:inline-block;width:16px;height:16px;border:2px solid var(--border);
+  border-top-color:var(--accent);border-radius:50%;
+  animation:spin 0.8s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
 
 /* export panel */
 .export-panel{padding:14px 16px;border-top:1px solid var(--border)}
@@ -125,8 +184,115 @@ input,textarea,select{font-family:inherit;font-size:14px}
 .export-btn:hover{background:var(--purple-light);border-color:var(--purple-mid);color:var(--purple)}
 .export-btn:disabled{opacity:.45;cursor:not-allowed}
 
+/* ── Snapshot modal (Save Version dialog) ──────────────── */
+.snapshot-modal{
+  position:absolute;inset:0;background:rgba(0,0,0,.45);z-index:100;
+  display:flex;align-items:center;justify-content:center;
+}
+.snapshot-modal.hidden{display:none!important}
+.snapshot-modal-box{
+  background:var(--card);border-radius:10px;padding:20px;
+  width:300px;box-shadow:0 8px 32px rgba(0,0,0,.28);
+}
+.snapshot-modal-title{font-size:14px;font-weight:700;color:var(--text);margin-bottom:12px}
+.snapshot-label-input{
+  width:100%;padding:8px 10px;border:1.5px solid var(--border);
+  border-radius:6px;font-size:13px;background:#fafbfc;color:var(--text);
+  box-sizing:border-box;margin-bottom:12px;
+}
+.snapshot-label-input:focus{outline:none;border-color:var(--purple-mid)}
+.snapshot-modal-footer{display:flex;gap:8px;justify-content:flex-end}
+
+/* ── Snapshot history overlay ──────────────────────────── */
+.snapshot-history{
+  position:absolute;inset:0;background:var(--card);z-index:60;
+  display:flex;flex-direction:column;
+}
+.snapshot-history.hidden{display:none!important}
+.snapshot-history-header{
+  flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;
+  padding:12px 16px;border-bottom:1px solid var(--border);
+}
+.snapshot-history-body{flex:1 1 auto;overflow-y:auto;padding:4px 0}
+.snapshot-item{
+  padding:10px 16px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:8px;
+}
+.snapshot-item-info{flex:1;min-width:0}
+.snapshot-item-label{
+  font-size:13px;font-weight:600;color:var(--text);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.snapshot-item-meta{font-size:11px;color:var(--muted);margin-top:2px}
+
 /* ── Chat area ─────────────────────────────────────────── */
 .chat-area{flex:1 1 auto;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+
+/* ── Document preview panel ────────────────────────────── */
+.preview-panel{
+  width:0;flex:0 0 0;
+  background:var(--card);border-left:1px solid var(--border);
+  display:flex;flex-direction:column;overflow:hidden;
+  position:relative;
+  transition:width .22s ease,flex-basis .22s ease;
+}
+.preview-panel.open{width:460px;flex:0 0 460px}
+.preview-header{
+  flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;
+  padding:12px 16px;border-bottom:1px solid var(--border);background:var(--card);
+  position:sticky;top:0;z-index:10;
+}
+.preview-header-title{font-size:14px;font-weight:700;color:var(--text)}
+.preview-header-actions{display:flex;gap:6px}
+.preview-body{flex:1 1 auto;overflow-y:auto;padding:16px}
+.prev-section{
+  margin-bottom:24px;border:1px solid var(--border);border-radius:var(--radius);
+  overflow:hidden;
+}
+.prev-sec-header{
+  display:flex;align-items:center;gap:8px;padding:10px 14px;
+  background:#f8fafc;border-bottom:1px solid var(--border);
+}
+.prev-sec-title{font-size:13px;font-weight:700;color:var(--text);flex:1}
+.prev-sec-meta{font-size:11px;color:var(--muted);white-space:nowrap}
+.prev-edit-btn{
+  font-size:11px;font-weight:600;padding:4px 10px;border-radius:5px;
+  border:1px solid var(--border);background:var(--card);color:var(--purple);
+  cursor:pointer;transition:all .12s;white-space:nowrap
+}
+.prev-edit-btn:hover{background:var(--purple-light);border-color:var(--purple-mid)}
+.prev-sec-content{padding:12px 14px;font-size:13px;line-height:1.65;color:var(--text)}
+.prev-sec-content h1,.prev-sec-content h2,.prev-sec-content h3{margin:.5em 0 .25em;font-weight:700}
+.prev-sec-content p{margin:.4em 0}
+.prev-sec-content ul,.prev-sec-content ol{padding-left:1.4em;margin:.4em 0}
+.prev-sec-content code{background:#f1f5f9;padding:1px 5px;border-radius:3px;font-size:12px}
+.prev-sec-content pre{background:#f1f5f9;padding:10px;border-radius:6px;overflow-x:auto;font-size:12px;margin:.5em 0}
+.prev-sec-content strong,.prev-sec-content b{font-weight:700}
+.prev-sec-content em{font-style:italic}
+.prev-edit-area{padding:10px 14px;background:#fafbfc;border-top:1px solid var(--border)}
+.prev-textarea{
+  width:100%;min-height:160px;padding:10px;border:1.5px solid var(--border);
+  border-radius:6px;font-size:13px;font-family:inherit;line-height:1.55;
+  resize:vertical;background:var(--card);color:var(--text);
+  transition:border-color .12s
+}
+.prev-textarea:focus{outline:none;border-color:var(--purple-mid)}
+.prev-edit-btns{display:flex;gap:8px;margin-top:8px}
+.preview-empty{text-align:center;padding:40px 20px;color:var(--muted);font-size:13px}
+.preview-btn{
+  display:flex;align-items:center;gap:5px;font-size:12px;font-weight:600;
+  padding:5px 12px;border-radius:6px;border:1px solid var(--border);
+  background:var(--card);color:var(--text);cursor:pointer;transition:all .12s;
+}
+.preview-btn:hover{background:var(--bg);border-color:var(--purple-mid);color:var(--purple)}
+.preview-btn.active{background:var(--purple-light);border-color:var(--purple-mid);color:var(--purple)}
+/* shared small buttons used inside preview edit areas */
+.btn-sm{padding:5px 12px;font-size:12px;font-weight:600;border-radius:6px;border:none;cursor:pointer;transition:all .12s}
+.btn-primary{background:var(--purple);color:#fff}
+.btn-primary:hover{background:var(--purple-h)}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed}
+.btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--border)}
+.btn-ghost:hover{background:var(--bg);color:var(--text)}
 
 /* messages scroll */
 .chat-messages{flex:1 1 auto;overflow-y:auto;padding:20px 24px;
@@ -341,6 +507,9 @@ input,textarea,select{font-family:inherit;font-size:14px}
       <span class="topbar-title">Document Chat Studio</span>
     </div>
     <div class="topbar-right">
+      <button class="preview-btn" id="preview-toggle-btn" onclick="togglePreview()" title="View & edit the full document">
+        &#128196; Preview
+      </button>
       <input id="api-url" class="api-url" value="http://localhost:7071/api"
              placeholder="API base URL" title="API base URL"/>
     </div>
@@ -354,6 +523,11 @@ input,textarea,select{font-family:inherit;font-size:14px}
     <button class="doc-tab"        data-type="proposal" onclick="switchDocType(this,'proposal')">Proposal</button>
     <button class="doc-tab"        data-type="techspec" onclick="switchDocType(this,'techspec')">TechSpec</button>
     <button class="doc-tab"        data-type="scope"    onclick="switchDocType(this,'scope')">Scope</button>
+    <button class="doc-tab"        data-type="ndpr"     onclick="switchDocType(this,'ndpr')">NDPR</button>
+    <button class="doc-tab"        data-type="nfa"      onclick="switchDocType(this,'nfa')">NFA</button>
+    <button class="doc-tab"        data-type="nit"      onclick="switchDocType(this,'nit')">NIT</button>
+    <button class="doc-tab"        data-type="boq"      onclick="switchDocType(this,'boq')">BOQ</button>
+    <button class="doc-tab"        data-type="arb"      onclick="switchDocType(this,'arb')">ARB</button>
   </div>
 
   <!-- ── Main area ──────────────────────────────────────────────── -->
@@ -391,6 +565,24 @@ input,textarea,select{font-family:inherit;font-size:14px}
           <button class="export-btn" onclick="doExport('docx')">&#128462; Word</button>
           <button class="export-btn" onclick="doExport('pdf')">&#128196; PDF</button>
           <button class="export-btn" onclick="doExport('md')">&#128196; .md</button>
+        </div>
+      </div>
+
+      <!-- Section edit drawer — slides over sidebar when editing a section -->
+      <div class="sec-edit-drawer hidden" id="sec-edit-drawer">
+        <div class="sec-edit-drawer-header">
+          <div class="sec-edit-drawer-title" id="sec-edit-drawer-title">Edit Section</div>
+          <button class="sec-edit-close" onclick="closeSectionEditor()" title="Cancel">&#10005;</button>
+        </div>
+        <div class="sec-edit-body">
+          <div class="sec-edit-hint">Edit Markdown below. Changes create a new version and refresh the Word preview.</div>
+          <textarea class="sec-edit-ta" id="sec-edit-ta" placeholder="Section content…"></textarea>
+        </div>
+        <div class="sec-edit-footer">
+          <button class="btn-sm btn-primary" id="sec-edit-save-btn"
+                  onclick="saveSectionFromDrawer()">&#128190; Save</button>
+          <button class="btn-sm btn-ghost" onclick="closeSectionEditor()">Cancel</button>
+          <span style="font-size:11px;color:var(--muted);margin-left:auto">Markdown</span>
         </div>
       </div>
 
@@ -437,6 +629,48 @@ input,textarea,select{font-family:inherit;font-size:14px}
         </button>
       </div>
 
+    </div>
+
+    <!-- Document preview panel -->
+    <div class="preview-panel" id="preview-panel">
+      <div class="preview-header">
+        <span class="preview-header-title">&#128196; Document Preview</span>
+        <div class="preview-header-actions">
+          <button class="preview-btn" onclick="loadPreview()" title="Refresh preview">&#8635; Refresh</button>
+          <button class="preview-btn" onclick="saveSnapshot()" title="Save a version checkpoint">&#128204; Save Version</button>
+          <button class="preview-btn" onclick="showSnapshotHistory()" title="View version history">&#128336; History</button>
+          <button class="preview-btn" onclick="togglePreview()" title="Close preview">&#10005;</button>
+        </div>
+      </div>
+      <div class="preview-body" id="preview-body">
+        <div class="preview-empty">
+          Generate a document first, then click <b>Preview</b> to see and edit all sections here.<br/>
+          <small style="color:var(--muted)">Click any section heading in the preview to edit it.</small>
+        </div>
+      </div>
+
+      <!-- Save Version modal -->
+      <div class="snapshot-modal hidden" id="snapshot-modal">
+        <div class="snapshot-modal-box">
+          <div class="snapshot-modal-title">&#128204; Save Version</div>
+          <input class="snapshot-label-input" id="snapshot-label" type="text"
+                 placeholder="e.g. After legal review…"
+                 onkeydown="if(event.key==='Enter')confirmSaveSnapshot()"/>
+          <div class="snapshot-modal-footer">
+            <button class="btn-sm btn-ghost" onclick="closeSnapshotModal()">Cancel</button>
+            <button class="btn-sm btn-primary" onclick="confirmSaveSnapshot()">&#128190; Save</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Version history overlay -->
+      <div class="snapshot-history hidden" id="snapshot-history">
+        <div class="snapshot-history-header">
+          <span style="font-weight:700;font-size:13px;color:var(--text)">&#128336; Version History</span>
+          <button class="preview-btn" onclick="closeSnapshotHistory()">&#10005;</button>
+        </div>
+        <div class="snapshot-history-body" id="snapshot-history-body"></div>
+      </div>
     </div>
 
   </div>
@@ -586,8 +820,24 @@ async function startNewSession(pid, storageKey) {
     S.sessionId = d.session_id;
     S.phase     = d.phase || 'context';
 
-    // Persist session
-    localStorage.setItem(storageKey, JSON.stringify({ session_id: d.session_id }));
+    // Chat-first flow: server auto-created a project — adopt its ID
+    if (d.auto_created_project_id && !S.projectId) {
+      S.projectId = d.auto_created_project_id;
+      const sel = document.getElementById('proj-sel');
+      if (sel) {
+        const opt = document.createElement('option');
+        opt.value    = d.auto_created_project_id;
+        opt.textContent = S.projectName || 'New Project';
+        opt.selected = true;
+        sel.appendChild(opt);
+      }
+      // Re-key storage to the real project ID so session resume works
+      const newKey = `chat_session_${S.projectId}_${S.docType}`;
+      localStorage.setItem(newKey, JSON.stringify({ session_id: d.session_id }));
+    } else {
+      // Persist session under the known project ID
+      localStorage.setItem(storageKey, JSON.stringify({ session_id: d.session_id }));
+    }
 
     // If project has existing job, check status
     if (S.jobId) {
@@ -830,17 +1080,21 @@ function handleAction(action, data) {
   }
 
   if (action === 'section_modified' && data.version) {
-    // Update the section in our local list
     refreshSections();
+    if (previewIsOpen()) loadPreview();
   }
 
   if (action === 'show_section' && data.content) {
-    // Already rendered in the bubble, optionally highlight in nav
     if (data.section_id) highlightSection(data.section_id);
   }
 
   if (action === 'export_ready') {
     // The download card is rendered in the bubble
+  }
+
+  if (action === 'completed') {
+    // Auto-load preview when generation finishes (if panel already open)
+    if (previewIsOpen()) loadPreview();
   }
 
   if (action === 'status' && data.sections) {
@@ -949,12 +1203,17 @@ function renderSectionNav(sections) {
                     : s.status === 'generating' ? '⋯'
                     : s.status === 'failed'     ? '!' : `${i + 1}`;
     const wc        = s.word_count ? `<span class="sec-wc">${s.word_count}w</span>` : '';
+    const editBtn = s.status === 'completed'
+      ? `<button class="sec-edit-btn" title="Edit this section"
+                 onclick="event.stopPropagation();openSectionEditor('${s.section_id}','${esc(s.section_title)}')">&#9998;</button>`
+      : '';
     return `<div class="sec-item" data-sid="${s.section_id}"
                  onclick="viewSection('${s.section_id}','${esc(s.section_title)}')"
                  title="${esc(s.section_title)}">
               <span class="sec-icon ${iconClass}">${icon}</span>
               <span class="sec-title">${esc(s.section_title)}</span>
               ${wc}
+              ${editBtn}
             </div>`;
   }).join('');
 }
@@ -1324,6 +1583,350 @@ function goBack() {
   const ref = document.referrer;
   if (ref) history.back();
   else window.location.href = 'index.html';
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Document preview panel — full Word doc via docx-preview.js
+// ═══════════════════════════════════════════════════════════════
+function previewIsOpen() {
+  return document.getElementById('preview-panel').classList.contains('open');
+}
+
+function togglePreview() {
+  const panel = document.getElementById('preview-panel');
+  const btn   = document.getElementById('preview-toggle-btn');
+  const isOpen = panel.classList.toggle('open');
+  btn.classList.toggle('active', isOpen);
+  if (isOpen && S.jobId) loadPreview();
+}
+
+async function loadPreview() {
+  const body  = document.getElementById('preview-body');
+  const jobId = S.jobId;   // capture — session may change during async ops
+
+  if (!jobId) {
+    body.innerHTML = '<div class="preview-empty">No document generated yet.<br/>Say <b>"generate"</b> in the chat to begin.</div>';
+    return;
+  }
+
+  _setPreviewLoading(body, 'Preparing document…');
+
+  try {
+    const r = await fetch(`${api()}/generate/${jobId}/preview/html`);
+    const d = await r.json();
+
+    if (d.status === 'ready') {
+      _renderHtmlInIframe(body, d.html);
+      return;
+    }
+
+    if (d.status === 'pending' && d.task_id) {
+      await _pollPreview(body, jobId, d.task_id);
+      return;
+    }
+
+    throw new Error(d.error || 'Preview unavailable — try again.');
+
+  } catch (e) {
+    body.innerHTML =
+      `<div class="preview-empty" style="color:var(--red)">&#9888; ${esc(e.message)}`+
+      `<br/><small>Ensure the document has been generated and the API is running.</small></div>`;
+  }
+}
+
+// Poll the Celery task until HTML is ready (max 60 s)
+async function _pollPreview(body, jobId, taskId) {
+  for (let i = 1; i <= 30; i++) {
+    await new Promise(res => setTimeout(res, 2000));
+    // Abort poll if user closed preview or switched job
+    if (!previewIsOpen() || S.jobId !== jobId) return;
+
+    _setPreviewLoading(body, `Converting document… (${i * 2}s)`);
+
+    try {
+      const r = await fetch(
+        `${api()}/generate/${jobId}/preview/status?task_id=${encodeURIComponent(taskId)}`
+      );
+      const d = await r.json();
+
+      if (d.status === 'ready') { _renderHtmlInIframe(body, d.html); return; }
+      if (d.status === 'error') throw new Error(d.error || 'Conversion failed');
+      // status === 'pending' → keep polling
+    } catch (e) {
+      body.innerHTML =
+        `<div class="preview-empty" style="color:var(--red)">&#9888; ${esc(e.message)}</div>`;
+      return;
+    }
+  }
+  body.innerHTML =
+    '<div class="preview-empty" style="color:var(--red)">&#9888; Preview timed out.<br/>' +
+    '<small>Click Refresh to try again.</small></div>';
+}
+
+function _setPreviewLoading(body, msg) {
+  body.innerHTML =
+    `<div class="preview-loading"><span class="spin"></span>&nbsp; ${esc(msg)}</div>`;
+}
+
+function _renderHtmlInIframe(container, html) {
+  container.innerHTML = '';
+  const iframe = document.createElement('iframe');
+  iframe.style.cssText = 'width:100%;height:100%;border:none;background:#fff;';
+  // allow-scripts: needed for injected section click handlers (postMessage to parent)
+  // allow-same-origin: needed for LibreOffice CSS to resolve correctly via Blob URL
+  iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin');
+  container.appendChild(iframe);
+
+  // Blob URL: no size limit (vs srcdoc which caps at ~2 MB in some browsers)
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const url  = URL.createObjectURL(blob);
+  iframe.onload = () => URL.revokeObjectURL(url);  // release memory after load
+  iframe.src = url;
+}
+
+// ── Section edit drawer ─────────────────────────────────────────
+// Active state for the drawer
+let _editSectionId = null;
+
+async function openSectionEditor(sectionId, sectionTitle) {
+  _editSectionId = sectionId;
+  const drawer  = document.getElementById('sec-edit-drawer');
+  const titleEl = document.getElementById('sec-edit-drawer-title');
+  const ta      = document.getElementById('sec-edit-ta');
+  const saveBtn = document.getElementById('sec-edit-save-btn');
+
+  titleEl.textContent = sectionTitle || 'Edit Section';
+  ta.value = '';
+  ta.placeholder = 'Loading…';
+  saveBtn.disabled = true;
+  drawer.classList.remove('hidden');
+  ta.focus();
+
+  // Fetch the latest content for this section
+  try {
+    const r = await fetch(`${api()}/generate/${S.jobId}/section/${sectionId}`);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const d = await r.json();
+    // Prefer the accepted/latest version's content
+    const versions = d.versions || [];
+    const accepted = versions.find(v => v.is_accepted);
+    const latest   = versions.length ? versions[versions.length - 1] : null;
+    const best     = accepted || latest;
+    ta.value       = best?.content || '';
+    ta.placeholder = 'Section content (Markdown)…';
+  } catch (e) {
+    ta.placeholder = 'Could not load content — type your replacement text.';
+  } finally {
+    saveBtn.disabled = false;
+    ta.focus();
+  }
+}
+
+function closeSectionEditor() {
+  _editSectionId = null;
+  document.getElementById('sec-edit-drawer').classList.add('hidden');
+  document.getElementById('sec-edit-ta').value = '';
+  const btn = document.getElementById('sec-edit-save-btn');
+  btn.disabled = false;
+  btn.innerHTML = '&#128190; Save';
+}
+
+async function saveSectionFromDrawer() {
+  if (!_editSectionId) return;
+  const content = document.getElementById('sec-edit-ta').value.trim();
+  if (!content) { toast('Section content cannot be empty', 'warn'); return; }
+
+  const saveBtn = document.getElementById('sec-edit-save-btn');
+  saveBtn.disabled = true;
+  saveBtn.textContent = 'Saving…';
+
+  try {
+    const r = await fetch(`${api()}/generate/${S.jobId}/section/${_editSectionId}`, {
+      method:  'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ content }),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Save failed');
+
+    const ver = d.version?.version_number || '';
+    toast(`Section saved ✓  (v${ver})`, 'ok', 2500);
+    appendMessage('assistant', `&#10003; Section manually edited and saved (version ${ver}).`, {}, null);
+
+    closeSectionEditor();
+
+    // Refresh the Word preview so the change is visible immediately
+    if (previewIsOpen()) loadPreview();
+
+    // Refresh section nav word counts
+    refreshSections();
+
+  } catch (e) {
+    toast('Save failed: ' + e.message, 'err');
+    saveBtn.disabled = false;
+    saveBtn.innerHTML = '&#128190; Save';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Bidirectional postMessage: inline document editing
+//   iframe → parent : intellidraft_section_click  (heading clicked)
+//   parent → iframe : intellidraft_section_content (Markdown sent back)
+//   iframe → parent : intellidraft_save_section    (user clicked Save)
+//   parent → iframe : intellidraft_save_complete / intellidraft_save_error
+// ═══════════════════════════════════════════════════════════════
+function _previewIframe() {
+  return document.querySelector('#preview-body iframe');
+}
+function _postToIframe(msg) {
+  const f = _previewIframe();
+  if (f?.contentWindow) f.contentWindow.postMessage(msg, '*');
+}
+
+window.addEventListener('message', function(e) {
+  if (!e.data) return;
+
+  // ── Step 1: heading clicked in preview ───────────────────────
+  if (e.data.type === 'intellidraft_section_click') {
+    const { section_id } = e.data;
+    if (!section_id || !S.jobId) return;
+
+    // Fetch Markdown content from backend and pass into iframe
+    fetch(`${api()}/generate/${S.jobId}/section/${section_id}`)
+      .then(r => r.json())
+      .then(d => {
+        const versions = d.versions || [];
+        const accepted = versions.find(v => v.is_accepted);
+        const latest   = versions.length ? versions[versions.length - 1] : null;
+        const best     = accepted || latest;
+        _postToIframe({
+          type:       'intellidraft_section_content',
+          section_id: section_id,
+          content:    best?.content || '',
+        });
+      })
+      .catch(() => toast('Could not load section content', 'err'));
+  }
+
+  // ── Step 2: user clicked Save inside the iframe ───────────────
+  if (e.data.type === 'intellidraft_save_section') {
+    const { section_id, content } = e.data;
+    if (!section_id || !S.jobId) return;
+
+    fetch(`${api()}/generate/${S.jobId}/section/${section_id}`, {
+      method:  'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ content }),
+    })
+      .then(r => r.json())
+      .then(d => {
+        if (!d.version) throw new Error(d.error || 'Save failed');
+        const ver = d.version.version_number || '';
+        toast(`Section saved ✓  (v${ver})`, 'ok', 2500);
+        appendMessage('assistant', `✓ Section manually edited and saved (version ${ver}).`, {}, null);
+        _postToIframe({ type: 'intellidraft_save_complete' });
+        if (previewIsOpen()) loadPreview();
+        refreshSections();
+      })
+      .catch(err => {
+        _postToIframe({ type: 'intellidraft_save_error', error: err.message });
+        toast('Save failed: ' + err.message, 'err');
+      });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// Document Snapshots — Save Version / History
+// ═══════════════════════════════════════════════════════════════
+
+function saveSnapshot() {
+  if (!S.jobId) { toast('No document generated yet.', 'warn'); return; }
+  document.getElementById('snapshot-label').value = '';
+  document.getElementById('snapshot-modal').classList.remove('hidden');
+  setTimeout(() => document.getElementById('snapshot-label').focus(), 50);
+}
+
+function closeSnapshotModal() {
+  document.getElementById('snapshot-modal').classList.add('hidden');
+}
+
+async function confirmSaveSnapshot() {
+  const label = document.getElementById('snapshot-label').value.trim()
+                || new Date().toLocaleString();
+  closeSnapshotModal();
+  try {
+    const r = await fetch(`${api()}/generate/${S.jobId}/snapshot`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ label, trigger_type: 'manual' }),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Save failed');
+    toast(`Version "${esc(d.label)}" saved`, 'ok', 2500);
+  } catch (e) {
+    toast('Failed to save version: ' + e.message, 'err');
+  }
+}
+
+async function showSnapshotHistory() {
+  if (!S.jobId) { toast('No document generated yet.', 'warn'); return; }
+  const histPanel = document.getElementById('snapshot-history');
+  const body      = document.getElementById('snapshot-history-body');
+  histPanel.classList.remove('hidden');
+  body.innerHTML  =
+    '<div class="preview-loading"><span class="spin"></span>&nbsp; Loading history…</div>';
+
+  try {
+    const r = await fetch(`${api()}/generate/${S.jobId}/snapshots`);
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Failed');
+    const snaps = d.snapshots || [];
+    if (!snaps.length) {
+      body.innerHTML =
+        '<div style="padding:16px;color:var(--muted);font-size:12px;">' +
+        'No saved versions yet.<br/>Click <b>&#128204; Save Version</b> to create one.</div>';
+      return;
+    }
+    body.innerHTML = snaps.map(s => {
+      const labelSafe = esc(s.label || 'Unnamed');
+      const dateStr   = new Date(s.created_at).toLocaleString();
+      return `<div class="snapshot-item">
+        <div class="snapshot-item-info">
+          <div class="snapshot-item-label" title="${labelSafe}">${labelSafe}</div>
+          <div class="snapshot-item-meta">${dateStr} &middot; ${esc(s.trigger_type)}</div>
+        </div>
+        <button class="btn-sm btn-ghost"
+                onclick="restoreSnapshot('${s.snapshot_id}','${labelSafe}')">
+          &#8635; Restore
+        </button>
+      </div>`;
+    }).join('');
+  } catch (e) {
+    body.innerHTML =
+      `<div style="padding:16px;color:var(--red);font-size:12px;">&#9888; ${esc(e.message)}</div>`;
+  }
+}
+
+function closeSnapshotHistory() {
+  document.getElementById('snapshot-history').classList.add('hidden');
+}
+
+async function restoreSnapshot(snapshotId, label) {
+  if (!confirm(`Restore version "${label}"?\n\nThis will update the accepted content for all sections to match this checkpoint.`)) return;
+  try {
+    const r = await fetch(`${api()}/generate/${S.jobId}/snapshot/${snapshotId}/restore`, {
+      method: 'POST',
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Restore failed');
+    const n = (d.restored_sections || []).length;
+    toast(`Restored "${label}" — ${n} section${n !== 1 ? 's' : ''} updated`, 'ok', 3000);
+    closeSnapshotHistory();
+    loadPreview();
+    refreshSections();
+  } catch (e) {
+    toast('Restore failed: ' + e.message, 'err');
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════

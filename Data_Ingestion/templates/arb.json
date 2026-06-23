@@ -1,0 +1,193 @@
+{
+  "id": "arb",
+  "name": "Architecture Review Board Submission",
+  "document_type": "Architecture Review Board (ARB) Submission",
+  "description": "Formal ARB submission deck following the Adani Group Architecture Review Board template. Covers eNFA header, pre-submission checklists, executive summary, business requirements, functional evaluation, application profile, integration details, technology stack, as-is and proposed architecture descriptions, security architecture, non-functional requirements, data governance, migration approach, and ARB feedback. Submitted to the ARB for technology solution approval.",
+  "system_instructions": "You are a senior solution architect and enterprise technology writer preparing a formal Architecture Review Board (ARB) submission for an Adani Group IT initiative. This document is reviewed by the Adani ARB committee, CIO, and CISO. Write in precise, technical, architecture-level language. Be specific — name actual systems, technologies, protocols, and patterns rather than vague descriptions. For checklist sections, respond with 'Yes', 'No', or 'NA' with a brief rationale. For architecture sections, describe what the architecture diagram shows in concise, structured prose — do not attempt to draw diagrams in text. All table sections must use complete, well-formed markdown pipe tables with a header row and alignment separator row. Extract specific system names, integration types, vendors, security controls, and NFR values from the source documents.",
+  "sections": [
+    {
+      "key": "arb_submission_header",
+      "title": "ARB Submission Header",
+      "order": 1,
+      "render_hint": "table",
+      "instructions": "Generate the ARB submission header as a two-column markdown pipe table with one row per field:\n\n| Field | Details |\n|-------|--------|\n| ARB Request ID | [e.g., ARB-2025-XXXX] |\n| Date of Submission | [DD-MMM-YYYY] |\n| Title | [Full project/initiative title] |\n| BU / Function | [Business unit / legal entity name] |\n| CIO / CDO | [Name] |\n| Project Lead / IT Owner | [Name and email] |\n| Business Sponsor / Functional Owner | [Name and email] |\n\nExtract all available details from the source documents. Mark as 'To be assigned' only for fields genuinely not available.",
+      "target_words": 100
+    },
+    {
+      "key": "pre_submission_checklist",
+      "title": "Pre-Submission Checklist",
+      "order": 2,
+      "render_hint": "table",
+      "instructions": "Generate the pre-submission checklist as a markdown pipe table. Include all 21 standard ARB checklist items with BU responses:\n\n| # | Question | BU Response (Yes / No / NA) | Notes |\n|---|---------|---------------------------|-------|\n| 1 | Checked in APM that no existing solution can be leveraged? | [Yes/No/NA] | [brief note] |\n| 2 | BRD available and signed off by BU stakeholders/owners? | | |\n| 3 | Business needs/requirements categorized into 'must have' and 'good to have'? | | |\n| 4 | Functional evaluation completed against BRD requirements? | | |\n| 5 | Partner responses to Technology questionnaire attached? | | |\n| 6 | CIA aspects of the solution captured? | | |\n| 7 | As-is architecture provided? | | |\n| 8 | BU landscape diagram provided? | | |\n| 9 | Logical architecture provided? | | |\n| 10 | End-to-end integration architecture provided? | | |\n| 11 | Is Cyber Security Architecture available? | | |\n| 12 | Is Data Flow Architecture provided? | | |\n| 13 | Is Privacy Impact Assessment available? | | |\n| 14 | Deployment architecture provided? | | |\n| 15 | Are Data Security controls in place? | | |\n| 16 | Are Legal and Regulatory compliance controls in place? | | |\n| 17 | Application profile details added? | | |\n| 18 | Are Integration details provided? | | |\n| 19 | Non-Functional requirements captured? | | |\n| 20 | High-level TCO for at least 3 years provided and within budget? | | |\n| 21 | Technical evaluation completed against NFRs? | | |\n\nFill responses from source documents. Use Yes/No/NA as appropriate for the project type.",
+      "target_words": 300
+    },
+    {
+      "key": "partner_selection_checklist",
+      "title": "Pre-Submission Checklist for Partner Selection",
+      "order": 3,
+      "render_hint": "table",
+      "instructions": "Generate the partner/vendor selection checklist as a markdown pipe table:\n\n| # | Question | BU Response (Y/N/NA) |\n|---|---------|---------------------|\n| 1 | Is the shortlisted OEM/Service Provider's turnover at least Rs 200 Cr on average over the last three financial years? | |\n| 2 | Does the Bidder have a minimum rostered manpower of 200 personnel on fulltime payroll? | |\n| 3 | Security Assurance and Certificates available? (HIPAA, GDPR, ISO27001, SOC2 Type2 etc.) | |\n| 4 | VA & PT reports available for complete solution stack to be submitted to ARB? | |\n| 5 | Credentials of solution/Product checked? (deployed minimum 1 year for organisation with 10+ sites / 15k users) | |\n| 6 | Partner has shared stated Cyber Security Policy? | |\n| 7 | Partner to share ISO20k certification and ITSM processes? | |\n| 8 | All third-party or open-source software dependence documented by Partner? | |\n| 9 | Partner will concur to penalty clauses in the event of security breaches? | |\n| 10 | Partner will state disclosure process for security breaches along with escalation matrix? | |\n\nFill from source documents.",
+      "target_words": 200
+    },
+    {
+      "key": "executive_summary",
+      "title": "Executive Summary — At a Glance",
+      "order": 4,
+      "render_hint": "mixed",
+      "instructions": "Write the Executive Summary with two clearly labelled sub-sections:\n\n**Overall Business Need:**\nWrite 2-3 bullet points explaining the core business driver — why this initiative exists, what the current-state limitation is, and what outcome is needed. Be strategic and concise.\n\n**Recommended Solution Approach:**\nWrite 3-5 bullet points describing the proposed solution at a high level — what platform/technology is being adopted, what it will deliver, and the key architectural approach. Extract from source documents — name the actual platform, vendor, and key capabilities.",
+      "target_words": 200
+    },
+    {
+      "key": "business_capability_impact",
+      "title": "Impact to Business Capabilities",
+      "order": 5,
+      "render_hint": "mixed",
+      "instructions": "Describe which business capabilities will be enhanced by this solution. Write: (1) a brief opening statement on the overall capability impact, (2) a bullet list of the specific sub-capabilities that will be enhanced (e.g., Data Engineering & Ingestion, Data Governance, Advanced Analytics, Self-service BI). For each enhanced capability, note what the improvement is. Reference the actual business functions and capability names from the source documents.",
+      "target_words": 150
+    },
+    {
+      "key": "business_requirements",
+      "title": "Business Requirements",
+      "order": 6,
+      "render_hint": "table",
+      "instructions": "Create a Business Requirements table listing all high-level requirements with priorities. Output as a markdown pipe table:\n\n| # | High Level Business Requirement | Must-Have / Nice-to-Have |\n|---|--------------------------------|-------------------------|\n| 1 | ... | Must-Have |\n\nInclude 8-15 requirements extracted from source documents. Each requirement should be a specific, testable capability statement. Assign Must-Have to critical functional requirements; Nice-to-Have for desirable but non-blocking requirements. Add '(Refer BRD Attached)' note below the table.",
+      "target_words": 350
+    },
+    {
+      "key": "vendor_credentials_evaluation",
+      "title": "Evaluation of General Vendor Credentials",
+      "order": 7,
+      "render_hint": "table",
+      "instructions": "Create a vendor credentials evaluation table for the selected vendor/SI partner. Output as a markdown pipe table:\n\n| # | Evaluation Criteria | Vendor Response |\n|---|--------------------|-----------------|\n| 1 | Company size (revenue, headcount, etc.) | |\n| 2 | Office details (headquarters, development & support centres in India) | |\n| 3 | Size of Global Customer Base with top customer names | |\n| 4 | Size of Indian Customer Base with top customer names | |\n| 5 | Product strategy & roadmap | |\n| 6 | Partner ecosystem | |\n| 7 | Presence in Adani Group | |\n| 8 | Customer names with reference checks done | |\n| 9 | Turnover of company in last financial year | |\n| 10 | Previous deployments of equal or larger scale | |\n\nExtract vendor details from source documents. Use 'NA' for information not available.",
+      "target_words": 250
+    },
+    {
+      "key": "functional_evaluation_summary",
+      "title": "Functional Evaluation Summary",
+      "order": 8,
+      "render_hint": "table",
+      "instructions": "Create the Functional Evaluation Summary table showing how the proposed solution addresses each functional requirement. Output as a markdown pipe table:\n\n| # | Functional Requirement (from BRD) | Must-Have / Good-to-Have | Out of Box | Via Config | Via Custom | On Roadmap | Not Possible |\n|---|----------------------------------|--------------------------|------------|------------|------------|------------|-------------|\n| 1 | ... | Must-Have | ✓ | | | | |\n\nInclude all requirements from source documents. Mark the appropriate column with ✓ for each requirement. After the table add:\n- Scoring note: Individual Score: 5=Out of Box, 4=Configuration, 3=Customization, 2=On roadmap, 1=Not possible\n- Weight note: 5=Must-have requirement, 3=Good-to-have requirement\n- Overall weighted score calculation\nExtract any overall weighted score from source documents.",
+      "target_words": 350
+    },
+    {
+      "key": "application_profile",
+      "title": "Application Profile",
+      "order": 9,
+      "render_hint": "table",
+      "instructions": "Generate the Application Profile table characterising the solution. Output as a markdown pipe table with category/selection pairs:\n\n| Category | Selection |\n|----------|-----------|\n| **Deployment Model** | SaaS / PaaS / IaaS / On-Premise |\n| **Application Type** | Web Application / Thick Client / Mobile Application |\n| **Development Type** | Custom Developed / COTS |\n| **User Category** | Internal Users / External Users |\n| **Available Over Internet** | Yes / No |\n| **Architecture Style** | Monolithic / Micro-Services |\n| **Integration with SAP** | Yes / No |\n| **Integration with Non-SAP Systems** | Yes / No |\n| **OT Integration** | Yes / No |\n| **IAM/ADFS/PAM Integration** | Yes / No |\n| **Analytics Platform** | Yes / No |\n\nExtract actual selections from source documents. Mark ✓ or Yes/No as appropriate.",
+      "target_words": 150
+    },
+    {
+      "key": "use_cases",
+      "title": "Use Cases",
+      "order": 10,
+      "render_hint": "mixed",
+      "instructions": "Describe the key business use cases that this solution will enable. For each use case, write: **[Use Case Name]** — a 2-3 sentence description explaining what it does, what data/analytics it uses, and the business value delivered. Cover 5-8 use cases. Extract from source documents — use the actual use case names mentioned. Examples from the ARB document include: Collection overdue analytics, Billing process analytics, Energy Loss Management, Voice analysis, Customer Profiling/Segmentation, Dashboard migration. Each use case description should be self-contained.",
+      "target_words": 350
+    },
+    {
+      "key": "integration_details",
+      "title": "Integration / Inter-connects Details",
+      "order": 11,
+      "render_hint": "table",
+      "instructions": "Create the comprehensive integration details table listing all source and target systems. Output as a markdown pipe table:\n\n| Interfacing Application | Authentication | Data Exchanged | Direction | Mode | Interface Method | Type | Middleware | Handshaking | Monitoring |\n|------------------------|----------------|----------------|-----------|------|-----------------|------|------------|-------------|------------|\n| [System Name (DB)] | [Auth type] | [Data objects] | [INBOUND/OUTBOUND/BI-DIR] | [BATCH/REAL-TIME/ON-DEMAND] | [API/DB-based/File-based] | [On-Prem to Cloud etc.] | [ADF/SAP DI etc.] | [Credential/Token/Cert] | Yes/No |\n\nExtract all interfacing systems from source documents. Include 15-30+ rows covering all source systems (SAP, non-SAP, flat files, APIs). This is a critical section — be thorough and specific.",
+      "target_words": 600
+    },
+    {
+      "key": "technology_stack_data",
+      "title": "Technology Stack — Data Platform",
+      "order": 12,
+      "render_hint": "table",
+      "instructions": "Create the data platform technology stack table. Output as a markdown pipe table:\n\n| # | Component | Selected Technology / Version |\n|---|-----------|------------------------------|\n| 1 | Web Server & Underlying OS | [Name or NA] |\n| 2 | Application Server & Underlying OS | [Name or NA] |\n| 3 | Database Platform & Underlying OS | [e.g., Azure PaaS] |\n| 4 | Development Technology | [e.g., Azure & Databricks (PySpark & Databricks SQL)] |\n| 5 | Compatible Browsers | [List or NA] |\n| 6 | OS Compatibility | [e.g., Windows 11] |\n| 7 | Security Components | [e.g., Adani Landing Zone + Azure Native security] |\n| 8 | ETL | [e.g., Azure Data Factory, Azure Databricks] |\n| 9 | Others | [e.g., Azure ADO, Key Vault, App Insights] |\n\nExtract exact technology names and versions from source documents.",
+      "target_words": 200
+    },
+    {
+      "key": "technology_stack_app",
+      "title": "Technology Stack — Application Layer",
+      "order": 13,
+      "render_hint": "table",
+      "instructions": "Create the application layer technology stack table with the same structure as the Data stack table:\n\n| # | Component | Selected Technology / Version |\n|---|-----------|------------------------------|\n| 1 | Web Server & Underlying OS | |\n| 2 | Application Server & Underlying OS | |\n| 3 | Database Platform & Underlying OS | |\n| 4 | Development Technology | |\n| 5 | Compatible Browsers | |\n| 6 | OS Compatibility | |\n| 7 | Security Components | |\n| 8 | ETL / Integration | |\n| 9 | Others (Key Vault, Monitoring, etc.) | |\n\nExtract from source documents. Note any differences between the Data stack and App stack.",
+      "target_words": 180
+    },
+    {
+      "key": "asis_architecture",
+      "title": "Existing Architecture (As-Is)",
+      "order": 14,
+      "render_hint": "mixed",
+      "instructions": "Describe the current As-Is architecture in structured text. Cover: (1) the current data platform and cloud provider (e.g., GCP with BigQuery), (2) the current source systems and how data flows into the data lake, (3) the current analytics/reporting layer (e.g., SAP BW/BO, Power BI, SQL Server), (4) the key limitations and pain points of the current architecture. Write 2-3 paragraphs. Then note: '[Architecture diagram to be attached — showing all existing application components, data flows, and integration points]'\n\nExtract all current-state system names and architectural details from source documents.",
+      "target_words": 280
+    },
+    {
+      "key": "migration_areas",
+      "title": "Migration Areas",
+      "order": 15,
+      "render_hint": "table",
+      "instructions": "Create the migration scope table mapping each area from the existing (As-Is) state to the proposed (To-Be) state. Output as a markdown pipe table:\n\n| Area | Module | Existing (As-Is) | To-Be | In Migration Scope? |\n|------|--------|-----------------|-------|--------------------|\n| Integration | SAP Integration | [e.g., SLT + CC + SAP DI] | [e.g., SLT + CC + SAP DI] | Yes/No |\n\nCover all areas: Integration (SAP and non-SAP), Data Storage (Medallion architecture), Data Engineering, Data Governance, Data Science, Consumption (Power BI, APIs, Chatbot, Data Sharing). Extract from source documents. Mark Addition where a new capability is being added rather than migrated.",
+      "target_words": 300
+    },
+    {
+      "key": "proposed_architecture",
+      "title": "Proposed Architecture",
+      "order": 16,
+      "render_hint": "mixed",
+      "instructions": "Describe the proposed functional/logical architecture in structured text. Cover: (1) the overall architectural approach (lakehouse, medallion Bronze-Silver-Gold), (2) the key platform components and their roles (Azure Data Factory for ingestion, Databricks for processing, Unity Catalog for governance, ADLS for storage, Power BI for reporting), (3) the key integration patterns (batch ingestion, near-real-time, file-based), (4) the MLOps and DevOps frameworks included. Write 3-4 paragraphs. Note: '[Functional/Logical Architecture Diagram, Integration Architecture Diagram, Network Architecture Diagram, Deployment Architecture Diagram, DevOps Architecture Diagram, and MLOps Architecture Diagram to be attached as separate slides]'\n\nExtract architecture specifics from source documents.",
+      "target_words": 350
+    },
+    {
+      "key": "security_architecture",
+      "title": "Security Architecture",
+      "order": 17,
+      "render_hint": "mixed",
+      "instructions": "Describe the security architecture with the following structure:\n\n**High Level Design (HLD):**\n- Bullet list covering: data lake security design per Adani guidelines, DMZ/MZ/DB zone separation, security controls (Firewall, Proxy), Authentication/Authorization/Accounting (AAA), Data Governance approach (Unity Catalog, RBAC, encryption)\n\n**Detailed Level Design (DLD):**\n- Bullet list covering: specific controls (Firewall, PAM/SSO/MFA), network segmentation (Private/Public Subnet), database asset security, data masking, monitoring and testing (VAPT)\n\n**Resource Group / VNET Structure:**\n- Describe the Azure resource group and subnet structure for the data platform. List the resource groups and key Azure services deployed per group (ADF, Key Vault, ADLS, App Services, Databricks, Container Registry, Azure AI Services).\n\nNote: '[Security Architecture Diagram and Data Flow Diagram to be attached]'\n\nExtract from source documents.",
+      "target_words": 350
+    },
+    {
+      "key": "data_flow_diagram",
+      "title": "Data Flow Diagram and Data Classification",
+      "order": 18,
+      "render_hint": "mixed",
+      "instructions": "Describe the data flow and data classification controls. Cover three key topics:\n\n**Data Classification (PII etc.):** How PII and sensitive data is classified and protected — tagging approach (e.g., Unity Catalog column/table tagging), enforcement mechanisms (RBAC, dynamic masking, row filters), lineage and audit tracking.\n\n**Data Retention and Destruction:** Define retention rules for each layer: Bronze (transient/raw — specify retention period), Silver and Gold (curated/business-ready — retention approach), purging policy and monitoring.\n\n**Third-Party Data Sharing:** How data is shared externally — APIs, Delta Sharing, zero-copy approach, access controls. State whether governed tables are accessed in-place or duplicated.\n\nNote: '[Data Flow Diagram showing all data at rest, in motion, and in use — with component annotations — to be attached]'\n\nExtract specifics from source documents.",
+      "target_words": 280
+    },
+    {
+      "key": "non_functional_requirements",
+      "title": "Technical Evaluation — Non-Functional Requirements",
+      "order": 19,
+      "render_hint": "table",
+      "instructions": "Create the Non-Functional Requirements evaluation table. Output as a markdown pipe table:\n\n| # | Non-Functional Requirement | Response / Value |\n|---|---------------------------|------------------|\n| 1 | Deployment mode (Cloud / On-Prem) | |\n| 2 | Deployment location | |\n| 3 | OS/DB/Software version (N or N-1?) | |\n| 4 | Open-source software usage (community version?) | |\n| 5 | API integration capabilities | |\n| 6 | Performance requirements (response time, throughput, concurrency) | |\n| 7 | RPO / RTO figures | |\n| 8 | Uptime availability | |\n| 9 | HA, DR & backup approach | |\n| 10 | Infrastructure sizing & scalability | |\n| 11 | Security Governance program | |\n| 12 | Security Standards & Certifications | |\n| 13 | Identity & Access Management (IAM/RBAC/MFA) | |\n| 14 | Encryption (data at rest and in transit) | |\n| 15 | Security Controls (Firewall, WAF, PAM, Key Vault) | |\n| 16 | Monitoring and Logging | |\n| 17 | Security Testing (VAPT, SAST, DAST) | |\n| 18 | Data Governance (location, classification, retention) | |\n| 19 | Data Access model (RBAC, context-based) | |\n| 20 | Periodic Assessment and Testing frequency | |\n| 21 | Environment segregation (Dev/QA/Staging/Prod) | |\n| 22 | Audit Trail availability | |\n\nExtract actual values from source documents. Mark 'To be finalized' where not yet determined.",
+      "target_words": 450
+    },
+    {
+      "key": "data_governance",
+      "title": "Data Governance",
+      "order": 20,
+      "render_hint": "mixed",
+      "instructions": "Write the Data Governance section covering all governance controls. Include:\n\n**Data Storage Location:** Where data will be stored (e.g., India Pacific Azure tenants) and any data residency/localization requirements.\n\n**Data Archival & Destruction:** Define data lifecycle — how long each layer retains data, archival setup, and destruction policy.\n\n**Master Data Management (MDM):** Integration with any centrally governed MDM/MDG solution. State policy on MDM at individual application level.\n\n**CIA Impact Rating:** Confidentiality / Integrity / Availability rating (Low/Medium/High) with justification.\n\n**Data Classification:** Data labels used — Public/Internal/Confidential/Restricted — and how they are applied.\n\n**Privacy Impact Assessment:** Data privacy controls at design and operations stage. Legal and regulatory mandates applicable.\n\n**Data Access Control:** Access model implemented (RBAC, Context-Based), integration with Adani AD/IAM, role definitions.\n\n**Data Duplication:** Policy on data duplication — how duplicates are managed, whether same security controls apply to duplicated data.\n\n**Data Sharing:** Methods used for external data sharing (API, Delta Sharing, SFTP, etc.) and controls.\n\nExtract values from source documents.",
+      "target_words": 400
+    },
+    {
+      "key": "migration_approach",
+      "title": "Migration Approach",
+      "order": 21,
+      "render_hint": "mixed",
+      "instructions": "Write the Migration Approach section with three clearly labelled sub-sections:\n\n**Data Migration:**\nDescribe the step-by-step approach for migrating historical and current data from the existing platform (e.g., GCP BigQuery) to the new platform (e.g., Azure Databricks/ADLS). Cover: creating landing zones, exporting historical data, copying data using migration tools (e.g., Azcopy), loading into the new data lake layers (Bronze/Silver/Gold). Note any layer-to-layer mapping (e.g., RAW→Bronze, Curated→Silver, Reporting→Gold). State any scope decisions (e.g., SAP — only agreed data; Non-SAP — full historical data).\n\n**Code Migration:**\nDescribe the approach for migrating code objects (tables, views, functions, stored procedures, indexes/partitions). Cover: identifying and exporting existing code objects, using any accelerators for code conversion (e.g., SQL to PySpark), deploying in the new environment. List the types of objects being migrated.\n\n**ML Model Migration:**\nDescribe the approach for migrating ML models. Cover: exporting model pickle files and notebook code, packaging models using MLflow, registering with Unity Catalog, configuring MLOps pipelines for retraining, resolving library version dependencies, and monitoring with Lakehouse Monitoring.\n\nExtract step-by-step details from source documents.",
+      "target_words": 400
+    },
+    {
+      "key": "legacy_system_justification",
+      "title": "Discontinuing Legacy Systems — Justification",
+      "order": 22,
+      "render_hint": "mixed",
+      "instructions": "Write the justification for discontinuing legacy systems being replaced by this initiative. For each legacy system being retired: (1) state what the system is and its current function, (2) list its key limitations in bullet form, (3) confirm it is being fully replaced and what replaces it.\n\nExtract from source documents — name the specific legacy systems (e.g., SAP BW/BO, SQL staging servers, GCP services). This section makes the case for why the new solution supersedes the existing ones.",
+      "target_words": 220
+    },
+    {
+      "key": "arb_recommendations",
+      "title": "ARB Observations and Recommendations",
+      "order": 23,
+      "render_hint": "prose",
+      "instructions": "Write the ARB Observations and Recommendations section. This section is completed by the ARB committee after reviewing the submission — not by the project team. Generate a placeholder structure:\n\n'This section is to be completed by the Architecture Review Board after formal review of this submission.'\n\nThen add a structured template for ARB to fill:\n- **Overall ARB Decision:** [Approved / Conditionally Approved / Rejected / More Information Required]\n- **Key Observations:** [ARB's technical observations on the submission]\n- **Mandatory Conditions / Action Items:** [Conditions that must be met before implementation proceeds]\n- **Recommendations:** [Non-mandatory architectural recommendations]\n- **Date of ARB Review:** [DD-MMM-YYYY]\n- **ARB Reviewer Names and Designations:** [To be filled by ARB]",
+      "target_words": 150
+    }
+  ]
+}

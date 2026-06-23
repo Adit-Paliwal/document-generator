@@ -1,5 +1,5 @@
 # ══════════════════════════════════════════════════════════════════════════════
-# Document Generator — Backend API Docker Image
+# IntelliDraft — Backend API Docker Image
 #
 # Entry point : Data_Ingestion/run_server.py  (Flask, no Azure Functions needed)
 # Port        : 7071
@@ -8,20 +8,45 @@
 # Build:   docker build -t document-generator-api .
 # Run:     docker-compose up -d
 #
+# Services (docker-compose):
+#   document-generator-api  — Flask API + Gunicorn, port 7071
+#   celery-worker           — LibreOffice DOCX→HTML preview conversions
+#   redis                   — Celery broker, result backend, preview HTML cache
+#
 # LLM providers:
 #   Primary  — Gemini 2.5 Flash (Vertex AI) — mount key.json via docker-compose volume
 #   Fallback — Azure GPT-5 — set AZURE_GPT5_* env vars in Data_Ingestion/.env
+#
+# Features in this image:
+#   - Document generation (BRD, RFP, NIT, BOQ, NDPR, NFA, ARB)
+#   - LibreOffice DOCX→HTML preview with true inline editing
+#   - Section versioning + DocumentSnapshot save/restore
+#   - Paginated project list, N+1-free job queries, version_hash caching
+#   - Celery async preview tasks (CELERY_ENABLED=true) or sync fallback
+#
+# Frontend (chat.html / index.html) is served separately — NOT in this image.
+#   Local dev:  open frontend/index.html directly in browser
+#   Production: serve via nginx or CDN; point BASE_URL to this API
 # ══════════════════════════════════════════════════════════════════════════════
 
 FROM python:3.11-slim
 
-# ── System libraries required by PyMuPDF / lxml / cryptography ───────────────
+# ── System libraries ─────────────────────────────────────────────────────────
+# Base libs required by PyMuPDF / lxml / cryptography
+# LibreOffice Writer + fonts for DOCX→HTML preview conversion
+#   - libreoffice-writer : the Writer component (converts DOCX)
+#   - libreoffice-common : shared runtime files
+#   - fonts-liberation   : metric-compatible replacements for Arial/Times/Courier
+#                          (prevents missing-font warnings in converted documents)
 RUN apt-get update && apt-get install -y --no-install-recommends \
         gcc g++ \
         libglib2.0-0 \
         libgl1 \
         libgomp1 \
         curl \
+        libreoffice-writer \
+        libreoffice-common \
+        fonts-liberation \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

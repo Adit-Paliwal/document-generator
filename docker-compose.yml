@@ -21,6 +21,57 @@ version: "3.9"
 
 services:
 
+  # ── Redis — broker, result backend, and preview HTML cache ───────────────────
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: >
+      redis-server
+        --maxmemory 512mb
+        --maxmemory-policy allkeys-lru
+        --save 60 1000
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - redis-data:/data
+
+  # ── Celery worker — LibreOffice preview conversions ──────────────────────────
+  #
+  # --concurrency=4 : 4 parallel LibreOffice processes (each uses a unique profile dir)
+  # --queues=preview: only handles document conversion tasks
+  # Increase --concurrency if the host has more CPUs; each process uses ~200 MB RAM.
+  celery-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: document-generator-api:latest
+    container_name: celery-worker
+    command: >
+      celery -A celery_app worker
+        --queues=preview
+        --concurrency=4
+        --loglevel=info
+        --without-gossip
+        --without-mingle
+    env_file:
+      - Data_Ingestion/.env
+    environment:
+      - LOCAL_DB=true
+      - CELERY_ENABLED=true
+      - ASYNC_GENERATION=true
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - document-generator-data:/app/Data_Ingestion/local_storage
+      # - ./Data_Ingestion/key.json:/app/Data_Ingestion/key.json:ro
+    restart: unless-stopped
+
   document-generator-api:
     build:
       context: .
@@ -40,6 +91,12 @@ services:
       - LOCAL_MODE=true          # store files locally, no Azure Blob needed
       - LOCAL_DB=true            # SQLite DB at local_storage/intellidraft.db
       - ASYNC_GENERATION=true    # background generation (non-blocking)
+      - CELERY_ENABLED=true      # use Celery + Redis for async LibreOffice preview
+      - REDIS_URL=redis://redis:6379/0   # internal Docker network
+
+    depends_on:
+      redis:
+        condition: service_healthy
 
     # ── Persistent storage ────────────────────────────────────────────────────
     # SQLite DB + parsed documents survive container restarts
@@ -61,7 +118,9 @@ services:
       start_period: 25s
       retries: 3
 
-# ── Named volume — data persists across restarts ──────────────────────────────
+# ── Named volumes ─────────────────────────────────────────────────────────────
 volumes:
   document-generator-data:
     name: document-generator-data
+  redis-data:
+    name: intellidraft-redis-data

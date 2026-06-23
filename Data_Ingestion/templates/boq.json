@@ -1,0 +1,81 @@
+{
+  "id": "boq",
+  "name": "Bill of Quantities",
+  "document_type": "Bill of Quantities (BOQ)",
+  "description": "Price Bid / Bill of Quantities for an enterprise IT platform implementation. Structured as a three-part commercial offer: Section A (one-time implementation lump sum), Section B (Annual Maintenance & Support for 3 years), and Section C (rate card for future optional items). Includes a grand total summary and milestone-based payment schedules for both implementation and AMS.",
+  "system_instructions": "You are a senior commercial manager drafting a Bill of Quantities (BOQ) / Price Bid document for an enterprise IT platform implementation. This document is submitted by vendors and used by AEML to compare bids. Write with precision and clarity using Indian commercial conventions: costs in INR (₹), amounts in Rs. Crores (Cr), taxes stated separately as '+ applicable GST'. Line item descriptions must be technically accurate and match the project scope. Payment milestone descriptions must clearly reference specific delivery events and align with project plan milestones. Do not invent cost figures — leave monetary values as placeholders (e.g., '₹ ____________' or '[To be quoted by Bidder]') unless specific amounts are provided in source documents. Maintain the exact section and sub-section numbering from the original BOQ template (A, B, C / 1.1, 2.1, 3.1–3.7). Tables must have clear headers and consistent formatting.",
+  "sections": [
+    {
+      "key": "boq_document_header",
+      "title": "BOQ Document Header",
+      "order": 1,
+      "render_hint": "table",
+      "instructions": "Generate the BOQ document header as a two-column markdown pipe table with the following rows:\n\n| Field | Details |\n|-------|--------|\n| Document Type | Price Bid / Bill of Quantities (BOQ) |\n| NIT No | [NIT/tender number, e.g., AEML/MDB/2025-26/XX] |\n| Project Name | [Full project name] |\n| Organisation | [Issuing organisation name] |\n| Date | [DD/MM/YYYY] |\n\nExtract all details from source documents. Leave NIT No and Date blank or as placeholders if not provided in source.",
+      "target_words": 80
+    },
+    {
+      "key": "section_a_implementation_scope",
+      "title": "Section A — One-Time Implementation: Scope Coverage",
+      "order": 2,
+      "render_hint": "bullets",
+      "instructions": "Write a clear, comprehensive scope coverage description for the one-time implementation lump sum (Section A, Item 1.1). List as bullets all major activities and deliverables covered under the implementation price. Typical scope for a data platform implementation includes:\n\n- Architecture & Solution Design (HLD, LLD, solution architecture documents)\n- Platform Foundation Setup (cloud environments — Dev, Test, UAT, Prod; infrastructure provisioning)\n- Unified Data Ingestion Framework (batch and streaming, configurable pipelines)\n- Data Source Onboarding (~X sources as per scope, SAP and non-SAP systems)\n- Data Transformation & Processing (Medallion Architecture: Bronze, Silver, Gold layers)\n- Business and Domain Data Modeling (enterprise-aligned data models)\n- Semantic Layer & BI Enablement (~50 KPIs and dashboards for platform validation)\n- Data Governance Framework (metadata management, data lineage, data quality rules)\n- Security & Compliance Implementation (RBAC, encryption, VAPT, DPDP Act alignment)\n- CI/CD & DevOps Pipeline Setup (Azure DevOps, GitHub Enterprise)\n- Testing & QA (unit, integration, performance, security, and UAT)\n- Documentation & Knowledge Transfer (architecture docs, runbooks, SOPs, training)\n- Go-Live Support & Hypercare (1 month post-production go-live support)\n\nExtract exact scope boundaries and quantities from source documents. Replace approximate numbers with actuals where available. Each bullet must be one concise line.",
+      "target_words": 300
+    },
+    {
+      "key": "section_a_pricing_table",
+      "title": "Section A — One-Time Implementation Pricing",
+      "order": 3,
+      "render_hint": "table",
+      "instructions": "Generate the Section A pricing table as a markdown pipe table with the following structure:\n\n| Sr. | Item | Description | Qty | Unit | Unit Rate (Rs.) | Total Amount (Rs.) |\n|-----|------|-------------|-----|------|-----------------|--------------------|\n| **A** | **One-Time Implementation Costs** | | | | | |\n| 1.1 | [Platform Name] — End-to-End Implementation | Complete design, development, integration, testing, deployment, documentation, and Go-Live support as per Scope of Work and RFP specifications | 1 | Lot | [To be quoted by Bidder] | [To be quoted by Bidder] |\n| | **Sub-Total A (One-Time Implementation)** | | | | | **₹ ____________** |\n\nNote below the table: 'Prices are exclusive of GST. GST will be charged additionally as applicable.' Leave all cost columns as '[To be quoted by Bidder]' or '₹ ____________'.",
+      "target_words": 120
+    },
+    {
+      "key": "section_b_ams_scope",
+      "title": "Section B — Annual Maintenance & Support: Scope Coverage",
+      "order": 4,
+      "render_hint": "bullets",
+      "instructions": "Write the AMS scope coverage description for Section B (Annual Maintenance & Support). List as bullets all services included in the AMS engagement:\n\n- 24×7 Monitoring & Alerting of data pipelines, Databricks clusters, APIs, and storage layers\n- Incident and Problem Management (L2/L3 support with defined escalation matrix)\n- Performance Tuning & Optimization (Spark job optimization, query performance, cost efficiency)\n- Security Patch Management (critical/high/medium/low patches within defined SLA timelines)\n- Minor Enhancements & Configuration Changes within agreed AMS scope and effort thresholds\n- Governance & Operational Reporting (monthly SLA reports, quarterly review meetings)\n- Backup, Recovery & DR Support (periodic validation, RPO/RTO adherence)\n- SLA Adherence with penalty framework as per contract\n\nSpecify contract duration (e.g., 3 years post-Hypercare completion and Operational Acceptance). Note what is excluded (major new features, architectural redesign, additional data sources beyond scope).",
+      "target_words": 180
+    },
+    {
+      "key": "section_b_pricing_table",
+      "title": "Section B — Annual Maintenance & Support Pricing",
+      "order": 5,
+      "render_hint": "table",
+      "instructions": "Generate the Section B AMS pricing table as a markdown pipe table:\n\n| Sr. | Item | Description | Qty | Unit | Unit Rate (Rs./Year) | Total Cost (Rs.) |\n|-----|------|-------------|-----|------|---------------------|------------------|\n| **B** | **Annual Maintenance & Support (AMS) Costs** | | | | | |\n| 2.1 | [Platform Name] — Hypercare & Technical Support Services | Comprehensive AMS including 24×7 monitoring, incident management, security patching, minor enhancements, and SLA reporting for [3] years post Go-Live as per SLA in RFP | 3 | Years | [To be quoted by Bidder] | [To be quoted by Bidder] |\n| | **Sub-Total B (AMS — 3 Years)** | | | | | **₹ ____________** |\n\nAdd note: 'AMS billed quarterly in arrears post Operational Acceptance. Payments subject to SLA compliance verification.' Leave all cost columns as '[To be quoted by Bidder]'.",
+      "target_words": 120
+    },
+    {
+      "key": "section_c_rate_card",
+      "title": "Section C — Rate Card for Future Items (Not Commercially Evaluated)",
+      "order": 6,
+      "render_hint": "table",
+      "instructions": "Generate the Section C rate card table for optional and future items. These items are indicative and for rate benchmarking purposes only — they are NOT included in the commercial evaluation or bid comparison.\n\nFormat as markdown pipe table:\n\n| Sr. | Item | Description | Unit | Rate (Rs.) |\n|-----|------|-------------|------|------------|\n| **C** | **Rate Card for Future Use — Not Commercially Evaluated** | | | |\n| 3.1 | Additional Data Source Onboarding | Per additional data source onboarded beyond the contracted scope | Per Data Source | [To be quoted] |\n| 3.2a | Additional KPI / Dashboard — Minor Complexity | KPI/dashboard requiring < 4 person-hours effort (minor complexity) | Per KPI | [To be quoted] |\n| 3.2b | Additional KPI / Dashboard — Medium Complexity | KPI/dashboard requiring 4–16 person-hours effort (medium complexity) | Per KPI | [To be quoted] |\n| 3.2c | Additional KPI / Dashboard — High Complexity | KPI/dashboard requiring > 16 person-hours effort (high complexity) | Per KPI | [To be quoted] |\n| 3.3 | Additional Data Model | New business domain or enterprise data model development and deployment | Per Model | [To be quoted] |\n| 3.4 | Additional Business Unit Enablement | Full onboarding of a new AESL/AEML business unit onto the DRISHTI platform | Per BU | [To be quoted] |\n| 3.5 | AI/ML Use Case Development | Full lifecycle: data prep, feature engineering, model development, testing, deployment, and monitoring | Per Use Case | [To be quoted] |\n| 3.6 | Additional Hypercare / Extended Support | Extended monthly support beyond contracted Hypercare period | Per Month | [To be quoted] |\n| 3.7 | Professional Services | Ad-hoc consulting, architecture review, specialist delivery, or knowledge transfer | Per Man-Day | [To be quoted] |\n\nAdd note below: 'Section C rates are submitted for information and future reference only. They will not be considered for bid evaluation or L1 determination.'",
+      "target_words": 280
+    },
+    {
+      "key": "grand_total_summary",
+      "title": "Grand Total Cost Summary",
+      "order": 7,
+      "render_hint": "table",
+      "instructions": "Generate the Grand Total cost summary table showing the consolidated commercial offer:\n\n| Component | Amount (Rs.) |\n|-----------|--------------|\n| **Section A — One-Time Implementation Cost** | ₹ ____________ |\n| **Section B — Annual Maintenance & Support (3 Years)** | ₹ ____________ |\n| **Total (A + B) — Excluding GST** | ₹ ____________ |\n| **GST @ 18%** (or as applicable) | ₹ ____________ |\n| **Grand Total — Including GST** | **₹ ____________** |\n\nAdd notes:\n- 'The above amounts are exclusive of any out-of-pocket expenses (travel, accommodation, etc.) unless included in the quoted price.'\n- 'If applicable, provide cost split by entity (e.g., AESL vs AEML) in a separate supporting schedule.'\n- 'Rate Card items (Section C) are excluded from Grand Total computation.'\n\nLeave all amount cells as '₹ ____________'.",
+      "target_words": 120
+    },
+    {
+      "key": "payment_milestones_implementation",
+      "title": "Payment Milestones — Scope A (One-Time Implementation)",
+      "order": 8,
+      "render_hint": "table",
+      "instructions": "Generate the payment milestone schedule for Scope A (one-time implementation). Use the following standard 6-milestone structure aligned to project delivery stages:\n\n| Milestone | Milestone Description | Completion Criteria / Trigger Event | % of Section A Value |\n|-----------|----------------------|--------------------------------------|----------------------|\n| A1 — Contract Signing | Project kickoff, PMO setup, and governance alignment | Execution of Purchase Order / Contract and project kickoff meeting completed | 10% |\n| A2 — Architecture & Design Sign-off | Completion of target-state architecture and detailed solution design | Formal approval of HLD, LLD, solution architecture, and implementation roadmap by AEML | 10% |\n| A3 — Ingestion Framework & Data Source Onboarding | Core platform foundation and data source connectivity | Data ingestion framework operational with contracted data sources onboarded; medallion architecture (Bronze/Silver/Gold) implemented | 20% |\n| A4 — Data Modeling, KPI & Dashboard Delivery | Analytics and semantic layer validation | Enterprise and domain data models delivered; semantic layer enabled; ~50 KPIs and dashboards validated; MLOps framework operational | 30% |\n| A5 — Governance, Security & CI/CD | Platform governance and operational readiness | Data governance framework implemented; security controls validated; CI/CD pipelines operational; VAPT completed and observations remediated | 15% |\n| A6 — Production Go-Live & Hypercare Completion | Platform go-live and handover to AMS | Production Go-Live achieved; 1-month Hypercare completed; documentation and knowledge transfer signed off; Operational Acceptance granted by AEML | 15% |\n| | **Total** | | **100%** |\n\nNote: Each milestone payment is conditional on formal written sign-off from AEML. Payment requests without signed acceptance are not eligible for processing.",
+      "target_words": 280
+    },
+    {
+      "key": "payment_milestones_ams",
+      "title": "Payment Milestones — Scope B (Annual Maintenance & Support)",
+      "order": 9,
+      "render_hint": "table",
+      "instructions": "Generate the quarterly payment schedule for Scope B (AMS — Annual Maintenance & Support):\n\n| Period | Quarter | Payment Trigger | SLA Condition | % of Annual AMS Value |\n|--------|---------|-----------------|---------------|-----------------------|\n| Year 1 | Q1 (Months 1–3) | End of Q1 from AMS commencement date | SLA compliance verified; no unresolved critical incidents | 25% of Annual AMS |\n| Year 1 | Q2 (Months 4–6) | End of Q2 | SLA compliance verified | 25% of Annual AMS |\n| Year 1 | Q3 (Months 7–9) | End of Q3 | SLA compliance verified | 25% of Annual AMS |\n| Year 1 | Q4 (Months 10–12) | End of Q4 | SLA compliance verified | 25% of Annual AMS |\n\nNotes:\n- Above quarterly payment schedule repeats identically for Year 2 and Year 3 of the AMS period\n- AMS commences post formal Operational Acceptance by AEML upon completion of Hypercare\n- All quarterly payments are post-paid (in arrears) and conditional on SLA compliance verification\n- SLA penalties, where applicable, are deducted from the respective quarterly invoice before payment\n- Payment shall be made within [30] days of submission of valid invoice with SLA compliance evidence",
+      "target_words": 180
+    }
+  ]
+}

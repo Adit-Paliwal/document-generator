@@ -573,6 +573,194 @@ def _inline(text: str) -> str:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Preview — assemble sections from DB into markdown, for on-screen rendering
+# ─────────────────────────────────────────────────────────────────────────────
+
+def assemble_preview(job_id: str) -> dict:
+    """
+    Return the full document content assembled from the DB — no file I/O.
+
+    Designed for the GET /api/generate/{job_id}/preview endpoint so the
+    frontend can render the document on-screen without downloading a file.
+
+    Returns:
+        {
+          job_id, status, document_type, project_name,
+          total_sections, completed_sections,
+          sections: [{order, title, content, status, word_count}],
+          markdown: "<full assembled markdown string>",
+          export_urls: {docx, pdf, markdown},   # relative paths for the API
+          blob_url: str | None,                 # Azure Blob URL if in cloud mode + already exported
+        }
+    """
+    from generation.db import GenerationJob, Section, get_session
+
+    with get_session() as session:
+        job = session.get(GenerationJob, job_id)
+        if not job:
+            raise ValueError(f"Job '{job_id}' not found")
+
+        project_name = _extract_project_name(job.user_inputs_json)
+        doc_type     = job.document_type or "Document"
+
+        sections_out = []
+        for sec in sorted(job.sections, key=lambda s: s.order_index):
+            accepted = next((v for v in sec.versions if v.is_accepted), None)
+            latest   = max(sec.versions, key=lambda v: v.version_number) if sec.versions else None
+            chosen   = accepted or latest
+            sections_out.append({
+                "order":      sec.order_index,
+                "section_id": sec.section_id,
+                "title":      sec.section_title,
+                "content":    chosen.content if chosen else "",
+                "status":     sec.status,
+                "word_count": chosen.word_count if chosen else 0,
+            })
+
+        status             = job.status
+        total_sections     = job.total_sections
+        completed_sections = job.completed_sections
+
+    # Assemble full markdown
+    lines = [
+        f"# {doc_type}",
+        f"**Project:** {project_name}",
+        f"**Generated:** {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}",
+        "",
+        "---",
+        "",
+    ]
+    for sec in sections_out:
+        if sec["content"]:
+            lines.append(f"## {sec['title']}")
+            lines.append("")
+            lines.append(sec["content"])
+            lines.append("")
+            lines.append("---")
+            lines.append("")
+    markdown = "\n".join(lines)
+
+    # Blob URL: if a cloud-exported file already exists in local_storage (for local),
+    # or the Azure Blob URL was stored (cloud mode). We check for the most recent
+    # exported file in the output dir and derive the URL.
+    blob_url = _get_existing_blob_url(job_id)
+
+    return {
+        "job_id":             job_id,
+        "status":             status,
+        "document_type":      doc_type,
+        "project_name":       project_name,
+        "total_sections":     total_sections,
+        "completed_sections": completed_sections,
+        "sections":           sections_out,
+        "markdown":           markdown,
+        "export_urls": {
+            "docx":     f"/api/generate/{job_id}/export?format=docx",
+            "pdf":      f"/api/generate/{job_id}/export?format=pdf",
+            "markdown": f"/api/generate/{job_id}/export?format=md",
+        },
+        "blob_url": blob_url,
+    }
+
+
+def export_job_to_temp(job_id: str, out_dir: Path) -> Path:
+    """
+    Export a job's sections as a DOCX file into an existing directory.
+    Used by preview_service.py to feed LibreOffice headless conversion.
+
+    Returns the Path to the written .docx file.
+    Raises ValueError if no sections exist yet.
+    """
+    from generation.db import GenerationJob, get_session
+
+    with get_session() as session:
+        job = session.get(GenerationJob, job_id)
+        if not job:
+            raise ValueError(f"Job {job_id} not found")
+
+        doc_type     = job.document_type
+        project_name = _extract_project_name(job.user_inputs_json)
+
+        sections_content: list[dict] = []
+        for sec in sorted(job.sections, key=lambda s: s.order_index):
+            if not sec.versions:
+                continue
+            accepted = next((v for v in sec.versions if v.is_accepted), None)
+            latest   = max(sec.versions, key=lambda v: v.version_number)
+            chosen   = accepted or latest
+            sections_content.append({
+                "key":     getattr(sec, "section_key", None) or "",
+                "title":   sec.section_title,
+                "content": chosen.content,
+                "version": chosen.version_number,
+            })
+
+    if not sections_content:
+        raise ValueError("No completed sections to export")
+
+    safe_name = re.sub(r"[^\w\s-]", "", project_name)[:40].strip().replace(" ", "_") or "document"
+    out_path  = out_dir / f"{safe_name}_preview.docx"
+
+    if _is_brd(doc_type):
+        from generation.brd_formatter import format_brd_docx
+        sections_by_key = {s["key"]: s["content"] for s in sections_content if s.get("key")}
+        format_brd_docx(sections_by_key, project_name, out_path)
+    else:
+        _write_docx(out_path, doc_type, project_name, sections_content)
+
+    return out_path
+
+
+def upload_output_to_blob(job_id: str, file_path: Path, mime_type: str) -> Optional[str]:
+    """
+    Upload an exported output file to Azure Blob Storage.
+    Returns the blob URL, or None if running in local mode or upload fails.
+    Only called when LOCAL_MODE=false (Azure storage mode).
+    """
+    if LOCAL_DB:
+        return None
+    try:
+        from storage.azure_storage import get_storage_service, AzureStorageService
+        store = get_storage_service()
+        if not isinstance(store, AzureStorageService):
+            return None
+        blob_path = f"outputs/{job_id}/{file_path.name}"
+        blob_url = store._upload_blob(blob_path, file_path.read_bytes(), mime_type)
+        logger.info("[preview] Uploaded output to blob: %s", blob_url)
+        return blob_url
+    except Exception as e:
+        logger.warning("[preview] Blob upload failed (non-fatal): %s", e)
+        return None
+
+
+def _get_existing_blob_url(job_id: str) -> Optional[str]:
+    """
+    In cloud mode: list blobs in outputs/{job_id}/ and return the DOCX URL if found.
+    In local mode: return None (frontend uses the export endpoint instead).
+    """
+    if LOCAL_DB:
+        return None
+    try:
+        from storage.azure_storage import get_storage_service, AzureStorageService
+        import os
+        store = get_storage_service()
+        if not isinstance(store, AzureStorageService):
+            return None
+        # List blobs under outputs/{job_id}/
+        blobs = list(store._blob_container.list_blobs(name_starts_with=f"outputs/{job_id}/"))
+        # Prefer DOCX, then PDF, then markdown
+        for ext in (".docx", ".pdf", ".md"):
+            for b in blobs:
+                if b.name.endswith(ext):
+                    account_url = os.environ.get("AZURE_BLOB_ACCOUNT_URL", "")
+                    container   = os.environ.get("AZURE_BLOB_CONTAINER", "doc-processor")
+                    return f"{account_url}/{container}/{b.name}"
+    except Exception as e:
+        logger.debug("[preview] Could not check blob URL: %s", e)
+    return None
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Helpers
 # ─────────────────────────────────────────────────────────────────────────────
 

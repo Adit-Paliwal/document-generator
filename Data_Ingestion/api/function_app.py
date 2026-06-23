@@ -31,6 +31,7 @@ import azure.functions as func
 import json
 import logging
 import os
+import re
 import tempfile
 from datetime import datetime
 from pathlib import Path
@@ -216,15 +217,16 @@ def _json(data: dict, status: int = 200) -> func.HttpResponse:
 # ═════════════════════════════════════════════════════════════════════════════
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 6. POST /api/generate/start
+# 6. POST /api/generate/start  [DEPRECATED]
+# Use POST /api/generate/project/{project_id} instead.
+# This legacy endpoint requires a raw document_id and bypasses the project DB.
+# Kept for backwards compatibility only.
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.route(route="generate/start", methods=["POST"])
 def generate_start(req: func.HttpRequest) -> func.HttpResponse:
     """
-    Create a generation job and start background section generation.
-    Returns immediately with the job_id — client polls /api/generate/{job_id}.
-
+    DEPRECATED — use POST /api/generate/project/{project_id}.
     Body: { document_id, user_inputs: {...}, template_id? }
     """
     try:
@@ -241,7 +243,7 @@ def generate_start(req: func.HttpRequest) -> func.HttpResponse:
         from generation.generation_service import start_job
         job = start_job(document_id, user_inputs, template_id)
 
-        return _json({
+        resp = _json({
             "job_id":    job["job_id"],
             "status":    job["status"],
             "sections":  [
@@ -253,7 +255,10 @@ def generate_start(req: func.HttpRequest) -> func.HttpResponse:
                 f"Generation job started. {job['total_sections']} sections queued. "
                 "Poll GET /api/generate/{job_id} for progress."
             ),
+            "deprecated": "Use POST /api/generate/project/{project_id} instead.",
         }, 201)
+        resp.headers["X-Deprecated"] = "Use POST /api/generate/project/{project_id} — this endpoint will be removed in a future release"
+        return resp
 
     except ValueError as e:
         return _json({"error": str(e)}, 400)
@@ -402,7 +407,158 @@ def generate_accept_version(req: func.HttpRequest) -> func.HttpResponse:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 12. GET /api/generate/{job_id}/export
+# 12a. PATCH /api/generate/{job_id}/section/{section_id}
+#      Manual content override (inline editor in the preview panel)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.route(route="generate/{job_id}/section/{section_id}", methods=["PATCH"])
+def generate_update_section(req: func.HttpRequest) -> func.HttpResponse:
+    """
+    Directly overwrite a section's content with manually-edited text.
+    Body: { "content": "..." }
+    Creates a new version marked as accepted.
+    """
+    section_id = req.route_params.get("section_id")
+    try:
+        body    = req.get_json() or {}
+        content = body.get("content", "").strip()
+        if not content:
+            return _json({"error": "content is required"}, 400)
+
+        from generation.generation_service import update_section_content
+        new_version = update_section_content(section_id, content)
+        return _json({
+            "version": new_version,
+            "message": f"Section updated — version {new_version['version_number']}.",
+        })
+
+    except ValueError as e:
+        return _json({"error": str(e)}, 404)
+    except Exception as e:
+        logger.exception("generate_update_section failed")
+        return _json({"error": "Failed to update section."}, 500)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 12. GET /api/generate/{job_id}/preview
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.route(route="generate/{job_id}/preview", methods=["GET"])
+def generate_preview(req: func.HttpRequest) -> func.HttpResponse:
+    """
+    Return the assembled document as markdown for on-screen rendering.
+    No file download — returns JSON with sections and full markdown string.
+    Works in both local and cloud (Azure Blob) mode.
+
+    Response: { job_id, status, document_type, project_name,
+                sections: [{order, title, content, status, word_count}],
+                markdown, export_urls, blob_url }
+    """
+    job_id = req.route_params.get("job_id")
+    try:
+        from generation.doc_writer import assemble_preview
+        return _json(assemble_preview(job_id))
+    except ValueError as e:
+        return _json({"error": str(e)}, 404)
+    except Exception as e:
+        logger.exception("generate_preview failed")
+        return _json({"error": f"Preview failed: {e}"}, 500)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 12c. GET /api/generate/{job_id}/preview/html  — LibreOffice async preview
+# 12d. GET /api/generate/{job_id}/preview/status — poll Celery task
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.route(route="generate/{job_id}/preview/html", methods=["GET"])
+def generate_preview_html(req: func.HttpRequest) -> func.HttpResponse:
+    """
+    Returns LibreOffice-rendered HTML for the document.
+    CELERY_ENABLED=true → async (202 + task_id on cache miss).
+    CELERY_ENABLED=false → synchronous fallback (200 + html).
+    """
+    job_id = req.route_params.get("job_id")
+    try:
+        from generation.preview_service import get_or_submit_preview
+        result = get_or_submit_preview(job_id)
+        status_code = 200 if result.get("status") == "ready" else (
+            202 if result.get("status") == "pending" else 500
+        )
+        return _json(result, status_code)
+    except ValueError as e:
+        return _json({"error": str(e)}, 404)
+    except Exception as e:
+        logger.exception("generate_preview_html failed")
+        return _json({"error": str(e)}, 500)
+
+
+@app.route(route="generate/{job_id}/preview/status", methods=["GET"])
+def generate_preview_status(req: func.HttpRequest) -> func.HttpResponse:
+    """Poll a Celery conversion task by task_id."""
+    job_id  = req.route_params.get("job_id")
+    task_id = req.params.get("task_id", "").strip()
+    if not task_id:
+        return _json({"error": "task_id query param required"}, 400)
+    try:
+        from generation.preview_service import poll_preview_status
+        result = poll_preview_status(job_id, task_id)
+        status_code = 200 if result.get("status") == "ready" else (
+            202 if result.get("status") == "pending" else 500
+        )
+        return _json(result, status_code)
+    except Exception as e:
+        logger.exception("generate_preview_status failed")
+        return _json({"error": str(e)}, 500)
+
+
+# 12e. POST /api/generate/{job_id}/snapshot — create a version checkpoint
+@app.route(route="generate/{job_id}/snapshot", methods=["POST"])
+def generate_create_snapshot(req: func.HttpRequest) -> func.HttpResponse:
+    job_id = req.route_params.get("job_id")
+    try:
+        body         = req.get_json(silent=True) or {}
+        label        = (body.get("label") or "").strip()
+        trigger_type = (body.get("trigger_type") or "manual").strip()
+        from generation.generation_service import create_snapshot
+        snap = create_snapshot(job_id, label, trigger_type)
+        return _json(snap, 201)
+    except ValueError as e:
+        return _json({"error": str(e)}, 404)
+    except Exception as e:
+        logger.exception("create_snapshot failed")
+        return _json({"error": str(e)}, 500)
+
+
+# 12f. GET /api/generate/{job_id}/snapshots — list version history
+@app.route(route="generate/{job_id}/snapshots", methods=["GET"])
+def generate_list_snapshots(req: func.HttpRequest) -> func.HttpResponse:
+    job_id = req.route_params.get("job_id")
+    try:
+        from generation.generation_service import list_snapshots
+        snaps = list_snapshots(job_id)
+        return _json({"snapshots": snaps})
+    except Exception as e:
+        logger.exception("list_snapshots failed")
+        return _json({"error": str(e)}, 500)
+
+
+# 12g. POST /api/generate/{job_id}/snapshot/{snapshot_id}/restore
+@app.route(route="generate/{job_id}/snapshot/{snapshot_id}/restore", methods=["POST"])
+def generate_restore_snapshot(req: func.HttpRequest) -> func.HttpResponse:
+    job_id      = req.route_params.get("job_id")
+    snapshot_id = req.route_params.get("snapshot_id")
+    try:
+        from generation.generation_service import restore_snapshot
+        result = restore_snapshot(job_id, snapshot_id)
+        return _json(result)
+    except ValueError as e:
+        return _json({"error": str(e)}, 404)
+    except Exception as e:
+        logger.exception("restore_snapshot failed")
+        return _json({"error": str(e)}, 500)
+
+
+# 12b. GET /api/generate/{job_id}/export
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.route(route="generate/{job_id}/export", methods=["GET"])
@@ -410,18 +566,27 @@ def generate_export(req: func.HttpRequest) -> func.HttpResponse:
     """
     Assemble all accepted/current section versions into a final document and return it.
     Query param: format=docx|pdf|md  (overrides the format stored on the job)
+
+    Local mode:  streams the file as a download.
+    Cloud mode:  uploads to Azure Blob and returns { blob_url, filename, mime_type }.
     """
     job_id = req.route_params.get("job_id")
-    fmt    = req.params.get("format")  # optional override
+    fmt    = req.params.get("format")
 
-    # Map short format param → full format string
     _fmt_map = {"docx": "Word (.docx)", "pdf": "PDF", "md": "Markdown", "markdown": "Markdown"}
     output_format = _fmt_map.get((fmt or "").lower()) if fmt else None
 
     try:
-        from generation.doc_writer import export_job
+        from generation.doc_writer import export_job, upload_output_to_blob
         file_path, mime_type = export_job(job_id, output_format)
 
+        # Cloud mode: upload to Azure Blob and return the URL.
+        blob_url = upload_output_to_blob(job_id, file_path, mime_type)
+        if blob_url:
+            return _json({"job_id": job_id, "blob_url": blob_url,
+                          "filename": file_path.name, "mime_type": mime_type})
+
+        # Local / dev mode: stream the file directly.
         file_bytes = file_path.read_bytes()
         return func.HttpResponse(
             body        = file_bytes,
@@ -549,6 +714,29 @@ def _apply_project_fields(proj, body: dict) -> None:
         proj.document_ids_json = _j.dumps(val) if isinstance(val, list) else val
 
 
+def _project_code_conflict(session, code: str, exclude_id: str = None):
+    """
+    Return a 409 _json() response if project_code is already taken by another project.
+    Returns None if the code is available (caller may proceed with the DB write).
+    Pass exclude_id when updating an existing project so it may keep its own code.
+    """
+    if not code or not str(code).strip():
+        return None
+    from generation.db import Project as _Project
+    q = session.query(_Project).filter(_Project.project_code == str(code).strip())
+    if exclude_id:
+        q = q.filter(_Project.project_id != exclude_id)
+    existing = q.first()
+    if existing:
+        name = existing.project_name or existing.project_id
+        return _json({
+            "error": f"Project code '{code}' is already in use by project '{name}'. "
+                     "Please choose a different project code.",
+            "conflict_project_id": existing.project_id,
+        }, 409)
+    return None
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # 15. OPTIONS preflight handler (CORS for browser fetch)
 # ─────────────────────────────────────────────────────────────────────────────
@@ -642,6 +830,10 @@ def create_project(req: func.HttpRequest) -> func.HttpResponse:
         _apply_project_fields(proj, form.model_dump())
 
         with get_session() as session:
+            if form.project_code:
+                conflict = _project_code_conflict(session, form.project_code)
+                if conflict:
+                    return conflict
             session.add(proj)
             # Create an empty DerivedData placeholder so the row exists immediately
             session.add(_DerivedData(project_id=project_id))
@@ -662,29 +854,49 @@ def create_project(req: func.HttpRequest) -> func.HttpResponse:
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 17b. POST /api/projects/draft  — create a draft project (no field validation)
+# Accepts optional client-supplied "project_id" UUID in the body for idempotency.
+# If the UUID already exists, returns 200 with the existing project (no duplicate created).
+# This solves autosave race conditions: frontend can generate a UUID before the first
+# API call and reuse it safely.
 # ─────────────────────────────────────────────────────────────────────────────
+
+_UUID_RE = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', re.IGNORECASE)
 
 @app.route(route="projects/draft", methods=["POST"])
 def create_draft_project(req: func.HttpRequest) -> func.HttpResponse:
     """
     Persist a draft project without requiring all mandatory fields.
-    Used by the frontend immediately after AI extraction (before the user has
-    filled every required field), so data is safely stored in DB.
 
     Body: any subset of project fields (all optional).
+      project_id (optional): client-supplied UUID for idempotent creation.
     Returns: { project_id, status: "draft", message }
     """
     try:
         body = req.get_json() or {}
         from generation.db import Project as _Project, DerivedData as _DerivedData, get_session
-        from uuid import uuid4 as _uuid4
 
-        project_id = str(_uuid4())
+        client_pid = (body.get("project_id") or "").strip()
+        if client_pid:
+            if not _UUID_RE.match(client_pid):
+                return _json({"error": "project_id must be a valid UUID (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)"}, 400)
+            with get_session() as session:
+                existing = session.get(_Project, client_pid)
+                if existing:
+                    return _json({"project_id": client_pid, "status": existing.status,
+                                  "message": "Project already exists."}, 200)
+            project_id = client_pid
+        else:
+            project_id = str(uuid4())
+
         proj = _Project(project_id=project_id)
         proj.status = "draft"
         _apply_project_fields(proj, body)
 
         with get_session() as session:
+            if body.get("project_code"):
+                conflict = _project_code_conflict(session, body["project_code"])
+                if conflict:
+                    return conflict
             session.add(proj)
             session.add(_DerivedData(project_id=project_id))
             session.commit()
@@ -705,20 +917,33 @@ def list_projects(req: func.HttpRequest) -> func.HttpResponse:
     """
     Return all saved projects as lightweight summaries (most recent first).
 
-    Optional query params:
-      q         — search by project_name or project_code (case-insensitive)
+    Query params:
+      q         — fuzzy search by project_name or project_code (case-insensitive)
+      code      — exact project_code lookup (use when you have code but need UUID)
       status    — filter by status  (draft|ready|generating|completed)
+      page      — page number (default 1)
+      per_page  — items per page (default 50, max 100)
     """
     try:
         from generation.db import Project as _Project, get_session
         from sqlalchemy import or_, func as sqlfunc
 
-        q      = (req.params.get("q")      or "").strip().lower()
-        status = (req.params.get("status") or "").strip()
+        q        = (req.params.get("q")        or "").strip().lower()
+        status   = (req.params.get("status")   or "").strip()
+        code     = (req.params.get("code")     or "").strip()
+        page     = int(req.params.get("page",  1) or 1)
+        per_page = int(req.params.get("per_page", 50) or 50)
+
+        # Clamp to safe ranges
+        page = max(1, page)
+        per_page = min(100, max(1, per_page))
 
         with get_session() as session:
             query = session.query(_Project)
-            if q:
+            if code:
+                # Exact project_code lookup — resolves code → UUID
+                query = query.filter(_Project.project_code == code)
+            elif q:
                 query = query.filter(
                     or_(
                         sqlfunc.lower(_Project.project_name).contains(q),
@@ -727,10 +952,20 @@ def list_projects(req: func.HttpRequest) -> func.HttpResponse:
                 )
             if status:
                 query = query.filter(_Project.status == status)
-            projects = query.order_by(_Project.created_at.desc()).all()
-            summaries = [p.to_summary_dict() for p in projects]
 
-        return _json({"projects": summaries, "count": len(summaries)})
+            total = query.count()
+            projects = query.order_by(_Project.created_at.desc()).offset((page - 1) * per_page).limit(per_page).all()
+            summaries = [p.to_summary_dict() for p in projects]
+            pages = (total + per_page - 1) // per_page
+
+        return _json({
+            "projects": summaries,
+            "total": total,
+            "page": page,
+            "per_page": per_page,
+            "pages": pages,
+            "count": len(summaries),
+        })
 
     except Exception as e:
         logger.exception("list_projects failed")
@@ -798,17 +1033,17 @@ def delete_project(req: func.HttpRequest) -> func.HttpResponse:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 19c. PUT /api/projects/{project_id}  — full update (form re-submit)
+# 19c. PUT /api/projects/{project_id}  [DEPRECATED]
+# Use PATCH /api/projects/{project_id} instead — identical behaviour.
+# PUT is kept for backwards compatibility but will be removed in a future release.
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.route(route="projects/{project_id}", methods=["PUT"])
 def update_project(req: func.HttpRequest) -> func.HttpResponse:
     """
-    Full replace-update of all project form fields.
-    Used when the user explicitly edits and saves the project form.
-
-    Body: same flat JSON as POST /api/projects (all fields optional for update).
-    Returns: { project_id, updated_at }
+    DEPRECATED — use PATCH /api/projects/{project_id}.
+    Body: any subset of project fields.
+    Returns: { project_id, updated_at, deprecated }
     """
     project_id = req.route_params.get("project_id")
     try:
@@ -819,11 +1054,18 @@ def update_project(req: func.HttpRequest) -> func.HttpResponse:
         now = _dt.utcnow()
         with get_session() as session:
             proj = _get_project_or_404(session, project_id)
+            if body.get("project_code"):
+                conflict = _project_code_conflict(session, body["project_code"], exclude_id=project_id)
+                if conflict:
+                    return conflict
             _apply_project_fields(proj, body)
             proj.updated_at = now
             session.commit()
 
-        return _json({"project_id": project_id, "updated_at": now.isoformat()})
+        resp = _json({"project_id": project_id, "updated_at": now.isoformat(),
+                      "deprecated": "Use PATCH /api/projects/{id} instead of PUT."})
+        resp.headers["X-Deprecated"] = "Use PATCH /api/projects/{id} — PUT will be removed in a future release"
+        return resp
 
     except FileNotFoundError:
         return _json({"error": f"Project '{project_id}' not found."}, 404)
@@ -858,6 +1100,10 @@ def patch_project(req: func.HttpRequest) -> func.HttpResponse:
         now = _dt.utcnow()
         with get_session() as session:
             proj = _get_project_or_404(session, project_id)
+            if body.get("project_code"):
+                conflict = _project_code_conflict(session, body["project_code"], exclude_id=project_id)
+                if conflict:
+                    return conflict
             _apply_project_fields(proj, body)
             proj.updated_at = now
             session.commit()
@@ -999,6 +1245,10 @@ def update_ingested_data(req: func.HttpRequest) -> func.HttpResponse:
         now = _dt.utcnow()
         with get_session() as session:
             proj = _get_project_or_404(session, project_id)
+            if body.get("project_code"):
+                conflict = _project_code_conflict(session, body["project_code"], exclude_id=project_id)
+                if conflict:
+                    return conflict
             _apply_project_fields(proj, body)
             proj.updated_at = now
             session.commit()
@@ -1173,6 +1423,44 @@ def derive_project_fields(req: func.HttpRequest) -> func.HttpResponse:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# 19i. POST /api/projects/{project_id}/validate  — pre-flight check before Generate
+# Checks required fields are filled without starting generation.
+# Frontend calls this to decide whether to enable the Generate button.
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.route(route="projects/{project_id}/validate", methods=["POST"])
+def validate_project(req: func.HttpRequest) -> func.HttpResponse:
+    """
+    Returns: { project_id, valid, ready_to_generate, missing_required[], message }
+    """
+    project_id = req.route_params.get("project_id")
+    try:
+        from generation.db import get_session
+        REQUIRED = [
+            "project_name", "problem_statement", "project_objective",
+            "as_is_processes", "proposed_solution", "technical_landscape",
+        ]
+        with get_session() as session:
+            proj = _get_project_or_404(session, project_id)
+            data = proj.to_ingested_dict()
+        missing = [f for f in REQUIRED if not (data.get(f) or "").strip()]
+        ready   = len(missing) == 0
+        return _json({
+            "project_id":        project_id,
+            "valid":             ready,
+            "ready_to_generate": ready,
+            "missing_required":  missing,
+            "message": "Ready to generate." if ready else
+                       f"{len(missing)} required field(s) missing: {', '.join(missing)}",
+        })
+    except FileNotFoundError:
+        return _json({"error": f"Project '{project_id}' not found."}, 404)
+    except Exception as e:
+        logger.exception("validate_project failed")
+        return _json({"error": f"Validation check failed: {e}"}, 500)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # 20. POST /api/generate/project/{project_id}  — start generation from project
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -1186,71 +1474,16 @@ def generate_from_project(req: func.HttpRequest) -> func.HttpResponse:
     """
     project_id = req.route_params.get("project_id")
     try:
-        from generation.db import get_session
-        from datetime import datetime as _dt
-
-        with get_session() as session:
-            proj = _get_project_or_404(session, project_id)
-
-            doc_ids = proj.document_ids
-            if not doc_ids:
-                return _json({"error": "No documents attached to this project."}, 400)
-
-            # Build a clean dict of all ingested fields for generation
-            fd = proj.to_full_dict()
-
-        primary_doc_id = doc_ids[0]
-
-        # Build stakeholders string
-        stakeholders_str = ", ".join(
-            f"{s.get('name', '')} ({s.get('designation', '')})"
-            for s in (fd.get("stakeholders") or [])
-            if s.get("name")
-        ) or None
-
-        # Assemble extra context into additional_instructions
-        extra_parts = []
-        for label, key in [
-            ("Constraints",        "constraints"),
-            ("Risks & Mitigation", "risks"),
-            ("Technical Landscape","technical_landscape"),
-            ("Business Priority",  "business_priority"),
-            ("Project Code",       "project_code"),
-            ("Business Unit",      "business_unit"),
-        ]:
-            if fd.get(key):
-                extra_parts.append(f"{label}: {fd[key]}")
-        if fd.get("start_date") or fd.get("end_date"):
-            extra_parts.append(
-                f"Timeline: {fd.get('start_date', 'TBD')} to {fd.get('end_date', 'TBD')}"
-            )
-        if fd.get("estimated_cost_crores"):
-            extra_parts.append(f"Estimated Cost: ₹{fd['estimated_cost_crores']} Crores")
-        if fd.get("additional_instructions"):
-            extra_parts.append(fd["additional_instructions"])
-
-        user_inputs = {
-            "project_name":            fd.get("project_name", ""),
-            "document_type":           fd.get("document_type", "BRD"),
-            "output_format":           fd.get("output_format", "Word (.docx)"),
-            "stakeholders":            stakeholders_str,
-            "project_description":     fd.get("proposed_solution") or fd.get("project_objective", ""),
-            "business_problem":        fd.get("problem_statement"),
-            "expected_outcome":        fd.get("project_objective"),
-            "additional_instructions": "\n\n".join(extra_parts) if extra_parts else None,
-        }
-
-        from generation.generation_service import start_job
-        job = start_job(primary_doc_id, user_inputs, fd.get("template_id"))
-
-        # Persist job_id + status back to DB
-        with get_session() as session:
-            proj = _get_project_or_404(session, project_id)
-            proj.job_id     = job["job_id"]
-            proj.status     = "generating"
-            proj.updated_at = _dt.utcnow()
-            session.commit()
-
+        body = req.get_json()
+    except Exception:
+        body = {}
+    try:
+        from generation.generation_service import start_job_from_project
+        job = start_job_from_project(
+            project_id,
+            allow_no_docs=True,
+            doc_type_override=body.get("document_type") if body else None,
+        )
         return _json({
             "job_id":  job["job_id"],
             "status":  job["status"],
@@ -1262,13 +1495,8 @@ def generate_from_project(req: func.HttpRequest) -> func.HttpResponse:
                 }
                 for s in job.get("sections", [])
             ],
-            "message": (
-                f"Generation started for '{fd.get('project_name', project_id)}'. "
-                f"{job['total_sections']} sections queued. "
-                f"Poll GET /api/generate/{job['job_id']} for progress."
-            ),
+            "message": f"Generation started. {job['total_sections']} sections queued.",
         }, 201)
-
     except FileNotFoundError as e:
         return _json({"error": str(e)}, 404)
     except ValueError as e:
@@ -1276,6 +1504,7 @@ def generate_from_project(req: func.HttpRequest) -> func.HttpResponse:
     except Exception as e:
         logger.exception("generate_from_project failed")
         return _json({"error": f"Failed to start generation: {e}"}, 500)
+
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -1292,19 +1521,39 @@ def chat_init(req: func.HttpRequest) -> func.HttpResponse:
     Create a new chat session for a project + document type.
     Returns the session_id and an opening assistant message.
 
-    Body: { project_id, document_type, project_name? }
+    Body: { project_id?, document_type?, project_name? }
+
+    project_id is optional. If omitted, a new draft project is auto-created
+    so the user can start a chat-first workflow without creating a project first.
+    The response includes auto_created_project_id in that case.
     """
     try:
         body         = req.get_json() or {}
-        project_id   = body.get("project_id", "").strip()
-        doc_type     = body.get("document_type", "brd").strip()
-        project_name = body.get("project_name", "").strip()
+        project_id   = (body.get("project_id") or "").strip()
+        doc_type     = (body.get("document_type") or "brd").strip()
+        project_name = (body.get("project_name") or "").strip()
+        auto_created = False
 
         if not project_id:
-            return _json({"error": "project_id is required"}, 400)
+            from generation.db import Project as _Project, DerivedData as _DerivedData, get_session
+            project_id = str(uuid4())
+            proj = _Project(project_id=project_id, status="draft")
+            if project_name:
+                proj.project_name = project_name
+            if doc_type:
+                proj.document_type = doc_type
+            with get_session() as session:
+                session.add(proj)
+                session.add(_DerivedData(project_id=project_id))
+                session.commit()
+            auto_created = True
+            logger.info("chat/init: auto-created draft project %s", project_id)
 
         from api.chat_handler import init_session
         result = init_session(project_id, doc_type, project_name)
+        if auto_created:
+            result["auto_created_project_id"] = project_id
+            result["note"] = "A new draft project was created for this chat session. Use auto_created_project_id for subsequent project API calls."
         return _json(result, 201)
 
     except Exception as e:
