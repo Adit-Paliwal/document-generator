@@ -162,55 +162,49 @@ def _setup_styles(doc) -> None:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _add_header(doc, project_name: str) -> None:
+    """Header matches the Drishti BRD reference: two separate right-aligned
+    paragraphs so the logo is guaranteed to land at the top-right corner.
+    Tab-stop approaches are unreliable for inline images in Word headers."""
     from docx.shared import Pt, RGBColor, Cm
     from docx.enum.text import WD_ALIGN_PARAGRAPH
-    from docx.oxml.ns import qn
     from docx.oxml import OxmlElement
 
     section = doc.sections[0]
     header  = section.header
 
-    for para in header.paragraphs:
-        for run in para.runs:
-            run.text = ""
+    # ── Paragraph 1: right-aligned BRD title with blue bottom border ──────────
     hp = header.paragraphs[0] if header.paragraphs else header.add_paragraph()
+    # Clear any leftover text/runs from a prior call
+    for run in hp.runs:
+        run.text = ""
 
-    hp.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    hp.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    hp.paragraph_format.space_before = Pt(0)
+    hp.paragraph_format.space_after  = Pt(2)
     _set_para_border_bottom(hp, _MID_BLUE, size=6)
 
-    # Right tab stop at content right edge (A4 with 2.54cm margins: ~9026 twips)
-    pPr    = hp._p.get_or_add_pPr()
-    tabs_el = OxmlElement("w:tabs")
-    tab_el  = OxmlElement("w:tab")
-    tab_el.set(qn("w:val"), "right")
-    tab_el.set(qn("w:pos"), "9026")
-    tabs_el.append(tab_el)
-    pPr.append(tabs_el)
-
-    # Left: document title text
     run_txt = hp.add_run(f"Detailed BRD  |  {project_name}")
     run_txt.font.name      = "Calibri"
     run_txt.font.size      = Pt(9)
     run_txt.font.color.rgb = RGBColor(0x59, 0x59, 0x59)
     run_txt.font.italic    = True
 
-    # Tab to right edge
-    hp.add_run("\t")
-
-    # Right: faded Adani logo — use luminance adjustment so it stays visible on white
+    # ── Paragraph 2: right-aligned Adani logo (separate paragraph = top-right) ─
     logo_path = Path(__file__).parent.parent / "static" / "adani_logo.jpg"
     if logo_path.exists():
-        run_logo = hp.add_run()
+        hp2 = header.add_paragraph()
+        hp2.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        hp2.paragraph_format.space_before = Pt(0)
+        hp2.paragraph_format.space_after  = Pt(0)
+
+        run_logo = hp2.add_run()
         inline   = run_logo.add_picture(str(logo_path), height=Cm(0.9))
-        # <a:lum bright="+70%" contrast="-70%"> → pale/washed colours, still visible
-        # alphaModFix was removed: 35% opacity on a white-bg JPEG = invisible on page
         ns_a = "http://schemas.openxmlformats.org/drawingml/2006/main"
         blip = inline._inline.find(f".//{{{ns_a}}}blip")
         if blip is not None:
-            lum = OxmlElement("a:lum")
-            lum.set("bright", "70000")     # +70 000 per-mille = raise brightness
-            lum.set("contrast", "-70000")  # -70 000 per-mille = reduce contrast
-            blip.append(lum)
+            alpha_fix = OxmlElement("a:alphaModFix")
+            alpha_fix.set("amt", "90000")  # 90 000 per-mille = 90% opacity
+            blip.append(alpha_fix)
 
 
 def _add_footer(doc) -> None:

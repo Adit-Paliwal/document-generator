@@ -74,7 +74,17 @@ def ensure_seeded() -> None:
 
                 existing = session.get(Template, template_id)
                 if existing:
-                    continue   # already seeded
+                    if existing.is_system:
+                        # Always refresh system templates from JSON so that edits
+                        # to brd.json (column names, instructions, etc.) are picked
+                        # up immediately on the next process start — no manual
+                        # reseed needed.
+                        existing.name                = data["name"]
+                        existing.description         = data.get("description")
+                        existing.sections_config     = json.dumps(data.get("sections", []))
+                        existing.system_instructions = data.get("system_instructions")
+                        logger.info("Refreshed system template: %s", template_id)
+                    continue   # user templates are never overwritten
 
                 tmpl = Template(
                     template_id         = template_id,
