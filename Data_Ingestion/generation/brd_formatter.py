@@ -162,26 +162,53 @@ def _setup_styles(doc) -> None:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _add_header(doc, project_name: str) -> None:
-    from docx.shared import Pt, RGBColor
+    from docx.shared import Pt, RGBColor, Cm
     from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.oxml.ns import qn
+    from docx.oxml import OxmlElement
 
     section = doc.sections[0]
     header  = section.header
 
-    # Clear any default content
     for para in header.paragraphs:
         for run in para.runs:
             run.text = ""
     hp = header.paragraphs[0] if header.paragraphs else header.add_paragraph()
 
-    hp.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    hp.alignment = WD_ALIGN_PARAGRAPH.LEFT
     _set_para_border_bottom(hp, _MID_BLUE, size=6)
 
-    run = hp.add_run(f"Detailed BRD  |  {project_name}")
-    run.font.name  = "Calibri"
-    run.font.size  = Pt(9)
-    run.font.color.rgb = RGBColor(0x59, 0x59, 0x59)
-    run.font.italic = True
+    # Right tab stop at content right edge (A4 with 2.54cm margins: ~9026 twips)
+    pPr    = hp._p.get_or_add_pPr()
+    tabs_el = OxmlElement("w:tabs")
+    tab_el  = OxmlElement("w:tab")
+    tab_el.set(qn("w:val"), "right")
+    tab_el.set(qn("w:pos"), "9026")
+    tabs_el.append(tab_el)
+    pPr.append(tabs_el)
+
+    # Left: document title text
+    run_txt = hp.add_run(f"Detailed BRD  |  {project_name}")
+    run_txt.font.name      = "Calibri"
+    run_txt.font.size      = Pt(9)
+    run_txt.font.color.rgb = RGBColor(0x59, 0x59, 0x59)
+    run_txt.font.italic    = True
+
+    # Tab to right edge
+    hp.add_run("\t")
+
+    # Right: faded Adani logo
+    logo_path = Path(__file__).parent.parent / "static" / "adani_logo.jpg"
+    if logo_path.exists():
+        run_logo = hp.add_run()
+        inline   = run_logo.add_picture(str(logo_path), height=Cm(0.7))
+        # Apply 35% opacity via OOXML alphaModFix on the blip element
+        ns_a = "http://schemas.openxmlformats.org/drawingml/2006/main"
+        blip = inline._inline.find(f".//{{{ns_a}}}blip")
+        if blip is not None:
+            alpha_fix = OxmlElement("a:alphaModFix")
+            alpha_fix.set("amt", "35000")  # 35 000 per-mille = 35% opacity
+            blip.append(alpha_fix)
 
 
 def _add_footer(doc) -> None:
