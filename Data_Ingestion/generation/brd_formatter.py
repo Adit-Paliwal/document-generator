@@ -197,18 +197,20 @@ def _add_header(doc, project_name: str) -> None:
     # Tab to right edge
     hp.add_run("\t")
 
-    # Right: faded Adani logo
+    # Right: faded Adani logo — use luminance adjustment so it stays visible on white
     logo_path = Path(__file__).parent.parent / "static" / "adani_logo.jpg"
     if logo_path.exists():
         run_logo = hp.add_run()
-        inline   = run_logo.add_picture(str(logo_path), height=Cm(0.7))
-        # Apply 35% opacity via OOXML alphaModFix on the blip element
+        inline   = run_logo.add_picture(str(logo_path), height=Cm(0.9))
+        # <a:lum bright="+70%" contrast="-70%"> → pale/washed colours, still visible
+        # alphaModFix was removed: 35% opacity on a white-bg JPEG = invisible on page
         ns_a = "http://schemas.openxmlformats.org/drawingml/2006/main"
         blip = inline._inline.find(f".//{{{ns_a}}}blip")
         if blip is not None:
-            alpha_fix = OxmlElement("a:alphaModFix")
-            alpha_fix.set("amt", "35000")  # 35 000 per-mille = 35% opacity
-            blip.append(alpha_fix)
+            lum = OxmlElement("a:lum")
+            lum.set("bright", "70000")     # +70 000 per-mille = raise brightness
+            lum.set("contrast", "-70000")  # -70 000 per-mille = reduce contrast
+            blip.append(lum)
 
 
 def _add_footer(doc) -> None:
@@ -415,22 +417,21 @@ def _add_all_sections(doc, sections_by_key: dict[str, str]) -> None:
         title = entry["title"]
         level = entry["level"]
 
-        # Build the heading text with section number prefix
         sep = ". " if "." not in num else " "
         heading_text = f"{num}{sep}{title}"
 
-        doc.add_heading(heading_text, level=level)
-
         if key is None:
-            # Parent-only heading — no content
+            # Structural parent heading — always include
+            doc.add_heading(heading_text, level=level)
             continue
 
         content = sections_by_key.get(key, "").strip()
         if not content:
-            p = doc.add_paragraph()
-            p.add_run("[Content not yet generated]").italic = True
+            # Skip heading AND content for un-generated sections so the DOCX
+            # matches the preview exactly (both omit sections with no content)
             continue
 
+        doc.add_heading(heading_text, level=level)
         _render_brd_markdown(doc, content)
         doc.add_paragraph()  # spacer after each section
 
