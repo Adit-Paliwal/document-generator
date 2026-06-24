@@ -45,6 +45,16 @@ def export_job(job_id: str, output_format: Optional[str] = None) -> tuple[Path, 
     Returns:
         (file_path, mime_type) — local path to the exported file and its MIME type
     """
+    # Safety net: generate content for any section that was skipped or failed
+    # so the exported document never has a heading without content.
+    try:
+        from generation.generation_service import fill_missing_sections
+        filled = fill_missing_sections(job_id)
+        if filled:
+            logger.info("export_job: pre-export validation filled %d section(s)", filled)
+    except Exception as _fe:
+        logger.warning("export_job: fill_missing_sections failed (non-fatal): %s", _fe)
+
     from generation.db import GenerationJob, Section, get_session
 
     with get_session() as session:

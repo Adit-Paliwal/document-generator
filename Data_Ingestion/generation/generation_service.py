@@ -240,6 +240,14 @@ def _run_generation_job(job_id: str) -> None:
                 job.completed_sections += 1
                 session.commit()
 
+    # Validation pass — regenerate any sections that failed or never ran
+    try:
+        filled = fill_missing_sections(job_id)
+        if filled:
+            logger.info("[gen] Validation pass filled %d missing section(s) for job %s", filled, job_id)
+    except Exception as _fill_err:
+        logger.warning("[gen] Validation pass failed (non-fatal): %s", _fill_err)
+
     # Final job status — use SQL aggregates to avoid lazy-load DetachedInstanceError
     with get_session() as session:
         total_sections = session.scalar(
@@ -366,6 +374,135 @@ def _mark_job_failed(job_id: str, error: str) -> None:
             job.error        = error
             job.completed_at = datetime.utcnow()
             session.commit()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Validation + gap-fill: ensure every section has content before export
+# ─────────────────────────────────────────────────────────────────────────────
+
+def fill_missing_sections(job_id: str) -> int:
+    """
+    Validate that every section in the job has AI-generated content.
+    Any section that is pending, failed, or has no SectionVersion with content
+    is generated synchronously here.
+
+    Called:
+      1. At the end of _run_generation_job (retry pass after the main loop).
+      2. From doc_writer.export_job() as a last-resort safety net before the
+         document is assembled — guarantees no heading without content in output.
+
+    Returns the number of sections that were (re-)generated.
+    """
+    import hashlib as _hm
+
+    # Identify sections with no usable content
+    with get_session() as session:
+        job = session.get(GenerationJob, job_id)
+        if not job:
+            raise ValueError(f"Job {job_id} not found")
+
+        sections = (
+            session.query(Section)
+            .filter(Section.job_id == job_id)
+            .order_by(Section.order_index)
+            .all()
+        )
+        missing: list[tuple[str, str, str, int]] = []
+        previous_sections: list[dict] = []  # context for coherent generation
+        for sec in sections:
+            has_content = any((v.content or "").strip() for v in sec.versions)
+            if has_content:
+                best = max(sec.versions, key=lambda v: v.version_number)
+                if best.content:
+                    previous_sections.append({
+                        "title":   sec.section_title,
+                        "content": best.content,
+                    })
+            else:
+                missing.append((
+                    sec.section_id, sec.section_key,
+                    sec.section_title, sec.order_index,
+                ))
+
+    if not missing:
+        return 0
+
+    logger.info(
+        "[gen] fill_missing_sections: %d section(s) without content for job %s: %s",
+        len(missing), job_id, [m[1] for m in missing],
+    )
+
+    try:
+        llm_context, user_inputs, system_instructions = _load_job_context(job_id)
+    except Exception:
+        logger.exception("[gen] fill_missing_sections: could not load context — skipping")
+        return 0
+
+    document_type  = user_inputs.get("document_type", "")
+    template_id    = user_inputs.get("template_id")
+    section_configs = get_sections_for_job(document_type, template_id, None)
+    config_by_key   = {c["key"]: c for c in section_configs}
+
+    filled = 0
+    for section_id, section_key, section_title, order_index in missing:
+        cfg          = config_by_key.get(section_key, {})
+        instructions = cfg.get("instructions", f"Generate the {section_title} section.")
+        target_words = cfg.get("target_words", 300)
+
+        try:
+            content, prompt, model_id = generate_section(
+                section_key          = section_key,
+                section_title        = section_title,
+                section_instructions = instructions,
+                document_type        = document_type,
+                system_instructions  = system_instructions,
+                llm_context          = llm_context,
+                user_inputs          = user_inputs,
+                previous_sections    = previous_sections,
+                target_words         = target_words,
+            )
+
+            with get_session() as session:
+                sec     = session.get(Section, section_id)
+                max_ver = max((v.version_number for v in sec.versions), default=0)
+                new_ver = max_ver + 1
+                ver = SectionVersion(
+                    version_id        = str(uuid.uuid4()),
+                    section_id        = section_id,
+                    version_number    = new_ver,
+                    content           = content,
+                    word_count        = len(content.split()),
+                    generation_prompt = prompt,
+                    generation_model  = model_id,
+                    trigger_type      = "validation_fill",
+                )
+                session.add(ver)
+                was_incomplete = sec.status != "completed"
+                sec.status          = "completed"
+                sec.current_version = new_ver
+                sec.version_hash    = _hm.md5(f"{section_id}:{new_ver}".encode()).hexdigest()[:16]
+                sec.updated_at      = datetime.utcnow()
+                if was_incomplete:
+                    job = session.get(GenerationJob, job_id)
+                    if job:
+                        job.completed_sections = min(
+                            job.completed_sections + 1, job.total_sections or 1
+                        )
+                session.commit()
+
+            previous_sections.append({"title": section_title, "content": content})
+            filled += 1
+            logger.info(
+                "[gen] fill_missing_sections: filled '%s' (%d words)",
+                section_key, len(content.split()),
+            )
+
+        except Exception:
+            logger.exception(
+                "[gen] fill_missing_sections: could not fill '%s' — skipping", section_key
+            )
+
+    return filled
 
 
 # ─────────────────────────────────────────────────────────────────────────────
