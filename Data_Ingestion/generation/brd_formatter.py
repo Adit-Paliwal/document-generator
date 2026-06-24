@@ -46,17 +46,18 @@ BRD_STRUCTURE = [
     {"num": "4.5.2",  "key": "similar_digital_solutions",    "title": "Similar digital solutions",                                      "level": 3},
     {"num": "4.5.3",  "key": "positioning",                  "title": "Positioning",                                                    "level": 3},
     {"num": "4.6",    "key": "critical_success_factors",     "title": "Critical success factors",                                       "level": 2},
-    {"num": "5",      "key": None,                           "title": "Business process",                                               "level": 1},
+    {"num": "5",      "key": "business_process_overview",    "title": "Business process",                                               "level": 1},
     {"num": "5.1",    "key": "pain_areas_operational",       "title": "Pain areas or opportunities in existing operational process",    "level": 2},
     {"num": "5.2",    "key": "pain_areas_technology",        "title": "Pain areas or opportunities in existing technology/systems",     "level": 2},
     {"num": "5.3",    "key": "business_functionality_impact","title": "Business functionality impact",                                  "level": 2},
     {"num": "5.4",    "key": None,                           "title": "Business process impacted",                                      "level": 2},
     {"num": "5.4.1",  "key": "as_is_process",                "title": "As-Is Business Process",                                        "level": 3},
+    {"num": "5.4.2",  "key": "to_be_process",                "title": "To-Be Business Process (New/changes only)",                     "level": 3},
     {"num": "6",      "key": "business_use_cases",           "title": "Business use cases",                                            "level": 1},
-    {"num": "7",      "key": "business_requirements_list",   "title": "Business requirements",                                          "level": 1},
+    {"num": "7",      "key": "business_requirements_list",   "title": "Business requirements",                                         "level": 1},
     {"num": "8",      "key": "functional_requirements",      "title": "Functional requirements",                                        "level": 1},
     {"num": "9",      "key": "non_functional_requirements",  "title": "Non-functional requirements",                                    "level": 1},
-    {"num": "10",     "key": "solution_overview",            "title": "Solution overview-Cloud first approach",                         "level": 1},
+    {"num": "10",     "key": "solution_overview",            "title": "Solution overview-Cloud first approach",                        "level": 1},
     {"num": "11",     "key": "key_constraints",              "title": "Key constraints",                                                "level": 1},
     {"num": "12",     "key": "project_schedule",             "title": "Project schedule",                                               "level": 1},
     {"num": "13",     "key": "other_constraints_assumptions","title": "Other constraints and assumptions if any",                       "level": 1},
@@ -225,84 +226,155 @@ def _add_cover(doc, project_name: str, client_name: str, doc_version: str) -> No
     from docx.shared import Pt, RGBColor, Cm
     from docx.enum.text import WD_ALIGN_PARAGRAPH
 
-    today = datetime.utcnow().strftime("%d %B %Y")
+    today = datetime.utcnow().strftime("%d-%m-%Y")
 
-    # Main title
+    # ── Document ID derived from project name ─────────────────────────────────
+    year       = datetime.utcnow().strftime("%Y")
+    safe_id    = re.sub(r"[^\w]", "_", project_name)[:30]
+    document_id = f"{year}_AESL_{safe_id}_001"
+
+    # ── Adani logo ────────────────────────────────────────────────────────────
+    logo_path = Path(__file__).parent.parent / "static" / "adani_logo.jpg"
+    if logo_path.exists():
+        logo_p = doc.add_paragraph()
+        logo_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        logo_p.paragraph_format.space_before = Pt(24)
+        logo_p.paragraph_format.space_after  = Pt(8)
+        logo_p.add_run().add_picture(str(logo_path), width=Cm(5))
+
+    # ── Main title ────────────────────────────────────────────────────────────
     t = doc.add_paragraph()
     t.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    t.paragraph_format.space_before = Pt(72)
-    t.paragraph_format.space_after  = Pt(6)
-    run = t.add_run("BUSINESS REQUIREMENTS DOCUMENT")
+    t.paragraph_format.space_before = Pt(12)
+    t.paragraph_format.space_after  = Pt(4)
+    run = t.add_run("Detailed BRD for AESL")
     run.font.name  = "Calibri"
-    run.font.size  = Pt(24)
+    run.font.size  = Pt(20)
     run.font.bold  = True
     run.font.color.rgb = RGBColor(0x1F, 0x37, 0x63)
 
-    # Sub-title
+    # Sub-title (project name)
     sub = doc.add_paragraph()
     sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
     sub.paragraph_format.space_after = Pt(4)
     r2 = sub.add_run(project_name)
     r2.font.name  = "Calibri"
-    r2.font.size  = Pt(16)
+    r2.font.size  = Pt(14)
     r2.font.bold  = True
     r2.font.color.rgb = RGBColor(0x2E, 0x75, 0xB6)
 
     doc.add_paragraph()  # spacer
 
-    # Document control table
-    ctrl_data = [
-        ("Document Title",  "Business Requirements Document"),
-        ("Project",         project_name),
-        ("Client",          client_name),
-        ("Prepared By",     "Intellidraft AI"),
-        ("Date",            today),
-        ("Version",         doc_version),
-        ("Status",          "Draft"),
-    ]
-    ctrl_tbl = doc.add_table(rows=len(ctrl_data), cols=2)
+    # ── Document Control block (Document ID + Version) ────────────────────────
+    _add_cover_section_heading(doc, "Document Control")
+    ctrl_tbl = doc.add_table(rows=2, cols=2)
     ctrl_tbl.style = _safe_table_style(doc)
-    col_w = [Cm(5), Cm(11.5)]
-    for r_idx, (label, value) in enumerate(ctrl_data):
-        row = ctrl_tbl.rows[r_idx]
-        _set_cell_text(row.cells[0], label, bold=True, bg=_DARK_BLUE, fg=_WHITE)
-        _set_cell_text(row.cells[1], value)
-        for c_idx, w in enumerate(col_w):
-            row.cells[c_idx].width = w
+    _set_cell_text(ctrl_tbl.rows[0].cells[0], "Document ID:", bold=True, bg=_DARK_BLUE, fg=_WHITE)
+    _set_cell_text(ctrl_tbl.rows[0].cells[1], document_id)
+    _set_cell_text(ctrl_tbl.rows[1].cells[0], "Version:", bold=True, bg=_DARK_BLUE, fg=_WHITE)
+    _set_cell_text(ctrl_tbl.rows[1].cells[1], doc_version)
+    _set_col_widths(ctrl_tbl, [Cm(4.5), Cm(11.42)])
 
-    doc.add_paragraph()  # spacer
+    doc.add_paragraph()
 
-    # Revision history heading
-    rh = doc.add_paragraph()
-    rh.paragraph_format.space_before = Pt(14)
-    r3 = rh.add_run("Revision History")
-    r3.font.name  = "Calibri"
-    r3.font.size  = Pt(12)
-    r3.font.bold  = True
+    # ── Author table ─────────────────────────────────────────────────────────
+    _add_cover_section_heading(doc, "Document Author")
+    auth_tbl = doc.add_table(rows=2, cols=4)
+    auth_tbl.style = _safe_table_style(doc)
+    for c_idx, hdr in enumerate(["#", "Name of Author", "Role", "Signature"]):
+        _set_cell_text(auth_tbl.rows[0].cells[c_idx], hdr, bold=True, bg=_DARK_BLUE, fg=_WHITE)
+    for c_idx, val in enumerate(["1", "Intellidraft AI", "Document Author", ""]):
+        _set_cell_text(auth_tbl.rows[1].cells[c_idx], val)
+    _set_col_widths(auth_tbl, [Cm(1), Cm(5), Cm(5), Cm(4.92)])
 
-    rev_tbl = doc.add_table(rows=2, cols=4)
+    doc.add_paragraph()
+
+    # ── Reviewer / Approver table ─────────────────────────────────────────────
+    _add_cover_section_heading(doc, "Reviewer / Approver")
+    rev_tbl2 = doc.add_table(rows=2, cols=5)
+    rev_tbl2.style = _safe_table_style(doc)
+    for c_idx, hdr in enumerate(["#", "Reviewer / Approver", "Name", "Role", "Signature"]):
+        _set_cell_text(rev_tbl2.rows[0].cells[c_idx], hdr, bold=True, bg=_DARK_BLUE, fg=_WHITE)
+    for c_idx, val in enumerate(["1", "Reviewer", "[To be assigned]", "[To be assigned]", ""]):
+        _set_cell_text(rev_tbl2.rows[1].cells[c_idx], val)
+    _set_col_widths(rev_tbl2, [Cm(1), Cm(3), Cm(4), Cm(4), Cm(3.92)])
+
+    doc.add_paragraph()
+
+    # ── Revision History ──────────────────────────────────────────────────────
+    _add_cover_section_heading(doc, "Revision History")
+    rev_tbl = doc.add_table(rows=2, cols=3)
     rev_tbl.style = _safe_table_style(doc)
-    rev_headers = ["Revision", "Date of Change", "Revision Description", "Author"]
-    for c_idx, hdr in enumerate(rev_headers):
+    for c_idx, hdr in enumerate(["Revision", "Date of Change", "Revision Description"]):
         _set_cell_text(rev_tbl.rows[0].cells[c_idx], hdr, bold=True, bg=_DARK_BLUE, fg=_WHITE)
-    for c_idx, val in enumerate(["1.0", today, "Initial draft", "Intellidraft AI"]):
+    for c_idx, val in enumerate([doc_version, today, "Intellidraft AI, Initial Draft version"]):
         _set_cell_text(rev_tbl.rows[1].cells[c_idx], val)
+    _set_col_widths(rev_tbl, [Cm(2), Cm(3), Cm(10.92)])
 
-    doc.add_paragraph()  # spacer before confidentiality
+    doc.add_paragraph()
 
+    # ── Referenced Documents ──────────────────────────────────────────────────
+    _add_cover_section_heading(doc, "Referenced Documents")
+    ref_tbl = doc.add_table(rows=2, cols=3)
+    ref_tbl.style = _safe_table_style(doc)
+    for c_idx, hdr in enumerate(["Ref No.", "Document ID", "Document Title"]):
+        _set_cell_text(ref_tbl.rows[0].cells[c_idx], hdr, bold=True, bg=_DARK_BLUE, fg=_WHITE)
+    for c_idx, val in enumerate(["-", "-", "-"]):
+        _set_cell_text(ref_tbl.rows[1].cells[c_idx], val)
+    _set_col_widths(ref_tbl, [Cm(2), Cm(4), Cm(9.92)])
+
+    doc.add_paragraph()
+
+    # ── Confidentiality ───────────────────────────────────────────────────────
+    _add_cover_section_heading(doc, "Confidentiality")
     conf = doc.add_paragraph()
-    conf.paragraph_format.space_before = Pt(20)
     cr = conf.add_run(
-        "CONFIDENTIAL — This document contains proprietary information of Adani Energy Solutions. "
-        "Distribution is restricted to authorised personnel only."
+        "This document contains restricted information pertaining to Adani. "
+        "The access level for the document is specified above. "
+        "The addressee should honour this access rights by preventing intentional or "
+        "accidental access outside the access scope."
     )
-    cr.font.name   = "Calibri"
-    cr.font.size   = Pt(9)
-    cr.font.italic = True
-    cr.font.color.rgb = RGBColor(0x59, 0x59, 0x59)
+    cr.font.name  = "Calibri"
+    cr.font.size  = Pt(10)
+    cr.font.color.rgb = RGBColor(0x00, 0x00, 0x00)
+
+    doc.add_paragraph()
+
+    # ── Disclaimer ────────────────────────────────────────────────────────────
+    _add_cover_section_heading(doc, "Disclaimer")
+    disc = doc.add_paragraph()
+    dr = disc.add_run(
+        "This document is solely for the information of Adani and should not be used, "
+        "circulated, quoted or otherwise referred to for any other purpose, nor included or "
+        "referred to in whole or in part in any document without our prior written consent."
+    )
+    dr.font.name  = "Calibri"
+    dr.font.size  = Pt(10)
+    dr.font.color.rgb = RGBColor(0x00, 0x00, 0x00)
 
     # Page break to start content on a new page
     doc.add_page_break()
+
+
+def _add_cover_section_heading(doc, text: str) -> None:
+    """Small bold heading used inside the cover page sections."""
+    from docx.shared import Pt, RGBColor
+    p = doc.add_paragraph()
+    p.paragraph_format.space_before = Pt(10)
+    p.paragraph_format.space_after  = Pt(2)
+    r = p.add_run(text)
+    r.font.name  = "Calibri"
+    r.font.size  = Pt(11)
+    r.font.bold  = True
+    r.font.color.rgb = RGBColor(0x1F, 0x37, 0x63)
+
+
+def _set_col_widths(tbl, widths: list) -> None:
+    """Set column widths on every cell in a table (workaround for python-docx width precedence)."""
+    for row in tbl.rows:
+        for i, w in enumerate(widths):
+            if i < len(row.cells):
+                row.cells[i].width = w
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -487,7 +559,11 @@ def _set_cell_text(
     from docx.oxml import OxmlElement
 
     para = cell.paragraphs[0]
-    run  = para.add_run(text)
+    if para.runs:
+        run = para.runs[0]
+        run.text = text
+    else:
+        run = para.add_run(text)
     run.font.name = "Calibri"
     run.font.size = Pt(10)
     run.font.bold = bold
