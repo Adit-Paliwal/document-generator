@@ -2,9 +2,7 @@
 # IntelliDraft — Python Dependencies (frozen)
 # Tested on: Python 3.11.9+  (minimum required: Python 3.11)
 # Install:   pip install -r requirements.txt
-#
-# NOTE: azure-functions 2.x requires Python 3.13+.
-#       This file pins azure-functions==1.24.0 (latest 1.x) for Python 3.11/3.12.
+# Deploy:    Azure Databricks Apps — gunicorn run_server:app
 #
 # WINDOWS NOTE: enable Long Paths before installing (litellm needs it):
 #   Run as Administrator in PowerShell:
@@ -25,26 +23,24 @@ striprtf==0.0.26            # RTF parsing
 # ── Data / schema / config ───────────────────────────────────────────────────
 pydantic==2.12.5
 pydantic_core==2.41.5
-python-dotenv==1.0.1
+python-dotenv==1.2.2       # SECURITY: CVE-2026-28684 (symlink follow) fixed in 1.2.2
 SQLAlchemy==2.0.49
 greenlet==3.5.1             # SQLAlchemy async support
 
-# ── Azure ────────────────────────────────────────────────────────────────────
-azure-functions==1.24.0          # 2.x requires Python 3.13+; 1.x is identical API, supports Python 3.9+
-azure-storage-blob==12.29.0
-azure-cosmos==4.15.0
-azure-identity==1.25.3
-azure-keyvault-secrets==4.11.0
-azure-core==1.41.0
-msal==1.36.0
-msal-extensions==1.3.1
-cryptography==48.0.0
+# ── Azure Databricks ─────────────────────────────────────────────────────────
+databricks-sqlalchemy>=2.0.0     # SQLAlchemy v2 dialect for Databricks SQL Warehouse
+databricks-sql-connector>=3.0.0  # Databricks SQL connector (required by databricks-sqlalchemy)
+databricks-sdk>=0.72.0           # Unity Catalog Volumes file API (upload/download)
+pyarrow>=14.0.6                  # Required by databricks-sql-connector
+
+# ── Google Cloud ─────────────────────────────────────────────────────────────
+# google-cloud-storage==2.19.0   # REMOVED — replaced by Unity Catalog Volumes (DATABRICKS_MODE=true)
 
 # ── Google ADK + LLM ─────────────────────────────────────────────────────────
 google-adk==2.2.0
 google-cloud-aiplatform>=1.91.0  # Vertex AI SDK — required for Agent Engine deployment
-litellm==1.83.7             # Unified LLM interface (Azure GPT-5 / Gemini)
-openai==2.30.0              # Used by litellm for Azure OpenAI calls
+litellm==1.83.14            # Gemini via litellm. SECURITY: 1.83.14 fixes CVE-2026-49468 (critical auth bypass) + 47101/47102/40217
+openai==2.30.0              # Used by litellm internally
 google-genai==1.75.0        # Gemini SDK
 google-auth==2.53.0
 google-auth-httplib2==0.4.0
@@ -61,7 +57,7 @@ requests==2.34.2
 httpx==0.28.1
 httpcore==1.0.9
 httplib2==0.31.2
-aiohttp==3.13.5
+aiohttp==3.14.1            # SECURITY: 3.14.1 fixes CVE-2026-54273/54274/54276/54277/54278/54279/54280/47265/50269/34993
 aiohappyeyeballs==2.6.2
 aiosignal==1.4.0
 frozenlist==1.8.0
@@ -82,7 +78,7 @@ aiosqlite==0.22.1
 # ── Web framework (ADK web UI) ───────────────────────────────────────────────
 fastapi==0.136.1
 uvicorn==0.47.0
-starlette==0.52.1
+starlette==1.0.1           # SECURITY: 1.0.1 fixes CVE-2026-48710/48817/48818/48283/54282/54283 (needs fastapi>=0.121)
 Flask==3.1.3
 Werkzeug==3.1.8
 gunicorn==23.0.0            # production WSGI server (used by Docker)
@@ -96,8 +92,8 @@ markdown2==2.5.5            # Markdown → HTML
 xlsxwriter==3.2.9           # Excel export
 
 # ── Preview — LibreOffice async conversion ───────────────────────────────────
-celery==5.5.2               # Distributed task queue for LibreOffice conversions
-redis==5.2.1                # Redis client (Celery broker + result backend + HTML cache)
+# celery==5.5.2             # REMOVED — not needed when CELERY_ENABLED=false (Databricks deployment)
+# redis==5.2.1              # REMOVED — not needed when CELERY_ENABLED=false (Databricks deployment)
 
 # ── Utilities ────────────────────────────────────────────────────────────────
 python-dateutil==2.9.0.post0
@@ -142,11 +138,11 @@ rpds-py==0.30.0
 dirtyjson==1.0.8
 
 # ── Auth / security ──────────────────────────────────────────────────────────
-PyJWT==2.12.1
+PyJWT==2.13.0              # SECURITY: 2.13.0 fixes CVE-2026-48522/48523/48524/48525/48526
 oauthlib==3.3.1
 requests-oauthlib==2.0.0
 Authlib==1.7.2
-joserfc==1.6.5
+joserfc==1.6.8             # SECURITY: 1.6.8 fixes CVE-2026-49852 (empty HMAC key) + CVE-2026-48990
 pyOpenSSL==26.2.0
 pyasn1==0.6.3
 pyasn1_modules==0.4.2
@@ -163,4 +159,4 @@ isodate==0.7.2
 regex==2026.5.9
 beautifulsoup4==4.14.3
 soupsieve==2.8.3
-nltk==3.9.4
+nltk==3.9.4                # CVE-2026-54293: only fixed in 3.10.0rc1 (pre-release). Transitive dep (llama-index); app never calls nltk.data.load() on untrusted input — accepted until a stable 3.10 ships.

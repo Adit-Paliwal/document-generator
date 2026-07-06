@@ -510,7 +510,7 @@ input,textarea,select{font-family:inherit;font-size:14px}
       <button class="preview-btn" id="preview-toggle-btn" onclick="togglePreview()" title="View & edit the full document">
         &#128196; Preview
       </button>
-      <input id="api-url" class="api-url" value="http://localhost:7071/api"
+      <input id="api-url" class="api-url" value="/api"
              placeholder="API base URL" title="API base URL"/>
     </div>
   </div>
@@ -1093,8 +1093,16 @@ function handleAction(action, data) {
   }
 
   if (action === 'completed') {
-    // Auto-load preview when generation finishes (if panel already open)
-    if (previewIsOpen()) loadPreview();
+    // Auto-open and load preview when generation finishes
+    openPreview();
+  }
+
+  if (action === 'up_to_date') {
+    // Nothing to regenerate — just surface the latest preview
+    if (data.sections) { S.sections = data.sections; renderSectionNav(S.sections); }
+    S.phase = 'review';
+    showExportPanel(true);
+    openPreview();
   }
 
   if (action === 'status' && data.sections) {
@@ -1154,6 +1162,8 @@ async function pollStatus() {
       updateQuickPrompts();
       // Send a status message to the AI so it adds a "completed" bubble
       await notifyCompletion(done, total);
+      // Auto-open the preview panel as soon as all sections are done
+      openPreview();
     } else if (status === 'failed') {
       stopPolling();
       appendMessage('assistant',
@@ -1597,14 +1607,33 @@ function togglePreview() {
   const btn   = document.getElementById('preview-toggle-btn');
   const isOpen = panel.classList.toggle('open');
   btn.classList.toggle('active', isOpen);
+  if (!isOpen) _previewLoading = false;  // reset guard on close so next open retries
   if (isOpen && S.jobId) loadPreview();
 }
 
+function openPreview() {
+  const panel = document.getElementById('preview-panel');
+  const btn   = document.getElementById('preview-toggle-btn');
+  if (!panel.classList.contains('open')) {
+    panel.classList.add('open');
+    btn.classList.add('active');
+  }
+  if (S.jobId) loadPreview();
+}
+
+// Guard: only one DOCX→HTML conversion at a time.
+// Multiple auto-triggers (pollStatus + handleAction + manual click) all share this flag.
+let _previewLoading = false;
+
 async function loadPreview() {
+  if (_previewLoading) return;   // already converting — ignore duplicate triggers
+  _previewLoading = true;
+
   const body  = document.getElementById('preview-body');
   const jobId = S.jobId;   // capture — session may change during async ops
 
   if (!jobId) {
+    _previewLoading = false;
     body.innerHTML = '<div class="preview-empty">No document generated yet.<br/>Say <b>"generate"</b> in the chat to begin.</div>';
     return;
   }
@@ -1620,8 +1649,12 @@ async function loadPreview() {
       return;
     }
 
-    if (d.status === 'pending' && d.task_id) {
-      await _pollPreview(body, jobId, d.task_id);
+    if (d.status === 'pending') {
+      if (d.task_id) {
+        await _pollPreview(body, jobId, d.task_id);   // async (Celery) mode
+      } else {
+        await _pollPreviewSync(body, jobId);          // sync mode — no task_id
+      }
       return;
     }
 
@@ -1631,6 +1664,8 @@ async function loadPreview() {
     body.innerHTML =
       `<div class="preview-empty" style="color:var(--red)">&#9888; ${esc(e.message)}`+
       `<br/><small>Ensure the document has been generated and the API is running.</small></div>`;
+  } finally {
+    _previewLoading = false;
   }
 }
 
@@ -1649,6 +1684,31 @@ async function _pollPreview(body, jobId, taskId) {
       );
       const d = await r.json();
 
+      if (d.status === 'ready') { _renderHtmlInIframe(body, d.html); return; }
+      if (d.status === 'error') throw new Error(d.error || 'Conversion failed');
+      // status === 'pending' → keep polling
+    } catch (e) {
+      body.innerHTML =
+        `<div class="preview-empty" style="color:var(--red)">&#9888; ${esc(e.message)}</div>`;
+      return;
+    }
+  }
+  body.innerHTML =
+    '<div class="preview-empty" style="color:var(--red)">&#9888; Preview timed out.<br/>' +
+    '<small>Click Refresh to try again.</small></div>';
+}
+
+// Sync mode (no Celery / no task_id): the preview is rendered in-process. The first
+// call may return status:'pending' while the conversion runs, so re-poll the
+// /preview/html endpoint until it caches the ready result.
+async function _pollPreviewSync(body, jobId) {
+  for (let i = 1; i <= 40; i++) {
+    await new Promise(res => setTimeout(res, 1500));
+    if (!previewIsOpen() || S.jobId !== jobId) return;
+    _setPreviewLoading(body, `Preparing document… (${Math.round(i * 1.5)}s)`);
+    try {
+      const r = await fetch(`${api()}/generate/${jobId}/preview/html`);
+      const d = await r.json();
       if (d.status === 'ready') { _renderHtmlInIframe(body, d.html); return; }
       if (d.status === 'error') throw new Error(d.error || 'Conversion failed');
       // status === 'pending' → keep polling

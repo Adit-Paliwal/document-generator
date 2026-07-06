@@ -58,7 +58,7 @@ class ImageElement(BaseModel):
     source_location: SourceLocation
     caption:       Optional[str]   = None
     # Storage references — at least one will be populated after persist
-    blob_url:      Optional[str]   = None  # Azure Blob URL (production)
+    blob_url:      Optional[str]   = None  # GCS URL (production, gs://...)
     local_path:    Optional[str]   = None  # Local filesystem path (dev/staging)
     base64_data:   Optional[str]   = None  # Inline base64 (cleared after save)
     width:         Optional[int]   = None
@@ -90,7 +90,7 @@ class TableElement(BaseModel):
     col_count:     int             = 0
     markdown:      str             = ""   # Rendered as Markdown table
     csv_data:      str             = ""   # Comma-separated (for download / LLM)
-    blob_url:      Optional[str]   = None  # Azure Blob URL of .csv file
+    blob_url:      Optional[str]   = None  # GCS URL of .csv file (gs://...)
 
     @classmethod
     def build(cls, idx: int, loc: SourceLocation,
@@ -162,7 +162,7 @@ class DocumentSummary(BaseModel):
 class ParsedDocument(BaseModel):
     """
     The complete meta source for a parsed document.
-    Saved as a JSON file to Azure Blob and indexed in Cosmos DB.
+    Saved as a JSON file to GCS and indexed as cosmos/{document_id}.json.
 
     Reference guide for LLM prompts:
       - To cite a text block:  {ref: text#txt_0001}
@@ -176,7 +176,7 @@ class ParsedDocument(BaseModel):
     parsed_at:        Optional[datetime] = None
     status:           str           = "ready"  # parsing | ready | error
 
-    # Storage path — set after upload to Azure Blob
+    # Storage path — set after upload to GCS
     blob_base_path:   Optional[str] = None   # e.g. "documents/{document_id}/"
 
     # Extracted elements

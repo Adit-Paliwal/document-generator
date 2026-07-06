@@ -199,7 +199,7 @@ def _load_document_context(document_ids: list[str]) -> str:
         return ""
 
     try:
-        from storage.azure_storage import get_storage_service
+        from storage.gcs_storage import get_storage_service
         from models.meta_schema    import ParsedDocument
 
         store    = get_storage_service()
@@ -257,13 +257,12 @@ def _empty_derived() -> dict:
 
 def _call_llm(user_prompt: str) -> dict:
     """
-    Call the LLM via llm_provider (Gemini primary → Azure GPT-5 fallback).
+    Call the LLM via llm_provider (Gemini via Vertex AI).
     Derives all 12 DerivedData fields and returns them as a validated dict.
 
     Raises:
-        RuntimeError: if all providers fail.
+        RuntimeError: if Gemini fails.
     """
-    # Merge system + user into one message — required for GPT-5 reasoning model.
     combined = f"{_SYSTEM}\n\n---\n\n{user_prompt}"
 
     logger.info("[DeriveFields] Sending derivation prompt to LLM (prompt_len=%d chars)", len(combined))
@@ -278,14 +277,10 @@ def _call_llm(user_prompt: str) -> dict:
 
     try:
         raw, provider = call_with_fallback(
-            messages = [{"role": "user", "content": combined}],
-            # Gemini: max_tokens maps to max_output_tokens (up to 8192 on Flash).
-            # GPT-5 reasoning: max_completion_tokens includes hidden reasoning tokens;
-            #   12 fields × ~300 words × 6 tokens/word ≈ 21 600 tokens minimum.
-            max_tokens            = 16_000,
-            max_completion_tokens = 32_000,
-            timeout               = 180,
-            log_prefix            = "[DeriveFields]",
+            messages   = [{"role": "user", "content": combined}],
+            max_tokens = 16_000,
+            timeout    = 180,
+            log_prefix = "[DeriveFields]",
         )
     except RuntimeError:
         raise   # propagate to Flask route → HTTP 502

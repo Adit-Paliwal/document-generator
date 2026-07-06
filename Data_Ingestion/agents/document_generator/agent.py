@@ -24,7 +24,7 @@ Chatbot example:
   User: "Export as Word"
   Agent: calls export_document → returns file path
 
-Model: Gemini 2.5 Flash (primary) → Azure GPT-5 (fallback).
+Model: Gemini 2.5 Flash (Google Vertex AI / Gemini API).
        Controlled by agents/_model.py + Data_Ingestion/.env.
 """
 

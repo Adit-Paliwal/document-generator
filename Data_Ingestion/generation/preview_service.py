@@ -42,6 +42,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import threading
 import uuid
 from pathlib import Path
 
@@ -52,10 +53,39 @@ REDIS_URL      = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
 CACHE_TTL      = int(os.environ.get("PREVIEW_CACHE_TTL", "3600"))   # seconds
 LO_TIMEOUT     = int(os.environ.get("LO_CONVERT_TIMEOUT", "90"))    # seconds
 
+# ── In-process deduplication state ───────────────────────────────────────────
+# Prevents multiple simultaneous conversions for the same job regardless of
+# how many API calls arrive concurrently (polling, React auto-trigger, etc.).
+#
+# _preview_cache : job_id → HTML string  (sync-mode only; Celery uses Redis)
+# _inflight      : job_id → Celery task_id (str) or "sync" (bool sentinel)
+# _inflight_lock : guards both dicts
+_preview_cache:  dict[str, str]  = {}
+_inflight:       dict[str, str]  = {}   # value = task_id or "sync"
+_inflight_lock = threading.Lock()
+
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Public API — called from Flask/Azure Function routes
+# Public API — called from Flask routes
 # ─────────────────────────────────────────────────────────────────────────────
+
+def pregenerate_preview(job_id: str) -> None:
+    """
+    Called by the generation service when a job finishes.
+    Kicks off the DOCX→HTML conversion in a daemon thread so the result
+    is cached before the React client ever calls the preview endpoint.
+    Safe to call multiple times — the in-flight guard prevents duplicate runs.
+    """
+    def _warmup() -> None:
+        try:
+            result = get_or_submit_preview(job_id)
+            logger.info("[preview] Pre-warmup job %s → status=%s", job_id, result.get("status"))
+        except Exception as exc:
+            logger.warning("[preview] Pre-warmup failed (non-fatal) for job %s: %s", job_id, exc)
+
+    t = threading.Thread(target=_warmup, daemon=True, name=f"preview-warmup-{job_id[:8]}")
+    t.start()
+
 
 def get_or_submit_preview(job_id: str) -> dict:
     """
@@ -73,10 +103,23 @@ def get_or_submit_preview(job_id: str) -> dict:
         html = _inject_section_handlers(cached_html, job_id)
         return {"status": "ready", "html": html, "cached": True}
 
-    # Submit async Celery task
+    # Deduplication: if a Celery task is already in flight, return it — don't submit another
+    with _inflight_lock:
+        existing_task_id = _inflight.get(job_id)
+    if existing_task_id:
+        return {
+            "status":   "pending",
+            "task_id":  existing_task_id,
+            "poll_url": f"/api/generate/{job_id}/preview/status?task_id={existing_task_id}",
+        }
+
+    # Submit a new Celery task and record its id for deduplication
     try:
         from generation.preview_tasks import convert_docx_task
         task = convert_docx_task.apply_async(args=[job_id], queue="preview")
+        with _inflight_lock:
+            _inflight[job_id] = task.id
+        logger.info("[preview] Submitted Celery task %s for job %s", task.id, job_id)
         return {
             "status":   "pending",
             "task_id":  task.id,
@@ -92,10 +135,13 @@ def poll_preview_status(job_id: str, task_id: str) -> dict:
     Check Celery task state.  Returns same shape as get_or_submit_preview.
     The cache is checked first — if another caller already completed the
     conversion its result is served immediately.
+    Clears the in-flight entry when the task reaches a terminal state.
     """
     # Check Redis first (avoids Celery round-trip if result already cached)
     cached_html = _cache_get(job_id)
     if cached_html:
+        with _inflight_lock:
+            _inflight.pop(job_id, None)
         return {"status": "ready", "html": cached_html, "cached": True}
 
     try:
@@ -104,9 +150,13 @@ def poll_preview_status(job_id: str, task_id: str) -> dict:
         result = AsyncResult(task_id, app=celery_app)
 
         if result.state == "SUCCESS":
+            with _inflight_lock:
+                _inflight.pop(job_id, None)
             html = _inject_section_handlers(result.result, job_id)
             return {"status": "ready", "html": html, "cached": False}
         elif result.state == "FAILURE":
+            with _inflight_lock:
+                _inflight.pop(job_id, None)
             err = str(result.result) if result.result else "Unknown conversion error"
             return {"status": "error", "error": err}
         else:
@@ -120,10 +170,14 @@ def poll_preview_status(job_id: str, task_id: str) -> dict:
 
 def invalidate_preview_cache(job_id: str) -> None:
     """
-    Delete all cached previews for this job from Redis.
+    Delete all cached previews for this job (Redis + in-memory).
     Call this after any section is patched (manual edit) or regenerated.
-    Safe to call even when CELERY_ENABLED=false (no-op).
     """
+    # Always clear in-memory state so the next request re-converts
+    with _inflight_lock:
+        _preview_cache.pop(job_id, None)
+        _inflight.pop(job_id, None)
+
     if not CELERY_ENABLED:
         return
     try:
@@ -217,16 +271,104 @@ def convert_job_to_html(job_id: str) -> str:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _sync_preview(job_id: str) -> dict:
-    """Local-dev fallback: convert synchronously inside the Flask request."""
+    """
+    Local-dev fallback: try LibreOffice; fall back to markdown2 HTML if LO is absent.
+
+    Deduplication (sync mode):
+      - If HTML is already cached in _preview_cache → return immediately (no conversion).
+      - If a conversion is already running (flag == "sync") → return pending so the
+        caller retries; they will hit the cache once the running conversion finishes.
+      - Otherwise → set the flag, run the conversion, cache the result, clear the flag.
+    """
+    # ── Cache hit ─────────────────────────────────────────────────────────────
+    with _inflight_lock:
+        cached = _preview_cache.get(job_id)
+        if cached:
+            return {"status": "ready", "html": cached, "cached": True}
+
+        # ── Another thread is already converting → tell caller to retry ──────
+        # Return an explicit poll_url + retry hint so ANY client (React, etc.)
+        # knows to re-GET the same /preview/html endpoint until status=="ready".
+        # (Sync mode has no Celery task_id — the poll target is the html endpoint.)
+        if _inflight.get(job_id) == "sync":
+            return {
+                "status":         "pending",
+                "cached":         False,
+                "poll_url":       f"/api/generate/{job_id}/preview/html",
+                "retry_after_ms": 1500,
+            }
+
+        # ── Claim the conversion slot ─────────────────────────────────────────
+        _inflight[job_id] = "sync"
+
     try:
         html = convert_job_to_html(job_id)
         html = _inject_section_handlers(html, job_id)
+        with _inflight_lock:
+            _preview_cache[job_id] = html
         return {"status": "ready", "html": html, "cached": False}
-    except EnvironmentError as e:
-        # LibreOffice not installed — surface a clear message
-        return {"status": "error", "error": str(e)}
+    except EnvironmentError:
+        # LibreOffice not installed — render via markdown2 instead
+        result = _markdown2_preview(job_id)
+        if result.get("status") == "ready":
+            with _inflight_lock:
+                _preview_cache[job_id] = result["html"]
+        return result
     except Exception as e:
         logger.exception("[preview] Sync conversion failed for job %s", job_id)
+        try:
+            result = _markdown2_preview(job_id)
+            if result.get("status") == "ready":
+                with _inflight_lock:
+                    _preview_cache[job_id] = result["html"]
+            return result
+        except Exception:
+            return {"status": "error", "error": str(e)}
+    finally:
+        with _inflight_lock:
+            if _inflight.get(job_id) == "sync":
+                _inflight.pop(job_id, None)
+
+
+def _markdown2_preview(job_id: str) -> dict:
+    """
+    Convert the assembled document markdown to HTML using markdown2.
+    No LibreOffice or Celery required — works everywhere.
+    Activated automatically when LibreOffice is not installed.
+    """
+    try:
+        import markdown2
+        from generation.doc_writer import assemble_preview
+        preview = assemble_preview(job_id)
+        md      = preview.get("markdown", "")
+        body    = markdown2.markdown(
+            md,
+            extras=["tables", "fenced-code-blocks", "break-on-newline", "strike"],
+        )
+        html = (
+            "<!DOCTYPE html><html><head><meta charset='utf-8'>"
+            "<style>"
+            "body{font-family:Arial,sans-serif;max-width:900px;margin:40px auto;"
+            "padding:0 24px;line-height:1.65;color:#1a1a2e;}"
+            "h1{font-size:22px;border-bottom:2px solid #5c6bc0;padding-bottom:8px;margin-bottom:18px;}"
+            "h2{font-size:18px;color:#3f51b5;margin-top:32px;margin-bottom:10px;}"
+            "h3{font-size:15px;color:#283593;margin-top:22px;}"
+            "p{margin:8px 0;}"
+            "table{border-collapse:collapse;width:100%;margin:14px 0;}"
+            "th,td{border:1px solid #c5cae9;padding:8px 12px;text-align:left;}"
+            "th{background:#e8eaf6;font-weight:600;}"
+            "code{background:#f5f5f5;padding:2px 5px;border-radius:3px;font-size:12.5px;}"
+            "hr{border:none;border-top:1px solid #e0e0e0;margin:20px 0;}"
+            "blockquote{border-left:3px solid #5c6bc0;margin:0;padding:4px 16px;color:#555;}"
+            "ul,ol{padding-left:22px;}li{margin:3px 0;}"
+            "</style></head><body>"
+            + body
+            + "</body></html>"
+        )
+        html = _inject_section_handlers(html, job_id)
+        return {"status": "ready", "html": html, "cached": False, "renderer": "markdown2"}
+    except Exception as e:
+        logger.exception("[preview] markdown2 fallback failed for job %s", job_id)
         return {"status": "error", "error": str(e)}
 
 
@@ -336,7 +478,7 @@ def _version_hash(job_id: str) -> str:
                     f"{sec.section_id}:{sec.current_version}"
                     for sec in job.sections
                 )
-            return hashlib.md5("|".join(ids).encode()).hexdigest()[:16]
+            return hashlib.md5("|".join(ids).encode(), usedforsecurity=False).hexdigest()[:16]
     except Exception:
         return uuid.uuid4().hex[:16]
 

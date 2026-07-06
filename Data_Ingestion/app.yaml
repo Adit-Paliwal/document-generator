@@ -1,0 +1,70 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# IntelliDraft — Databricks Apps configuration (Azure Databricks)
+# Docs: https://learn.microsoft.com/en-us/azure/databricks/dev-tools/databricks-apps/app-runtime
+#
+# Deploy:  databricks apps deploy intellidraft-api \
+#            --source-code-path /Workspace/Users/<email>/intellidraft-api
+#
+# SENSITIVE env vars (DATABASE_URL, DATABRICKS_TOKEN, VERTEX_AI_PROJECT, etc.)
+# must be added via the Databricks Apps UI after first deploy, or via secrets
+# scope — never hardcode them here as this file is committed to source control.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+command:
+  - gunicorn
+  - run_server:app
+  - --workers
+  - "4"
+  - --bind
+  - "0.0.0.0:${DATABRICKS_APP_PORT}"
+  - --timeout
+  - "120"
+  - --worker-class
+  - sync
+
+env:
+  # ── Mode flags ─────────────────────────────────────────────────────────────
+  - name: LOCAL_DB
+    value: "false"
+
+  - name: LOCAL_MODE
+    value: "false"
+
+  - name: DATABRICKS_MODE
+    value: "true"
+
+  - name: CELERY_ENABLED
+    value: "false"
+
+  # ── Unity Catalog (non-sensitive) ───────────────────────────────────────────
+  - name: DATABRICKS_CATALOG
+    value: "adani_ael_ailabs_catalog_dev"
+
+  - name: DATABRICKS_SCHEMA
+    value: "document-generator"
+
+  - name: DATABRICKS_VOLUME_PATH
+    value: "/Volumes/adani_ael_ailabs_catalog_dev/document-generator/intellidraft-volume"
+
+  # ── Env vars to set via Databricks Apps UI after first deploy ───────────────
+  # AUTH: No PAT needed. Databricks Apps inject the service-principal OAuth
+  # creds (DATABRICKS_CLIENT_ID / DATABRICKS_CLIENT_SECRET) automatically, and
+  # db.py uses them when DATABASE_URL is unset. Do NOT set DATABASE_URL or
+  # DATABRICKS_TOKEN — leaving them blank triggers OAuth M2M.
+  #
+  # Required (set in UI):
+  #   DATABRICKS_SERVER_HOSTNAME  → <workspace>.azuredatabricks.net   (no https://)
+  #   DATABRICKS_HTTP_PATH  → /sql/1.0/warehouses/<warehouse-id>
+  #   VERTEX_AI_PROJECT     → your-gcp-project-id
+  #   VERTEX_AI_LOCATION    → us-central1
+  #   GOOGLE_APPLICATION_CREDENTIALS_JSON → contents of GCP service account JSON
+  #   SECRET_KEY            → any long random string (Flask session secret)
+  #
+  # Prerequisite grants (run once, in SQL Editor or Catalog UI) — give the App's
+  # service principal access to the warehouse, catalog/schema, and volume:
+  #   GRANT USE CATALOG ON CATALOG adani_ael_ailabs_catalog_dev TO `<app-sp>`;
+  #   GRANT USE SCHEMA, CREATE TABLE, MODIFY, SELECT
+  #     ON SCHEMA adani_ael_ailabs_catalog_dev.`document-generator` TO `<app-sp>`;
+  #   GRANT READ VOLUME, WRITE VOLUME
+  #     ON VOLUME adani_ael_ailabs_catalog_dev.`document-generator`.`intellidraft-volume` TO `<app-sp>`;
+  #   (plus "Can use" on the SQL Warehouse, via Warehouse → Permissions)

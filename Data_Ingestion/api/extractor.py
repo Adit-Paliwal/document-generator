@@ -173,7 +173,7 @@ def extract_project_data(document_ids: list[str]) -> dict:
         RuntimeError: if the LLM call fails. Caller should return HTTP 502.
         FileNotFoundError: if a document_id is not found. Caller should return HTTP 404.
     """
-    from storage.azure_storage import get_storage_service
+    from storage.gcs_storage import get_storage_service
     from models.meta_schema    import ParsedDocument
 
     store    = get_storage_service()
@@ -264,23 +264,21 @@ def _build_response(extracted: dict) -> dict:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# LLM call — delegates to llm_provider (Gemini primary → Azure GPT-5 fallback)
+# LLM call — delegates to llm_provider (Gemini via Vertex AI)
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _call_llm(content: str) -> dict:
     """
     Build the extraction prompt and call the LLM via llm_provider.
-    Provider order: Gemini Vertex AI → Azure GPT-5 (automatic fallback with logging).
+    Provider: Gemini Vertex AI (GCP).
 
     Raises:
-        RuntimeError: if all providers fail — caller converts to HTTP 502.
+        RuntimeError: if Gemini fails — caller converts to HTTP 502.
     """
     # Use plain .replace() so document content with { } braces
     # doesn't break Python string formatting.
     prompt = _USER_TMPL.replace("<<DOCUMENT_CONTENT>>", content)
 
-    # Merge system + user into one message — required for GPT-5 reasoning model
-    # which silently ignores a separate system message in some litellm versions.
     combined_prompt = f"{_SYSTEM}\n\n---\n\n{prompt}"
 
     logger.info("[Extractor] Sending prompt to LLM (content_len=%d chars)", len(content))
@@ -288,11 +286,10 @@ def _call_llm(content: str) -> dict:
     from llm_provider import call_with_fallback
     try:
         raw, provider = call_with_fallback(
-            messages              = [{"role": "user", "content": combined_prompt}],
-            max_tokens            = 8_000,   # Gemini
-            max_completion_tokens = 8_000,   # Azure GPT-5 (reasoning model)
-            timeout               = 120,
-            log_prefix            = "[Extractor]",
+            messages   = [{"role": "user", "content": combined_prompt}],
+            max_tokens = 8_000,
+            timeout    = 120,
+            log_prefix = "[Extractor]",
         )
     except RuntimeError:
         raise   # propagate clean error to the Flask route → HTTP 502

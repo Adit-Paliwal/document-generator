@@ -10,7 +10,7 @@ Supported output formats:
 
 Output files are saved to:
   local_storage/outputs/{job_id}/{filename}      (LOCAL_DB=true)
-  Azure Blob: outputs/{job_id}/{filename}        (LOCAL_DB=false)
+  GCS: gs://{bucket}/outputs/{job_id}/{filename} (LOCAL_DB=false)
 
 The export_job() function is the main entry point — it pulls the latest accepted
 (or current) version of each section and assembles the document.
@@ -87,12 +87,7 @@ def export_job(job_id: str, output_format: Optional[str] = None) -> tuple[Path, 
         filename  = f"{safe_name}_{timestamp}.docx"
         out_path  = out_dir / filename
         mime_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        if _is_brd(doc_type):
-            from generation.brd_formatter import format_brd_docx
-            sections_by_key = {s["key"]: s["content"] for s in sections_content if s.get("key")}
-            format_brd_docx(sections_by_key, project_name, out_path)
-        else:
-            _write_docx(out_path, doc_type, project_name, sections_content)
+        _write_styled_docx(out_path, doc_type, project_name, sections_content)
 
     elif "pdf" in fmt.lower():
         pdf_path  = out_dir / f"{safe_name}_{timestamp}.pdf"
@@ -109,12 +104,7 @@ def export_job(job_id: str, output_format: Optional[str] = None) -> tuple[Path, 
             filename  = f"{safe_name}_{timestamp}.docx"
             out_path  = out_dir / filename
             mime_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            if _is_brd(doc_type):
-                from generation.brd_formatter import format_brd_docx
-                sections_by_key = {s["key"]: s["content"] for s in sections_content if s.get("key")}
-                format_brd_docx(sections_by_key, project_name, out_path)
-            else:
-                _write_docx(out_path, doc_type, project_name, sections_content)
+            _write_styled_docx(out_path, doc_type, project_name, sections_content)
         filename = out_path.name
 
     else:   # Markdown (default)
@@ -154,6 +144,27 @@ def _write_markdown(
         lines.append("")
 
     out_path.write_text("\n".join(lines), encoding="utf-8")
+
+
+def _write_styled_docx(
+    out_path: Path,
+    doc_type: str,
+    project_name: str,
+    sections: list[dict],
+) -> None:
+    """
+    Route to the Adani-styled Word formatter. BRD uses its fixed numbered
+    structure; every other document type uses the generic structured formatter.
+    Both apply the same cover, header+logo, footer, styled headings, and
+    dark-blue table headers — so all document types look consistent.
+    """
+    if _is_brd(doc_type):
+        from generation.brd_formatter import format_brd_docx
+        sections_by_key = {s["key"]: s["content"] for s in sections if s.get("key")}
+        format_brd_docx(sections_by_key, project_name, out_path)
+    else:
+        from generation.brd_formatter import format_structured_docx
+        format_structured_docx(doc_type, project_name, sections, out_path)
 
 
 def _write_docx(
@@ -200,12 +211,18 @@ def _write_pdf(
 ) -> Path:
     """
     Convert content to PDF.  Conversion chain (first available wins):
-      1. docx2pdf  — builds a .docx then converts via Microsoft Word COM (Windows + Office)
-      2. weasyprint — HTML → PDF (pip install weasyprint)
-      3. xhtml2pdf  — HTML → PDF, pure Python (pip install xhtml2pdf)
+      1. docx2pdf    — styled .docx via Microsoft Word COM (Windows + Office)
+      2. LibreOffice — styled .docx converted via soffice (cross-platform / Linux)
+      3. weasyprint  — HTML → PDF (pip install weasyprint)
+      4. xhtml2pdf   — HTML → PDF, pure Python (pip install xhtml2pdf)
 
-    If none of the above are installed this function raises _NoPdfConverter so
-    the caller can fall back to serving the DOCX instead.
+    Methods 1 & 2 build the SAME Adani-styled DOCX (cover, header/logo, footer,
+    styled headings, dark-blue table headers) and convert it, so the PDF matches
+    the DOCX exactly. Methods 3 & 4 are last-resort HTML fallbacks (styled tables
+    via CSS, but no cover/logo).
+
+    If none are available this raises _NoPdfConverter so the caller can fall back
+    to serving the DOCX instead.
 
     Returns the actual output path (always `out_path` on success).
     """
@@ -213,7 +230,7 @@ def _write_pdf(
     try:
         from docx2pdf import convert as _docx2pdf
         docx_tmp = out_path.with_suffix(".docx")
-        _write_docx(docx_tmp, doc_type, project_name, sections)
+        _write_styled_docx(docx_tmp, doc_type, project_name, sections)
         _docx2pdf(str(docx_tmp), str(out_path))
         try:
             docx_tmp.unlink()
@@ -225,6 +242,50 @@ def _write_pdf(
         pass   # docx2pdf not installed
     except Exception as e:
         logger.warning("docx2pdf failed: %s — trying next converter", e)
+
+    # ── Method 2: LibreOffice headless (styled DOCX → PDF, cross-platform) ────
+    # Preferred on Linux / Databricks where docx2pdf (Word COM) is unavailable.
+    # Produces a full-fidelity styled PDF identical to the DOCX.
+    try:
+        import subprocess, uuid as _uuid, shutil
+        from generation.preview_service import _find_soffice
+
+        soffice   = _find_soffice()   # raises RuntimeError if LibreOffice is absent
+        outdir    = out_path.parent
+        docx_tmp  = out_path.with_suffix(".docx")
+        _write_styled_docx(docx_tmp, doc_type, project_name, sections)
+
+        lo_profile = outdir / f"lo_profile_{_uuid.uuid4().hex}"
+        lo_profile.mkdir(parents=True, exist_ok=True)
+        cmd = [
+            soffice,
+            f"-env:UserInstallation=file:///{lo_profile.as_posix()}",
+            "--headless", "--norestore",
+            "--convert-to", "pdf",
+            "--outdir", str(outdir),
+            str(docx_tmp),
+        ]
+        result   = subprocess.run(cmd, timeout=120, capture_output=True, text=True)
+        produced = docx_tmp.with_suffix(".pdf")   # LibreOffice names it <stem>.pdf in outdir
+
+        if produced.exists():
+            if produced.resolve() != out_path.resolve():
+                shutil.move(str(produced), str(out_path))
+            for p in (docx_tmp, lo_profile):
+                try:
+                    shutil.rmtree(p) if p.is_dir() else p.unlink()
+                except OSError:
+                    pass
+            logger.info("PDF written via LibreOffice → %s", out_path)
+            return out_path
+        raise RuntimeError(
+            f"LibreOffice produced no PDF (rc={result.returncode}). "
+            f"stderr: {result.stderr[:300]}"
+        )
+    except RuntimeError as e:
+        logger.warning("LibreOffice PDF path unavailable: %s — trying next converter", e)
+    except Exception as e:
+        logger.warning("LibreOffice PDF conversion failed: %s — trying next converter", e)
 
     # ── Build HTML body (shared by weasyprint / xhtml2pdf) ───────────────────
     def _build_html() -> str:
@@ -590,7 +651,7 @@ def assemble_preview(job_id: str) -> dict:
           sections: [{order, title, content, status, word_count}],
           markdown: "<full assembled markdown string>",
           export_urls: {docx, pdf, markdown},   # relative paths for the API
-          blob_url: str | None,                 # Azure Blob URL if in cloud mode + already exported
+          blob_url: str | None,                 # GCS URL (gs://...) if in cloud mode + already exported
         }
     """
     from generation.db import GenerationJob, Section, get_session
@@ -641,7 +702,7 @@ def assemble_preview(job_id: str) -> dict:
     markdown = "\n".join(lines)
 
     # Blob URL: if a cloud-exported file already exists in local_storage (for local),
-    # or the Azure Blob URL was stored (cloud mode). We check for the most recent
+    # or the GCS URL was stored (cloud mode). We check for the most recent
     # exported file in the output dir and derive the URL.
     blob_url = _get_existing_blob_url(job_id)
 
@@ -701,62 +762,54 @@ def export_job_to_temp(job_id: str, out_dir: Path) -> Path:
     safe_name = re.sub(r"[^\w\s-]", "", project_name)[:40].strip().replace(" ", "_") or "document"
     out_path  = out_dir / f"{safe_name}_preview.docx"
 
-    if _is_brd(doc_type):
-        from generation.brd_formatter import format_brd_docx
-        sections_by_key = {s["key"]: s["content"] for s in sections_content if s.get("key")}
-        format_brd_docx(sections_by_key, project_name, out_path)
-    else:
-        _write_docx(out_path, doc_type, project_name, sections_content)
+    _write_styled_docx(out_path, doc_type, project_name, sections_content)
 
     return out_path
 
 
 def upload_output_to_blob(job_id: str, file_path: Path, mime_type: str) -> Optional[str]:
     """
-    Upload an exported output file to Azure Blob Storage.
-    Returns the blob URL, or None if running in local mode or upload fails.
-    Only called when LOCAL_MODE=false (Azure storage mode).
+    Upload an exported output file to GCS.
+    Returns the GCS URL (gs://...), or None if running in local mode or upload fails.
+    Only called when LOCAL_MODE=false (GCS storage mode).
     """
     if LOCAL_DB:
         return None
     try:
-        from storage.azure_storage import get_storage_service, AzureStorageService
+        from storage.gcs_storage import get_storage_service, GCSStorageService
         store = get_storage_service()
-        if not isinstance(store, AzureStorageService):
+        if not isinstance(store, GCSStorageService):
             return None
         blob_path = f"outputs/{job_id}/{file_path.name}"
         blob_url = store._upload_blob(blob_path, file_path.read_bytes(), mime_type)
-        logger.info("[preview] Uploaded output to blob: %s", blob_url)
+        logger.info("[preview] Uploaded output to GCS: %s", blob_url)
         return blob_url
     except Exception as e:
-        logger.warning("[preview] Blob upload failed (non-fatal): %s", e)
+        logger.warning("[preview] GCS upload failed (non-fatal): %s", e)
         return None
 
 
 def _get_existing_blob_url(job_id: str) -> Optional[str]:
     """
-    In cloud mode: list blobs in outputs/{job_id}/ and return the DOCX URL if found.
+    In cloud mode: list GCS objects in outputs/{job_id}/ and return the DOCX URL if found.
     In local mode: return None (frontend uses the export endpoint instead).
     """
     if LOCAL_DB:
         return None
     try:
-        from storage.azure_storage import get_storage_service, AzureStorageService
-        import os
+        from storage.gcs_storage import get_storage_service, GCSStorageService
         store = get_storage_service()
-        if not isinstance(store, AzureStorageService):
+        if not isinstance(store, GCSStorageService):
             return None
         # List blobs under outputs/{job_id}/
-        blobs = list(store._blob_container.list_blobs(name_starts_with=f"outputs/{job_id}/"))
+        blobs = list(store._client.list_blobs(store._bucket_name, prefix=f"outputs/{job_id}/"))
         # Prefer DOCX, then PDF, then markdown
         for ext in (".docx", ".pdf", ".md"):
             for b in blobs:
                 if b.name.endswith(ext):
-                    account_url = os.environ.get("AZURE_BLOB_ACCOUNT_URL", "")
-                    container   = os.environ.get("AZURE_BLOB_CONTAINER", "doc-processor")
-                    return f"{account_url}/{container}/{b.name}"
+                    return f"gs://{store._bucket_name}/{b.name}"
     except Exception as e:
-        logger.debug("[preview] Could not check blob URL: %s", e)
+        logger.debug("[preview] Could not check GCS URL: %s", e)
     return None
 
 

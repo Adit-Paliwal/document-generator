@@ -2,7 +2,7 @@
 Parser Factory
 ==============
 Routes an uploaded file to the correct parser by extension.
-Returns a ParsedDocument ready to be saved to Azure Blob + Cosmos DB.
+Returns a ParsedDocument ready to be saved to GCS.
 """
 
 from pathlib import Path
@@ -40,7 +40,9 @@ def parse_document(file_path: str | Path) -> ParsedDocument:
         ValueError: If the file extension is not supported.
         RuntimeError: If parsing fails for any reason.
     """
-    path = Path(file_path)
+    # Canonicalize the path (resolves '..' and symlinks) before any file access —
+    # path-traversal hardening (CWE-22).
+    path = Path(file_path).resolve()
     ext  = path.suffix.lower()
 
     if ext not in _PARSERS:
@@ -48,6 +50,9 @@ def parse_document(file_path: str | Path) -> ParsedDocument:
             f"Unsupported file type '{ext}'. "
             f"Supported: {', '.join(SUPPORTED_EXTENSIONS)}"
         )
+
+    if not path.is_file():
+        raise ValueError(f"File not found or not a regular file: {path}")
 
     parser = _PARSERS[ext]()
 

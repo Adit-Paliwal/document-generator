@@ -8,8 +8,8 @@ Controls which database backend is used:
 
 DATABASE_URL examples:
   SQLite (default dev):  sqlite:///./local_storage/intellidraft.db
-  Azure SQL:             mssql+pyodbc://user:pass@host/db?driver=ODBC+Driver+18+for+SQL+Server
-  PostgreSQL:            postgresql+psycopg2://user:pass@host/db
+  PostgreSQL (GCP):      postgresql+psycopg2://user:pass@host/db
+  Cloud SQL (GCP):       postgresql+pg8000://user:pass@/db?unix_sock=/cloudsql/proj:region:inst/.s.PGSQL.5432
 
 Tables
 ------
@@ -39,7 +39,13 @@ from sqlalchemy.orm import DeclarativeBase, Session, relationship
 # Connection URL — local SQLite vs production DB
 # ─────────────────────────────────────────────────────────────────────────────
 
-LOCAL_DB = os.environ.get("LOCAL_DB", "true").lower() == "true"
+LOCAL_DB        = os.environ.get("LOCAL_DB",        "true").lower()  == "true"
+DATABRICKS_MODE = os.environ.get("DATABRICKS_MODE", "false").lower() == "true"
+
+# DATABASE_URL is resolved below. It stays None in Databricks OAuth mode
+# (no PAT / no explicit URL) — the engine is then built from connection parts
+# using the App's service-principal OAuth credentials. See _make_engine().
+DATABASE_URL: "str | None" = None
 
 if LOCAL_DB:
     # ── DB path resolution ───────────────────────────────────────────────────
@@ -80,7 +86,15 @@ if LOCAL_DB:
     _db_dir.mkdir(parents=True, exist_ok=True)
     DATABASE_URL = f"sqlite:///{(_db_dir / 'intellidraft.db').resolve()}"
 else:
-    DATABASE_URL = os.environ["DATABASE_URL"]   # set in .env for production
+    # Production. Priority:
+    #   1. Explicit DATABASE_URL  (any SQLAlchemy URL, incl. PAT-based databricks://)
+    #   2. Databricks OAuth mode  → leave None; engine built from parts in _make_engine()
+    DATABASE_URL = os.environ.get("DATABASE_URL") or None
+    if DATABASE_URL is None and not DATABRICKS_MODE:
+        raise KeyError(
+            "DATABASE_URL is not set. Set it for production, or set "
+            "DATABRICKS_MODE=true to use Databricks service-principal OAuth."
+        )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -88,7 +102,7 @@ else:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _make_engine():
-    if DATABASE_URL.startswith("sqlite"):
+    if DATABASE_URL and DATABASE_URL.startswith("sqlite"):
         from sqlalchemy.pool import StaticPool
         engine = create_engine(
             DATABASE_URL,
@@ -103,8 +117,56 @@ def _make_engine():
             dbapi_conn.execute("PRAGMA foreign_keys=ON")
         return engine
 
-    # Production: standard connection pool
+    # Databricks OAuth mode: no explicit URL — build from parts using the App's
+    # service-principal OAuth credentials (no PAT required).
+    if DATABASE_URL is None:
+        return _make_databricks_oauth_engine()
+
+    # Production: explicit URL (PAT-based databricks:// or any SQLAlchemy URL).
     return create_engine(DATABASE_URL, echo=False, pool_pre_ping=True)
+
+
+def _make_databricks_oauth_engine():
+    """
+    Build a SQLAlchemy engine for a Databricks SQL Warehouse using OAuth
+    machine-to-machine (M2M) auth — no Personal Access Token needed.
+
+    Inside a Databricks App the service principal's OAuth credentials are
+    injected automatically as DATABRICKS_CLIENT_ID / DATABRICKS_CLIENT_SECRET.
+    The app's service principal must be granted:
+      - CAN USE on the SQL Warehouse
+      - USE CATALOG / USE SCHEMA / CREATE / MODIFY / SELECT on catalog+schema
+    """
+    from urllib.parse import quote
+    from databricks.sdk.core import Config, oauth_service_principal
+
+    host      = os.environ["DATABRICKS_SERVER_HOSTNAME"]
+    http_path = os.environ["DATABRICKS_HTTP_PATH"]
+    catalog   = os.environ.get("DATABRICKS_CATALOG", "adani_ael_ailabs_catalog_dev")
+    schema    = os.environ.get("DATABRICKS_SCHEMA",  "document-generator")
+
+    def credentials_provider():
+        cfg = Config(
+            host          = f"https://{host}",
+            client_id     = os.environ["DATABRICKS_CLIENT_ID"],
+            client_secret = os.environ["DATABRICKS_CLIENT_SECRET"],
+        )
+        return oauth_service_principal(cfg)
+
+    # databricks://:@host  → empty user:pass tells the dialect to use the
+    # credentials_provider passed via connect_args instead of a PAT.
+    url = (
+        f"databricks://:@{host}"
+        f"?http_path={quote(http_path, safe='/')}"
+        f"&catalog={quote(catalog)}"
+        f"&schema={quote(schema)}"
+    )
+    return create_engine(
+        url,
+        connect_args={"credentials_provider": credentials_provider},
+        echo=False,
+        pool_pre_ping=True,
+    )
 
 
 _engine = None
@@ -127,7 +189,7 @@ def _migrate_sqlite_columns(engine) -> None:
     PRAGMA table_info and issuing ALTER TABLE … ADD COLUMN for any column that
     is present in the ORM model but absent from the live table.
 
-    Only runs on SQLite (dev).  On PostgreSQL / Azure SQL, use proper Alembic
+    Only runs on SQLite (dev).  On PostgreSQL / Cloud SQL, use proper Alembic
     migrations — create_all() won't be the engine path in production.
     """
     if not engine.url.drivername.startswith("sqlite"):
@@ -177,7 +239,7 @@ def get_session():
     Guarantees:
       - Always closes the session on exit (returns connection to pool).
       - Rolls back automatically on any unhandled exception, so DB locks
-        are never left hanging — critical for PostgreSQL / Azure SQL in production.
+        are never left hanging — critical for PostgreSQL / Cloud SQL in production.
       - Callers must still call s.commit() explicitly; nothing is auto-committed.
     """
     session = Session(get_engine())
@@ -310,7 +372,7 @@ class SectionVersion(Base):
     content             = Column(Text,        nullable=False)   # Markdown
     word_count          = Column(Integer,     default=0)
     generation_prompt   = Column(Text,        nullable=True)    # full prompt sent to LLM
-    generation_model    = Column(String(100), nullable=True)    # e.g. "azure/project-pulse-gpt-5"
+    generation_model    = Column(String(100), nullable=True)    # e.g. "gemini-2.5-flash"
     is_accepted         = Column(Boolean,     default=False)    # user explicitly approved
     trigger_comment_id  = Column(String(36),  nullable=True)    # comment that triggered regen
     # Who/what created this version: ai_generation | ai_regeneration | manual_edit | review_comment

@@ -169,9 +169,17 @@ def build_section_guidance(doc_type: str, section_name: str) -> str:
     if fmt:
         fmt_lower = fmt.lower()
         if "table" in fmt_lower:
+            cols = spec.get("variables", "")
+            header_rule = (
+                f" The FIRST row MUST be a header row with exactly these column names: {cols}."
+                if cols else
+                " The FIRST row MUST be a header row naming every column."
+            )
             lines.append(
-                f"**Output format:** Table — generate a markdown pipe table "
-                f"with the columns listed above. Every row must have all columns."
+                "**Output format:** Table — output a Markdown pipe table."
+                + header_rule +
+                " Immediately follow the header with a separator row (| --- | --- |), then the "
+                "data rows. Every data row must fill every column."
             )
         elif "list" in fmt_lower:
             lines.append("**Output format:** Bulleted list (- items)")

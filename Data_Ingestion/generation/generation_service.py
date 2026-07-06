@@ -14,9 +14,9 @@ Background generation (dev mode):
   Sections are generated one-by-one in a daemon thread so the HTTP call
   that started the job returns immediately. The client polls GET /api/generate/{job_id}.
 
-Production note:
-  Replace the thread with an Azure Service Bus queue trigger.
-  The `_run_generation_job` function is the exact body the queue handler would execute.
+Production note (GCP Cloud Run):
+  Replace the thread with a Cloud Tasks or Pub/Sub push subscription.
+  The `_run_generation_job` function is the exact body the task handler would execute.
   Set ASYNC_GENERATION=false to generate synchronously inside the request (useful for
   testing or very small documents).
 """
@@ -37,7 +37,7 @@ from generation.db import (
 )
 from generation.template_manager import get_sections_for_job, get_template_by_id
 from generation.generator import generate_section
-from storage.azure_storage import get_storage_service
+from storage.gcs_storage import get_storage_service
 
 logger = logging.getLogger(__name__)
 
@@ -140,6 +140,19 @@ def _run_generation_job(job_id: str) -> None:
     """
     logger.info("[gen] Starting job %s", job_id)
 
+    # Reset any sections left in "generating" state by a previous interrupted run
+    with get_session() as session:
+        stuck = (
+            session.query(Section)
+            .filter(Section.job_id == job_id, Section.status == "generating")
+            .all()
+        )
+        for s in stuck:
+            s.status = "pending"
+        if stuck:
+            session.commit()
+            logger.info("[gen] Reset %d stuck-generating section(s) to pending", len(stuck))
+
     # Load document context once for the whole job
     try:
         llm_context, user_inputs, system_instructions = _load_job_context(job_id)
@@ -218,7 +231,7 @@ def _run_generation_job(job_id: str) -> None:
                 sec.status          = "completed"
                 sec.current_version = 1
                 import hashlib as _hm
-                sec.version_hash    = _hm.md5(f"{section_id}:1".encode()).hexdigest()[:16]
+                sec.version_hash    = _hm.md5(f"{section_id}:1".encode(), usedforsecurity=False).hexdigest()[:16]
                 sec.updated_at      = datetime.utcnow()
 
                 # Increment job counter
@@ -285,11 +298,10 @@ def _run_generation_job(job_id: str) -> None:
                 ))
                 sec.status          = "completed"
                 sec.current_version = new_ver
-                sec.version_hash    = _hm.md5(f"{section_id}:{new_ver}".encode()).hexdigest()[:16]
+                sec.version_hash    = _hm.md5(f"{section_id}:{new_ver}".encode(), usedforsecurity=False).hexdigest()[:16]
                 sec.updated_at      = datetime.utcnow()
-                job = session.get(GenerationJob, job_id)
-                if job:
-                    job.completed_sections += 1
+                # Do NOT increment completed_sections here — it was already counted
+                # when the section failed in the main loop above.
                 session.commit()
             previous_sections.append({"title": section_title, "content": content})
             logger.info("[gen] Retry: '%s' done (%d words)", section_key, len(content.split()))
@@ -332,6 +344,15 @@ def _run_generation_job(job_id: str) -> None:
 
     logger.info("[gen] Job %s finished — status=%s (total=%d failed=%d)",
                 job_id, final_status, total_sections, failed_sections)
+
+    # Pre-warm the HTML preview so it's cached before the client polls for it.
+    # Runs in a separate daemon thread — never blocks or fails the generation job.
+    if final_status == "completed":
+        try:
+            from generation.preview_service import pregenerate_preview
+            pregenerate_preview(job_id)
+        except Exception as _e:
+            logger.warning("[gen] Preview pre-warmup trigger failed (non-fatal): %s", _e)
 
 
 def _load_job_context(job_id: str) -> tuple[str, dict, str]:
@@ -562,7 +583,7 @@ def regenerate_section(
             sec.status          = "completed"
             sec.current_version = next_version
             import hashlib as _hm
-            sec.version_hash    = _hm.md5(f"{section_id}:{next_version}".encode()).hexdigest()[:16]
+            sec.version_hash    = _hm.md5(f"{section_id}:{next_version}".encode(), usedforsecurity=False).hexdigest()[:16]
             sec.updated_at      = datetime.utcnow()
 
             # Mark the triggering comment as addressed
@@ -642,7 +663,7 @@ def update_section_content(section_id: str, content: str) -> dict:
         sec.current_version = next_version
         # Update version_hash for faster preview caching (avoids 50ms MD5 recalc)
         import hashlib as _hm
-        sec.version_hash = _hm.md5(f"{sec.section_id}:{next_version}".encode()).hexdigest()[:16]
+        sec.version_hash = _hm.md5(f"{sec.section_id}:{next_version}".encode(), usedforsecurity=False).hexdigest()[:16]
         sec.updated_at      = datetime.utcnow()
         session.commit()
 
@@ -748,6 +769,24 @@ def start_job_from_project(
         proj = session.get(Project, project_id)
         if not proj:
             raise FileNotFoundError(f"Project '{project_id}' not found.")
+
+        # ── Idempotency: skip re-generation if a completed job already exists ──
+        # This covers every caller: REST endpoint, chat handler, ADK agent tool.
+        # The caller receives the same dict shape as start_job() but with the
+        # extra flag "already_complete": True so it can give appropriate feedback.
+        if proj.job_id:
+            try:
+                existing = get_job(proj.job_id)
+                if existing.get("status") == "completed":
+                    logger.info(
+                        "[gen] Project %s already has completed job %s — returning existing",
+                        project_id, proj.job_id,
+                    )
+                    existing["already_complete"] = True
+                    return existing
+            except Exception:
+                pass  # job record missing or DB error — proceed to create a new job
+
         fd      = proj.to_ingested_dict()
         doc_ids = json_mod.loads(proj.document_ids_json or "[]")
         sths    = json_mod.loads(proj.stakeholders_json  or "[]")

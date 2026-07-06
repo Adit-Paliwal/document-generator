@@ -15,7 +15,7 @@ Responsibility:
   Future extension: "style and tone from similar past documents" will
   be added here as a third context layer (similarity search).
 
-Model: Gemini 2.5 Flash (primary) → Azure GPT-5 (fallback).
+Model: Gemini 2.5 Flash (Google Vertex AI / Gemini API).
        Controlled by agents/_model.py + Data_Ingestion/.env.
 """
 

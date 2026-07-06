@@ -69,6 +69,8 @@ _STATUS_WORDS   = {"status", "progress", "how", "done", "complete",
 _EXPORT_WORDS   = {"export", "download", "word", "docx", "pdf",
                    "markdown", "save", "file"}
 _SHOW_WORDS     = {"show", "view", "read", "see", "display", "open", "print"}
+# Regenerate/redo words — only meaningful once a document already exists (review phase)
+_REGEN_WORDS    = {"regenerate", "regen", "redo", "recreate", "remake", "refresh", "rebuild"}
 _CONFIRM_WORDS  = {"yes", "confirm", "proceed", "ok", "okay", "sure", "yep",
                    "yeah", "apply", "do", "go", "correct", "right", "please"}
 _CANCEL_WORDS   = {"no", "cancel", "stop", "abort", "nevermind", "nope",
@@ -85,6 +87,11 @@ def _classify(message: str, phase: str) -> str:
     # Show — works in all phases (section may be complete even during generation)
     if words & _SHOW_WORDS:
         return "show"
+
+    # Regenerate / redo — only in review phase (document already exists). A bare
+    # regenerate with no named section is handled as "already up to date".
+    if phase == "review" and words & (_REGEN_WORDS | _STRONG_GENERATE):
+        return "regenerate"
 
     # Generate — only make sense when there is no active document yet
     if phase == "context" and words & _ALL_GENERATE:
@@ -173,23 +180,51 @@ def init_session(
     project_id:   str,
     doc_type:     str,
     project_name: str = "",
+    session_id:   Optional[str] = None,
 ) -> dict:
     """
-    Create a new chat session and return the opening assistant message.
-    Called by POST /api/chat/init when the user opens the Chat Studio.
-    """
-    session_id = str(uuid.uuid4())
-    doc_full   = _resolve_doc_type(doc_type)
+    Return an existing chat session (if one already exists for this project + doc_type)
+    or create a fresh one.
 
-    greeting = (
-        f"Context loaded for **{project_name or project_id}**. "
-        f"Ready to generate your **{doc_full}**. "
-        f"Say **'generate'** when you want to start, or ask me anything about the process."
-    )
+    Lookup order:
+      1. Exact session_id in body → use that session if it exists
+      2. Most-recent session for (project_id, document_type) → resume it
+      3. Neither found → create new session
+
+    This prevents the frontend creating a new session_id on every tab open.
+    """
+    doc_full = _resolve_doc_type(doc_type)
 
     with get_session() as db:
+        # 1. Caller supplied a specific session_id → honour it if it exists
+        if session_id:
+            existing = db.get(ChatSession, session_id)
+            if existing:
+                return _resume_dict(existing)
+
+        # 2. Look up the most recent session for this project + doc type
+        if project_id:
+            existing = (
+                db.query(ChatSession)
+                .filter(
+                    ChatSession.project_id    == project_id,
+                    ChatSession.document_type == doc_full,
+                )
+                .order_by(ChatSession.created_at.desc())
+                .first()
+            )
+            if existing:
+                return _resume_dict(existing)
+
+        # 3. Create a fresh session
+        new_sid  = str(uuid.uuid4())
+        greeting = (
+            f"Context loaded for **{project_name or project_id}**. "
+            f"Ready to generate your **{doc_full}**. "
+            f"Say **'generate'** when you want to start, or ask me anything about the process."
+        )
         chat = ChatSession(
-            session_id    = session_id,
+            session_id    = new_sid,
             project_id    = project_id,
             document_type = doc_full,
             phase         = "context",
@@ -199,13 +234,31 @@ def init_session(
         db.commit()
 
     return {
-        "session_id":    session_id,
+        "session_id":    new_sid,
         "project_id":    project_id,
         "document_type": doc_full,
         "phase":         "context",
         "action":        "init",
         "content":       greeting,
         "data":          {},
+    }
+
+
+def _resume_dict(chat: ChatSession) -> dict:
+    """Return the standard response shape for a resumed (existing) session."""
+    msgs    = chat.get_messages()
+    last    = msgs[-1] if msgs else None
+    content = last["content"] if last else f"Welcome back — continuing your {chat.document_type} session."
+    return {
+        "session_id":    chat.session_id,
+        "project_id":    chat.project_id,
+        "job_id":        chat.job_id,
+        "document_type": chat.document_type,
+        "phase":         chat.phase,
+        "action":        "resumed",
+        "content":       content,
+        "data":          (last.get("data") or {}) if last else {},
+        "history":       msgs[-30:],  # last 30 messages so the frontend can restore UI
     }
 
 
@@ -221,6 +274,16 @@ def process_message(
         chat.add_message("user", message)
 
         try:
+            # ── Auto-advance phase when background generation completes ───────
+            if chat.phase == "generating" and chat.job_id:
+                try:
+                    from generation.generation_service import get_job as _get_job
+                    _j = _get_job(chat.job_id)
+                    if _j.get("status") == "completed":
+                        chat.phase = "review"
+                except Exception:
+                    pass  # non-fatal — phase will advance on next successful check
+
             # ── Pending confirmation check (always takes priority) ────────────
             pending = chat.get_pending()
             ptype   = pending.get("type") if pending else None
@@ -278,6 +341,8 @@ def process_message(
                 intent = _classify(message, chat.phase)
                 if   intent == "generate" and chat.phase == "context":
                     result = _do_generate(chat, db)
+                elif intent == "regenerate":
+                    result = _do_regenerate(chat, message)
                 elif intent == "modify":
                     result = _do_modify(chat, message)
                 elif intent == "show":
@@ -324,7 +389,7 @@ def get_history(session_id: str) -> dict:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _do_generate(chat: ChatSession, db) -> dict:
-    from generation.generation_service import start_job_from_project
+    from generation.generation_service import start_job_from_project, get_job
 
     if not chat.project_id:
         return {"action": "need_project",
@@ -336,6 +401,41 @@ def _do_generate(chat: ChatSession, db) -> dict:
         return {"action": "error",
                 "content": "Project not found in database.",
                 "data": {}}
+
+    # ── Idempotency: return the existing job if it's already complete ─────────
+    # Check chat.job_id first, fall back to proj.job_id (set by start_job_from_project)
+    existing_job_id = chat.job_id or getattr(proj, "job_id", None)
+    if existing_job_id:
+        try:
+            existing = get_job(existing_job_id)
+            if existing.get("status") == "completed":
+                chat.job_id = existing_job_id
+                chat.phase  = "review"
+                n = existing.get("total_sections", 0)
+                return {
+                    "action":  "completed",
+                    "content": (
+                        f"Your **{chat.document_type}** is already complete! "
+                        f"All **{n} sections** are ready. "
+                        "To modify a section, describe what you'd like changed. "
+                        "Say **'export as Word'** or **'export as PDF'** to download."
+                    ),
+                    "data": {
+                        "job_id":         existing_job_id,
+                        "status":         "completed",
+                        "total_sections": n,
+                        "sections": [
+                            {
+                                "section_id":    s.get("section_id"),
+                                "section_title": s.get("section_title"),
+                                "status":        s.get("status"),
+                            }
+                            for s in existing.get("sections", [])
+                        ],
+                    },
+                }
+        except Exception:
+            pass  # job check failed — fall through to create a new job
 
     has_docs = bool(proj.document_ids)
     doc_type = chat.document_type or proj.document_type or "Business Requirements Document (BRD)"
@@ -429,6 +529,70 @@ def _do_status(chat: ChatSession) -> dict:
                     "section_title": s.get("section_title"),
                     "status":        s.get("status"),
                 }
+                for s in sections
+            ],
+        },
+    }
+
+
+def _do_regenerate(chat: ChatSession, message: str) -> dict:
+    """
+    Handle 'regenerate' / 'redo' / 'refresh' requests in the review phase.
+
+      - If the user named a specific section → treat it as a targeted regenerate
+        (store a pending modify and ask for confirmation).
+      - Otherwise (a bare 'regenerate' with no section and no change details) →
+        the document is already up to date; just reload the preview instead of
+        re-running the LLM.
+    """
+    if not chat.job_id:
+        return {"action": "no_job",
+                "content": "No document generated yet. Say **'generate'** to create it first.",
+                "data": {}}
+
+    from generation.generation_service import get_job
+    job      = get_job(chat.job_id)
+    total    = job.get("total_sections", 0)
+    sections = [s for s in job.get("sections", []) if s.get("status") == "completed"]
+
+    # Did the user reference a specific section? → confirm a targeted regenerate.
+    sec = _best_section(message, sections)
+    if sec:
+        pending = {
+            "type":          "modify",
+            "section_id":    sec["section_id"],
+            "section_title": sec["section_title"],
+            "instruction":   message,
+        }
+        chat.set_pending(pending)
+        return {
+            "action":  "confirm_modify",
+            "content": (
+                f"Regenerate the **{sec['section_title']}** section?\n\n"
+                f"Say **yes** to proceed, or tell me what to change."
+            ),
+            "data": pending,
+        }
+
+    # No section + no change details → nothing to regenerate; show the preview.
+    return {
+        "action":  "up_to_date",
+        "content": (
+            "Your content is already up to date — there are no pending changes to regenerate. "
+            "Showing the latest preview.\n\n"
+            "To revise something specific, tell me the section and what to adjust "
+            "(e.g. *“make the Scope section shorter”* or "
+            "*“regenerate the Objective with more detail”*)."
+        ),
+        "data": {
+            "job_id":         chat.job_id,
+            "status":         "completed",
+            "show_preview":   True,
+            "total_sections": total,
+            "sections": [
+                {"section_id": s.get("section_id"),
+                 "section_title": s.get("section_title"),
+                 "status": s.get("status")}
                 for s in sections
             ],
         },
@@ -684,7 +848,7 @@ def _analyze_doc_impact(job_id: str, doc_id: str, filename: str) -> list[dict]:
     """
     import json as _json
     from llm_provider import call_with_fallback
-    from storage.azure_storage import get_storage_service
+    from storage.gcs_storage import get_storage_service
     from models.meta_schema import ParsedDocument
     from generation.generation_service import get_job
 

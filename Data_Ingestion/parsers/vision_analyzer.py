@@ -5,9 +5,7 @@ Sends extracted images to a vision-capable LLM to generate structured descriptio
 Identifies image types (workflow/flowchart, architecture diagram, chart, etc.) and
 produces natural-language descriptions suitable for use in document generation prompts.
 
-Provider order (same as the rest of the application):
-  1. Gemini 2.5 Flash on Vertex AI  — primary (via llm_provider)
-  2. Azure GPT-5                    — automatic fallback (via llm_provider)
+Provider: Gemini 2.5 Flash on Vertex AI (via llm_provider).
 
 Controlled by VISION_ENABLED=true/false in .env (default: true).
 Gracefully no-ops when disabled or when the LLM call fails — uploads never break
@@ -68,7 +66,7 @@ Respond with ONLY valid JSON. No markdown, no explanation outside the JSON objec
 def analyze_image(base64_data: str, img_format: str = "png") -> dict:
     """
     Analyze a base64-encoded image using the configured vision-capable LLM.
-    Uses Gemini 2.5 Flash (Vertex AI) as primary, Azure GPT-5 as fallback.
+    Uses Gemini 2.5 Flash (Vertex AI) via llm_provider.
 
     Args:
         base64_data: Base64-encoded image bytes (without data URI prefix).

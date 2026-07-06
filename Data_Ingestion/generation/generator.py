@@ -3,8 +3,8 @@ Section Generator
 ==================
 Core LLM call for generating a single document section.
 
-Uses llm_provider.call_with_fallback() — Gemini 2.5 Flash (Vertex AI) primary,
-Azure GPT-5 automatic fallback.  Same provider chain as extractor and derive_fields.
+Uses llm_provider.call_with_fallback() — Gemini 2.5 Flash (Vertex AI).
+Same provider as extractor and derive_fields.
 Prompt strategy:
   - System prompt: role, document type, full document context, user inputs
   - User prompt: section-specific instructions + any edit comment
@@ -61,14 +61,28 @@ processes, system names, and data from here rather than inventing them.
 {previous_sections_block}
 
 ---
-FORMATTING RULES:
-- Write in Markdown format with appropriate headings (## and ###)
-- Do NOT include the section title as a top-level heading — start directly with content
-- Tables should use Markdown table format
-- Lists should use - bullets or numbered lists as appropriate
-- Code blocks for schemas, configs, or technical specifications
-- Target length: approximately {target_words} words
+FORMATTING RULES (follow exactly):
+- Write in Markdown. Use ## and ### only for sub-headings *within* this section.
+- Do NOT repeat the section title as a top-level heading — start directly with the content.
+- TABLES: whenever you present tabular data you MUST use a Markdown pipe table, and the
+  FIRST row MUST be a header row naming every column, immediately followed by a separator
+  row. Example:
+      | Sr. | Requirement | Priority |
+      | --- | --- | --- |
+      | 1 | ... | Must Have |
+  Never output a table without its header row, and never leave a column unnamed.
+- Lists: use "- " bullets or "1." numbered lists as appropriate.
+- Use fenced code blocks (```) only for schemas, configs, or technical specifications.
+- Target length: approximately {target_words} words.
 - Language: {language}
+
+CONTENT QUALITY RULES:
+- Be specific and concrete. Pull real names, numbers, systems, dates, and processes from the
+  SOURCE DOCUMENT CONTENT above — do NOT invent generic filler.
+- Never emit placeholders such as "TBD", "Lorem ipsum", "[insert ...]", "XYZ", or "example.com".
+  If a detail is genuinely unavailable, state a reasonable, professional assumption instead.
+- Maintain a formal, precise, enterprise-grade tone. No marketing fluff, no aspirational vagueness.
+- Output ONLY the section content — no preamble ("Here is the section..."), no meta commentary.
 """
 
 _GENERATION_PROMPT = """Generate the **{section_title}** section.
@@ -168,9 +182,6 @@ def generate_section(
 
     full_prompt_for_log = f"SYSTEM:\n{system_prompt}\n\nUSER:\n{user_prompt}"
 
-    # Merge system + user into one message:
-    #   • GPT-5 reasoning model ignores a separate system message
-    #   • Gemini works correctly with merged prompt too
     combined_prompt = f"{system_prompt}\n\n---\n\n{user_prompt}"
     max_tok = _estimate_max_tokens(target_words)
 
@@ -182,11 +193,10 @@ def generate_section(
     from llm_provider import call_with_fallback
     try:
         content, provider = call_with_fallback(
-            messages              = [{"role": "user", "content": combined_prompt}],
-            max_tokens            = max_tok,           # Gemini → max_output_tokens
-            max_completion_tokens = max_tok,           # GPT-5 reasoning model
-            timeout               = 180,
-            log_prefix            = f"[Generator:{section_key}]",
+            messages   = [{"role": "user", "content": combined_prompt}],
+            max_tokens = max_tok,
+            timeout    = 180,
+            log_prefix = f"[Generator:{section_key}]",
         )
     except RuntimeError as e:
         logger.exception("[Generator] LLM call failed for section '%s'", section_key)
@@ -257,18 +267,7 @@ def _build_system_prompt(
 
 
 def _estimate_max_tokens(target_words: int) -> int:
-    """
-    Approximate max_completion_tokens from target word count.
-
-    GPT-5 is a reasoning model: it consumes tokens for *both* internal reasoning
-    (invisible) and actual output text (visible).  With a small budget the model
-    spends all tokens on reasoning and returns content="".
-
-    Formula: target_words × 6, floor 5 000, ceiling 16 000.
-    A 300-word section → 5 000 tokens.  A 600-word section → 3 600 → clamped to 5 000.
-    This gives GPT-5 enough headroom for ~2 000–3 000 reasoning tokens plus the full
-    output, even with a large prompt (full llm_context + previous sections).
-    """
+    """target_words × 6, floor 5 000, ceiling 16 000."""
     return max(5000, min(int(target_words * 6), 16000))
 
 

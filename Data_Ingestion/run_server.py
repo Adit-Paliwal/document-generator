@@ -1,11 +1,13 @@
 """
-Intellidraft — Standalone Flask API Server
-==========================================
-Runs all API endpoints on http://localhost:7071/api
-without needing Azure Functions Core Tools.
+Intellidraft — Flask API Server
+================================
+Runs all API endpoints on http://localhost:7071/api.
 
-HOW TO RUN (from the Intellidraft/ directory):
+HOW TO RUN locally (from the Intellidraft/ directory):
     env\\Scripts\\python.exe Data_Ingestion\\run_server.py
+
+GCP Cloud Run (production):
+    gunicorn --bind :8080 --workers 2 --threads 4 run_server:app
 
 Then open  frontend/index.html  in your browser
 (or run:  python frontend/serve.py  and go to http://localhost:3000)
@@ -64,7 +66,8 @@ from dotenv import load_dotenv
 load_dotenv(dotenv_path=_BASE / ".env", override=False)
 
 # ── Flask ─────────────────────────────────────────────────────────────────────
-from flask import Flask, request, jsonify, Response, send_file
+from flask import Flask, request, jsonify, Response, send_file, stream_with_context
+from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 
@@ -108,7 +111,7 @@ _store = None
 def _get_store():
     global _store
     if _store is None:
-        from storage.azure_storage import get_storage_service
+        from storage.gcs_storage import get_storage_service
         _store = get_storage_service()
     return _store
 
@@ -138,12 +141,35 @@ def log_request(response):
     """Log every request with method, path, and HTTP status code."""
     # Skip logging for static/options to keep output clean
     if request.method not in ("OPTIONS", "HEAD"):
-        logger.info("%-6s %-45s → %s", request.method, request.path, response.status_code)
+        logger.info("%-6s %-45s -> %s", request.method, request.path, response.status_code)
     return response
 
 @app.route("/api/<path:p>", methods=["OPTIONS", "HEAD"])
 def options_handler(p):
     return Response(status=204, headers=CORS_HEADERS)
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# FRONTEND — static UI served from the same app (same origin as /api)
+# ═════════════════════════════════════════════════════════════════════════════
+# The two pages are self-contained HTML (inline CSS/JS). index.html is the
+# journey entry point (project wizard); chat.html is the generation studio.
+# They link to each other with relative paths, so serving both from the app
+# root keeps navigation working. API_BASE in each defaults to same-origin /api.
+
+_FRONTEND = _BASE / "frontend"
+
+@app.route("/", methods=["GET"])
+def _ui_index():
+    return send_file(str(_FRONTEND / "index.html"), mimetype="text/html")
+
+@app.route("/index.html", methods=["GET"])
+def _ui_index_html():
+    return send_file(str(_FRONTEND / "index.html"), mimetype="text/html")
+
+@app.route("/chat.html", methods=["GET"])
+def _ui_chat_html():
+    return send_file(str(_FRONTEND / "chat.html"), mimetype="text/html")
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -185,7 +211,7 @@ def admin_reset_db():
         # 2. Delete DB + WAL/SHM files
         db_url = _db.DATABASE_URL
         deleted = []
-        if db_url.startswith("sqlite:///"):
+        if db_url and db_url.startswith("sqlite:///"):
             db_path = _P(db_url.replace("sqlite:///", ""))
             for suffix in ("", "-wal", "-shm"):
                 f = _P(str(db_path) + suffix) if suffix else db_path
@@ -220,7 +246,8 @@ def upload_document():
         if not file_data:
             return json_resp({"error": "No file provided. Send as multipart field 'file'."}, 400)
 
-        filename = file_data.filename or "upload"
+        # secure_filename strips path separators and '..' — prevents path traversal
+        filename = secure_filename(file_data.filename or "upload") or "upload"
         ext      = Path(filename).suffix.lower()
 
         if ext not in SUPPORTED_EXTENSIONS:
@@ -353,15 +380,9 @@ def generate_start():
 def generate_get_job(job_id):
     try:
         from generation.generation_service import get_job
-        job = get_job(job_id)
-        for sec in job.get("sections", []):
-            current_v = sec.get("current_version", 0)
-            versions  = sec.get("versions", [])
-            current   = next((v for v in versions if v["version_number"] == current_v), None)
-            sec["current_content"] = current["content"] if current else None
-            sec["version_count"]   = len(versions)
-            sec.pop("versions", None)
-        return json_resp(job)
+        # get_job() (include_all_versions=False) already strips the full versions list
+        # and sets current_content + version_count on each section — no further processing needed.
+        return json_resp(get_job(job_id))
     except ValueError as e:
         return json_resp({"error": str(e)}, 404)
     except Exception as e:
@@ -465,7 +486,7 @@ def generate_preview(job_id):
       - markdown: full assembled document as a markdown string
       - sections: ordered list with title, content, status per section
       - export_urls: relative paths for DOCX / PDF / Markdown download
-      - blob_url: Azure Blob URL if in cloud mode and file was already exported; null in local mode
+      - blob_url: GCS URL (gs://...) if in cloud mode and file was already exported; null in local mode
     """
     try:
         from generation.doc_writer import assemble_preview
@@ -516,6 +537,100 @@ def generate_preview_status(job_id):
         return json_resp(result, status_code)
     except Exception as e:
         logger.exception("generate_preview_status failed")
+        return json_resp({"error": str(e)}, 500)
+
+
+# 12e-sse. GET /api/generate/<job_id>/stream  — Server-Sent Events for real-time progress
+#
+# The frontend should open this as an EventSource immediately after starting a job.
+# Events emitted:
+#   { "event": "section_complete", section_id, section_title, done, total }  — per section
+#   { "event": "all_complete",     job_id, total_sections }                  — when done
+#   { "event": "failed",           error }                                   — on failure
+#   { "event": "heartbeat" }                                                 — every 5s keep-alive
+#
+# Frontend pattern:
+#   const es = new EventSource(`/api/generate/${jobId}/stream`);
+#   es.onmessage = e => {
+#     const d = JSON.parse(e.data);
+#     if (d.event === 'section_complete') updateProgressBar(d.done, d.total);
+#     if (d.event === 'all_complete')     { es.close(); loadHtmlPreview(jobId); }
+#   };
+@app.route("/api/generate/<job_id>/stream", methods=["GET"])
+def generate_stream_events(job_id):
+    import time as _time
+
+    def _sse():
+        from generation.generation_service import get_job
+        seen = set()
+        tick = 0
+        while True:
+            try:
+                job = get_job(job_id)
+            except Exception:
+                yield f"data: {json.dumps({'event': 'error', 'message': 'job not found'})}\n\n"
+                return
+
+            for sec in job.get("sections", []):
+                if sec.get("status") == "completed" and sec["section_id"] not in seen:
+                    seen.add(sec["section_id"])
+                    payload = json.dumps({
+                        "event":         "section_complete",
+                        "section_id":    sec["section_id"],
+                        "section_title": sec["section_title"],
+                        "done":          len(seen),
+                        "total":         job.get("total_sections", 0),
+                    })
+                    yield f"data: {payload}\n\n"
+
+            if job.get("status") == "completed":
+                yield f"data: {json.dumps({'event': 'all_complete', 'job_id': job_id, 'total_sections': job.get('total_sections', 0)})}\n\n"
+                return
+
+            if job.get("status") == "failed":
+                yield f"data: {json.dumps({'event': 'failed', 'error': job.get('error', 'Unknown')})}\n\n"
+                return
+
+            # Keep-alive heartbeat every 5 ticks (5 s)
+            tick += 1
+            if tick % 5 == 0:
+                yield "data: {\"event\": \"heartbeat\"}\n\n"
+
+            _time.sleep(1)
+
+    return Response(
+        stream_with_context(_sse()),
+        mimetype="text/event-stream",
+        headers={
+            "Cache-Control":    "no-cache",
+            "X-Accel-Buffering": "no",   # disable nginx buffering
+            **CORS_HEADERS,
+        },
+    )
+
+
+# 12f-patch. PATCH /api/sections/<section_id>  — shortcut for inline preview editor
+#
+# The iframe's postMessage sends only section_id (not job_id), so the parent
+# frame uses this endpoint instead of the longer PATCH /api/generate/{job_id}/section/{id}.
+# Body: { "content": "<new markdown content>" }
+@app.route("/api/sections/<section_id>", methods=["PATCH"])
+def update_section_direct(section_id):
+    try:
+        body    = request.get_json() or {}
+        content = body.get("content", "").strip()
+        if not content:
+            return json_resp({"error": "content is required"}, 400)
+        from generation.generation_service import update_section_content
+        new_version = update_section_content(section_id, content)
+        return json_resp({
+            "version": new_version,
+            "message": f"Section updated — version {new_version['version_number']}.",
+        })
+    except ValueError as e:
+        return json_resp({"error": str(e)}, 404)
+    except Exception as e:
+        logger.exception("update_section_direct failed")
         return json_resp({"error": str(e)}, 500)
 
 
@@ -572,11 +687,11 @@ def generate_export(job_id):
     try:
         from generation.doc_writer import export_job, upload_output_to_blob
         file_path, mime_type = export_job(job_id, output_format)
-        # In cloud mode: upload to Azure Blob and return the URL so the frontend
+        # In cloud mode: upload to GCS and return the URL so the frontend
         # can reference it directly (e.g. embed in chat message or share link).
         blob_url = upload_output_to_blob(job_id, file_path, mime_type)
         if blob_url:
-            # Return JSON with the blob URL — frontend opens/downloads from Azure.
+            # Return JSON with the GCS URL — frontend opens/downloads from GCS.
             return json_resp({"job_id": job_id, "blob_url": blob_url,
                               "filename": file_path.name, "mime_type": mime_type})
         # Local dev: stream the file directly.
@@ -805,7 +920,7 @@ def list_projects():
     try:
         from generation.db import Project as _P, get_session
         from sqlalchemy import or_, func as sqlfunc
-        q        = (request.args.get("q")        or "").strip().lower()
+        q        = (request.args.get("q")        or "").strip().lower()[:100]
         status   = (request.args.get("status")   or "").strip()
         code     = (request.args.get("code")     or "").strip()
         page     = request.args.get("page",      1, type=int)
@@ -1060,7 +1175,7 @@ def derive_project_fields(project_id):
     except FileNotFoundError:
         return json_resp({"error": f"Project '{project_id}' not found."}, 404)
     except RuntimeError as e:
-        # LLM failure — both Gemini and Azure GPT-5 failed
+        # LLM failure — Gemini call failed
         logger.error("derive-fields LLM error for project %s: %s", project_id, e)
         return json_resp({"error": f"AI derivation failed: {e}"}, 502)
     except Exception as e:
@@ -1111,18 +1226,34 @@ def generate_from_project(project_id):
         body = request.get_json(force=True, silent=True) or {}
         job = start_job_from_project(project_id, allow_no_docs=True,
                                      doc_type_override=body.get("document_type"))
+
+        sections = [
+            {
+                "section_id":    s["section_id"],
+                "section_title": s["section_title"],
+                "status":        s["status"],
+            }
+            for s in job.get("sections", [])
+        ]
+
+        # Idempotency: an existing completed job was returned — nothing new was started
+        if job.get("already_complete"):
+            return json_resp({
+                "job_id":           job["job_id"],
+                "status":           "completed",
+                "already_complete": True,
+                "sections":         sections,
+                "total_sections":   job.get("total_sections", len(sections)),
+                "message":          "Document is already up to date. No new generation needed.",
+            }, 200)
+
         return json_resp({
-            "job_id":   job["job_id"],
-            "status":   job["status"],
-            "sections": [
-                {
-                    "section_id":    s["section_id"],
-                    "section_title": s["section_title"],
-                    "status":        s["status"],
-                }
-                for s in job.get("sections", [])
-            ],
-            "message": f"Generation started. {job['total_sections']} sections queued.",
+            "job_id":         job["job_id"],
+            "status":         job["status"],
+            "already_complete": False,
+            "sections":       sections,
+            "total_sections": job.get("total_sections", len(sections)),
+            "message":        f"Generation started. {job.get('total_sections', 0)} sections queued.",
         }, 201)
     except FileNotFoundError as e:
         return json_resp({"error": str(e)}, 404)
@@ -1152,6 +1283,8 @@ def chat_init():
         project_id   = (body.get("project_id") or "").strip()
         doc_type     = (body.get("document_type") or "brd").strip()
         project_name = (body.get("project_name") or "").strip()
+        # Frontend should persist session_id and re-send it so the same session resumes
+        client_sid   = (body.get("session_id") or "").strip() or None
         auto_created = False
 
         if not project_id:
@@ -1170,7 +1303,7 @@ def chat_init():
             logger.info("chat/init: auto-created draft project %s", project_id)
 
         from api.chat_handler import init_session
-        result = init_session(project_id, doc_type, project_name)
+        result = init_session(project_id, doc_type, project_name, session_id=client_sid)
         if auto_created:
             result["auto_created_project_id"] = project_id
             result["note"] = "A new draft project was created for this chat session. Use auto_created_project_id for subsequent project API calls."
@@ -1243,7 +1376,8 @@ def chat_upload(session_id):
         if not file_data:
             return json_resp({"error": "No file provided. Send as multipart field 'file'."}, 400)
 
-        filename = file_data.filename or "upload"
+        # secure_filename strips path separators and '..' — prevents path traversal
+        filename = secure_filename(file_data.filename or "upload") or "upload"
         ext      = Path(filename).suffix.lower()
 
         if ext not in SUPPORTED_EXTENSIONS:

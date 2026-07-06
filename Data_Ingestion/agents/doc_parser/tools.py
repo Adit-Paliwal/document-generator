@@ -5,7 +5,7 @@ ADK tools for DocParserAgent — Agent 1.
 
 These tools wrap the document parsing pipeline:
   parsers/parser_factory.py  — PDF / DOCX / PPTX / XLSX parsing
-  storage/azure_storage.py   — blob / local file storage
+  storage/gcs_storage.py     — GCS / local file storage
   models/meta_schema.py      — ParsedDocument + UserInputData schemas
 
 The Vision AI callback (_strip_file_content_callback) lives in agent.py —
@@ -96,7 +96,7 @@ async def parse_document_tool(filename: str, tool_context: ToolContext) -> dict:
         the user having to repeat it.
     """
     from parsers.parser_factory import parse_document
-    from storage.azure_storage  import get_storage_service
+    from storage.gcs_storage  import get_storage_service
 
     artifact = await tool_context.load_artifact(filename)
     if artifact is None:
@@ -173,7 +173,7 @@ async def get_document_meta_tool(document_id: str, tool_context: ToolContext) ->
         document_id: UUID returned by parse_document_tool.
     """
     try:
-        from storage.azure_storage import get_storage_service
+        from storage.gcs_storage import get_storage_service
         from models.meta_schema    import ParsedDocument
 
         meta = get_storage_service().get_meta_json(document_id)
@@ -220,7 +220,7 @@ async def list_elements_tool(
         element_type: One of 'text', 'image', or 'table'.
     """
     try:
-        from storage.azure_storage import get_storage_service
+        from storage.gcs_storage import get_storage_service
         from models.meta_schema    import ParsedDocument
 
         meta = get_storage_service().get_meta_json(document_id)
@@ -299,7 +299,7 @@ async def submit_user_inputs_tool(
         generation_mode:         'Complete (single pass)' or 'Section by section'.
     """
     try:
-        from storage.azure_storage import get_storage_service
+        from storage.gcs_storage import get_storage_service
         from models.meta_schema    import ParsedDocument, UserInputData
 
         store = get_storage_service()

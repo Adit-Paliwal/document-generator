@@ -99,6 +99,139 @@ def format_brd_docx(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Generic structured formatter — used by every NON-BRD document type
+# (RFP, SOW, NIT, BOQ, NFA, ARB, Proposal, Tech Spec, Scope, …)
+# Reuses the exact BRD styling (page, fonts, header+logo, footer, styled
+# headings, dark-blue table headers) but is driven by the document's own
+# ordered section list rather than the fixed BRD numbering.
+# ─────────────────────────────────────────────────────────────────────────────
+
+def format_structured_docx(
+    doc_type: str,
+    project_name: str,
+    sections: list[dict],
+    out_path: Path,
+    *,
+    client_name: str = "Adani Energy Solutions",
+    doc_version: str = "1.0",
+) -> None:
+    """
+    Build a styled Word document for any document type from AI-generated content.
+
+    Args:
+        doc_type:      Display name (e.g. "Request for Proposal (RFP)").
+        project_name:  Shown on the cover, header, and document-control table.
+        sections:      Ordered list of {"title": str, "content": markdown str}.
+        out_path:      Destination .docx path (must include .docx).
+    """
+    from docx import Document
+
+    doc = Document()
+    _setup_page(doc)
+    _setup_styles(doc)
+    _add_header(doc, project_name, label=_short_doc_label(doc_type))
+    _add_footer(doc)
+    _add_generic_cover(doc, doc_type, project_name, client_name, doc_version)
+    _add_generic_sections(doc, sections)
+    doc.save(str(out_path))
+
+
+def _short_doc_label(doc_type: str) -> str:
+    """Derive a short header label — the parenthesised abbreviation if present
+    (e.g. 'Request for Proposal (RFP)' → 'RFP'), else the doc type itself."""
+    m = re.search(r"\(([A-Za-z]{2,6})\)", doc_type or "")
+    if m:
+        return m.group(1).upper()
+    return (doc_type or "Document").strip()
+
+
+def _add_generic_cover(doc, doc_type: str, project_name: str,
+                       client_name: str, doc_version: str) -> None:
+    """Lightweight cover: logo, title (= doc type), subtitle (= project),
+    a document-control table, and a confidentiality note."""
+    from docx.shared import Pt, RGBColor, Cm
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+
+    today = datetime.utcnow().strftime("%d-%m-%Y")
+    year  = datetime.utcnow().strftime("%Y")
+    abbr  = _short_doc_label(doc_type)
+    safe_id = re.sub(r"[^\w]", "_", project_name)[:30]
+    document_id = f"{year}_AESL_{safe_id}_{abbr}_001"
+
+    logo_path = Path(__file__).parent.parent / "static" / "adani_logo.jpg"
+    if logo_path.exists():
+        lp = doc.add_paragraph()
+        lp.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        lp.paragraph_format.space_before = Pt(24)
+        lp.paragraph_format.space_after  = Pt(8)
+        lp.add_run().add_picture(str(logo_path), width=Cm(5))
+
+    t = doc.add_paragraph()
+    t.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    t.paragraph_format.space_before = Pt(12)
+    t.paragraph_format.space_after  = Pt(4)
+    r = t.add_run(doc_type)
+    r.font.name = "Calibri"
+    r.font.size = Pt(20)
+    r.font.bold = True
+    r.font.color.rgb = RGBColor(0x1F, 0x37, 0x63)
+
+    sub = doc.add_paragraph()
+    sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    sub.paragraph_format.space_after = Pt(4)
+    r2 = sub.add_run(project_name)
+    r2.font.name = "Calibri"
+    r2.font.size = Pt(14)
+    r2.font.bold = True
+    r2.font.color.rgb = RGBColor(0x2E, 0x75, 0xB6)
+
+    doc.add_paragraph()
+
+    _add_cover_section_heading(doc, "Document Control")
+    ctrl = doc.add_table(rows=4, cols=2)
+    ctrl.style = _safe_table_style(doc)
+    pairs = [
+        ("Document ID:", document_id),
+        ("Client:",      client_name),
+        ("Version:",     doc_version),
+        ("Date:",        today),
+    ]
+    for i, (k, v) in enumerate(pairs):
+        _set_cell_text(ctrl.rows[i].cells[0], k, bold=True, bg=_DARK_BLUE, fg=_WHITE)
+        _set_cell_text(ctrl.rows[i].cells[1], v)
+    _set_col_widths(ctrl, [Cm(4.5), Cm(11.42)])
+
+    doc.add_paragraph()
+
+    _add_cover_section_heading(doc, "Confidentiality")
+    conf = doc.add_paragraph()
+    cr = conf.add_run(
+        "This document contains restricted information pertaining to Adani. "
+        "The addressee should honour these access rights by preventing intentional "
+        "or accidental access outside the intended scope."
+    )
+    cr.font.name = "Calibri"
+    cr.font.size = Pt(10)
+    cr.font.color.rgb = RGBColor(0x00, 0x00, 0x00)
+
+    doc.add_page_break()
+
+
+def _add_generic_sections(doc, sections: list[dict]) -> None:
+    """Render each section as a numbered H1 heading + styled markdown body."""
+    n = 0
+    for sec in sections:
+        content = (sec.get("content") or "").strip()
+        if not content:
+            continue   # skip empty sections so the DOCX matches the preview
+        n += 1
+        title = sec.get("title") or f"Section {n}"
+        doc.add_heading(f"{n}. {title}", level=1)
+        _render_brd_markdown(doc, content)
+        doc.add_paragraph()   # spacer between sections
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Page and style setup
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -161,10 +294,13 @@ def _setup_styles(doc) -> None:
 # Header and footer
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _add_header(doc, project_name: str) -> None:
+def _add_header(doc, project_name: str, label: str = "Detailed BRD") -> None:
     """Header matches the Drishti BRD reference: two separate right-aligned
     paragraphs so the logo is guaranteed to land at the top-right corner.
-    Tab-stop approaches are unreliable for inline images in Word headers."""
+    Tab-stop approaches are unreliable for inline images in Word headers.
+
+    `label` prefixes the header text (e.g. "Detailed BRD" for BRD, or the
+    document abbreviation like "RFP" for other document types)."""
     from docx.shared import Pt, RGBColor, Cm
     from docx.enum.text import WD_ALIGN_PARAGRAPH
     from docx.oxml import OxmlElement
@@ -183,7 +319,7 @@ def _add_header(doc, project_name: str) -> None:
     hp.paragraph_format.space_after  = Pt(2)
     _set_para_border_bottom(hp, _MID_BLUE, size=6)
 
-    run_txt = hp.add_run(f"Detailed BRD  |  {project_name}")
+    run_txt = hp.add_run(f"{label}  |  {project_name}")
     run_txt.font.name      = "Calibri"
     run_txt.font.size      = Pt(9)
     run_txt.font.color.rgb = RGBColor(0x59, 0x59, 0x59)

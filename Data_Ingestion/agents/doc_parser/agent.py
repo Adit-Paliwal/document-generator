@@ -7,9 +7,7 @@ and collects project context for downstream generation.
 Supported formats:  PDF · DOCX · PPTX · XLSX
 
 MODEL (controlled by agents/_model.py + Data_Ingestion/.env):
-  PRIMARY  → Gemini 2.5 Flash (Google Vertex AI / Gemini API)
-  FALLBACK → Azure GPT-5  (used when Gemini credentials are absent OR
-             MODEL_PROVIDER=azure_gpt5 is set in .env)
+  Gemini 2.5 Flash (Google Vertex AI / Gemini API)
 
 How to run:
   cd "…\\Intellidraft"
@@ -77,9 +75,8 @@ async def _strip_file_content_callback(callback_context, llm_request):
     bytes inside the user message — it does NOT automatically save them to the
     ADK artifact service.  Two problems follow:
 
-      1. ADK's lite_llm.py detects Azure as a _FILE_ID_REQUIRED_PROVIDER and
-         tries litellm.acreate_file(file=bytes, ...) without a MIME type →
-         Azure returns 400 Invalid file data: 'file_id'.
+      1. litellm may try to upload inline_data bytes as a file without a MIME
+         type, causing provider-side errors (400 Invalid file data).
 
       2. tool_context.load_artifact() / list_artifacts() return nothing
          because the artifact service was never populated.
@@ -134,7 +131,7 @@ async def _strip_file_content_callback(callback_context, llm_request):
                 mime = getattr(part.inline_data, "mime_type", None) or "application/octet-stream"
                 data = getattr(part.inline_data, "data", b"") or b""
 
-                file_key = hashlib.md5(data[:4096]).hexdigest()[:12]
+                file_key = hashlib.md5(data[:4096], usedforsecurity=False).hexdigest()[:12]
 
                 if file_key in artifact_map:
                     filename = artifact_map[file_key]
@@ -212,8 +209,7 @@ async def _strip_file_content_callback(callback_context, llm_request):
 
 
 # Model is resolved once at startup via the shared utility.
-# Gemini 2.5 Flash is the default; Azure GPT-5 is the automatic fallback.
-# See agents/_model.py for the full selection logic.
+# Model resolved at startup via the shared utility — see agents/_model.py.
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -299,7 +295,7 @@ doc_parser_agent = LlmAgent(
         submit_user_inputs_tool,
     ],
     # Strip raw file bytes before the LLM call — prevents ADK from sending
-    # binary data to Azure (which returns 400 errors for inline_data).
+    # inline_data bytes directly to the LLM (causes provider-side errors).
     # Our parse_document_tool handles the actual file reading locally.
     before_model_callback = _strip_file_content_callback,
 )

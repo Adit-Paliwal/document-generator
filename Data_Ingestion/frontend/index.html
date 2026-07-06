@@ -702,7 +702,7 @@ select{cursor:pointer}
   <div class="main">
     <div class="api-bar">
       <span>&#9881;&#65039; API URL:</span>
-      <input id="api-input" type="text" value="http://localhost:7071/api"/>
+      <input id="api-input" type="text" value="/api"/>
       <button class="btn btn-sm btn-outline" onclick="saveApi()">Save</button>
     </div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
@@ -1029,7 +1029,7 @@ select{cursor:pointer}
 <script>
 // ── Config ────────────────────────────────────────────────────────────────
 const API = {
-  get base(){ return (localStorage.getItem('id_api')||'http://localhost:7071/api') }
+  get base(){ return (localStorage.getItem('id_api')||'/api') }
 };
 
 // ── State ─────────────────────────────────────────────────────────────────

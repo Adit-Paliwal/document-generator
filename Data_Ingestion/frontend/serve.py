@@ -1,13 +1,19 @@
 """
-Simple dev server for the Intellidraft frontend.
-Run from the Intellidraft/ directory:
+Standalone static dev server for the Intellidraft frontend (optional).
 
-    python frontend/serve.py
-
-Then open http://localhost:4000 in your browser.
-The Flask API must also be running on port 7071:
+PREFERRED local dev: the Flask API server now serves this UI itself at the
+same origin, so you only need one process:
 
     python Data_Ingestion/run_server.py
+    # then open  http://localhost:7071/   (index.html) — /api is same-origin
+
+Use THIS script only if you want to serve the static files separately:
+
+    python Data_Ingestion/frontend/serve.py   # opens http://localhost:4000
+
+In that separated setup the pages default their API base to same-origin
+"/api", which won't reach the API on :7071 — type the full API URL
+(http://localhost:7071/api) into the "API URL" box on the page.
 """
 import http.server
 import os

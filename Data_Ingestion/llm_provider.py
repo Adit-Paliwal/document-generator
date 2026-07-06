@@ -1,6 +1,6 @@
 """
-Shared LLM Provider — Gemini Vertex AI (primary) → Azure GPT-5 (fallback)
-==========================================================================
+Shared LLM Provider — Gemini Vertex AI (GCP)
+=============================================
 
 Used by:
   - api/extractor.py            (POST /api/extract-project-data)
@@ -8,24 +8,17 @@ Used by:
   - generation/generator.py     (document section generation)
   - parsers/vision_analyzer.py  (image analysis during document upload)
 
-Provider order:
-  1. Gemini 2.5 Flash on Google Vertex AI — authenticated via GCP service account
-     key.json (Data_Ingestion/key.json). 1M token context window, generous quota,
-     no network firewall restrictions. Used as the primary provider.
-  2. Azure GPT-5 — automatic fallback if Gemini fails for any reason
-     (key.json missing, Vertex AI unreachable, quota exhausted, API error).
-     Azure credentials are read from .env as before.
+Provider:
+  Gemini 2.5 Flash on Google Vertex AI — authenticated via GCP service account
+  key.json (Data_Ingestion/key.json). 1M token context window, generous quota.
 
 Logging:
   Every provider attempt is logged at INFO level.
-  Gemini failures are logged at WARNING level (triggering fallback).
-  Azure failures are logged at ERROR level.
-  The caller always knows which provider was used (returned in the tuple).
+  Gemini failures are logged at ERROR level and re-raised as RuntimeError.
 
 Model versioning (Vertex AI — Gemini):
   CURRENT DEFAULT:  gemini-2.5-flash
     — GA release, 1M token context, strong reasoning, fast inference.
-    — Replaces gemini-2.0-flash which is approaching end-of-life.
   ALTERNATIVE:      gemini-2.5-pro   (higher quality, slower, higher cost)
   DEPRECATED:       gemini-1.0-pro   (discontinued Feb 2025 — do NOT use)
                     gemini-2.0-flash  (approaching end-of-life — do NOT use as default)
@@ -35,11 +28,6 @@ Configuration (all optional — sensible defaults apply):
                                   Default: Data_Ingestion/key.json
   VERTEX_LOCATION                 Vertex AI region. Default: us-central1
   GEMINI_VERTEX_MODEL             Gemini model ID. Default: gemini-2.5-flash
-
-  AZURE_GPT5_OPENAI_API_KEY       Azure OpenAI API key
-  AZURE_GPT5_OPENAI_ENDPOINT      Azure OpenAI endpoint URL
-  AZURE_GPT5_API_VERSION          API version (default: 2024-12-01-preview)
-  AZURE_GPT5_MODEL_DEPLOYMENT_ID  Azure deployment name (default: gpt-5)
 """
 
 from __future__ import annotations
@@ -69,29 +57,24 @@ def call_with_fallback(
     log_prefix: str = "[LLM]",
 ) -> tuple[str, str]:
     """
-    Call Gemini Vertex AI first; automatically fall back to Azure GPT-5 on failure.
+    Call Gemini Vertex AI.
 
     Args:
         messages:               OpenAI-style message list — e.g. [{"role":"user","content":"..."}]
-        max_tokens:             Token budget for response (Gemini + standard Azure).
-                                Maps to max_output_tokens for Gemini, max_tokens for Azure GPT-4.
-        max_completion_tokens:  Token budget specifically for GPT-5 reasoning model (Azure).
-                                If None, max_tokens is used for both.
-        timeout:                HTTP timeout in seconds (applies to both providers).
+        max_tokens:             Token budget for response.
+        max_completion_tokens:  Ignored (kept for API compatibility). max_tokens is used.
+        timeout:                HTTP timeout in seconds.
         log_prefix:             Module identifier prepended to every log line.
                                 e.g. "[Extractor]", "[DeriveFields]"
 
     Returns:
         Tuple of (response_text, provider_used)
-        where provider_used is "gemini_vertex" or "azure_gpt5"
+        where provider_used is "gemini_vertex"
 
     Raises:
-        RuntimeError: if ALL providers fail. Message contains both error details.
+        RuntimeError: if Gemini fails. Message contains the error details.
     """
-    gemini_error: Optional[str] = None
-    azure_error:  Optional[str] = None
-
-    # ── 1. Try Gemini (Vertex AI) ──────────────────────────────────────────────
+    # ── Try Gemini (Vertex AI) ──────────────────────────────────────────────
     creds = _load_gemini_credentials(log_prefix)
     if creds is not None:
         try:
@@ -105,42 +88,21 @@ def call_with_fallback(
             return text, "gemini_vertex"
         except Exception as exc:
             gemini_error = f"{type(exc).__name__}: {exc}"
-            logger.warning(
-                "%s Gemini Vertex AI failed — %s. Falling back to Azure GPT-5.",
+            logger.error(
+                "%s Gemini Vertex AI failed — %s.",
                 log_prefix, gemini_error,
             )
+            raise RuntimeError(
+                f"Gemini Vertex AI call failed.\n"
+                f"  Error: {gemini_error}\n"
+                f"Check key.json exists at Data_Ingestion/key.json and is valid."
+            ) from exc
     else:
-        gemini_error = "key.json not found or unreadable"
-        logger.info(
-            "%s Gemini credentials unavailable (%s) — using Azure GPT-5.",
-            log_prefix, gemini_error,
+        raise RuntimeError(
+            f"Gemini credentials not found.\n"
+            f"Place a valid GCP service account key at Data_Ingestion/key.json, "
+            f"or set GOOGLE_KEY_JSON_PATH in Data_Ingestion/.env"
         )
-
-    # ── 2. Fallback: Azure GPT-5 ───────────────────────────────────────────────
-    azure_tokens = max_completion_tokens if max_completion_tokens is not None else max_tokens
-    try:
-        text = _call_azure_gpt5(
-            messages              = messages,
-            max_completion_tokens = azure_tokens,
-            timeout               = timeout,
-            log_prefix            = log_prefix,
-        )
-        return text, "azure_gpt5"
-    except Exception as exc:
-        azure_error = f"{type(exc).__name__}: {exc}"
-        logger.error(
-            "%s Azure GPT-5 fallback also failed — %s.",
-            log_prefix, azure_error,
-        )
-
-    # ── Both failed ───────────────────────────────────────────────────────────
-    raise RuntimeError(
-        f"All LLM providers failed.\n"
-        f"  Gemini: {gemini_error}\n"
-        f"  Azure GPT-5: {azure_error}\n"
-        f"Check key.json exists and Azure env vars (AZURE_GPT5_OPENAI_API_KEY, "
-        f"AZURE_GPT5_OPENAI_ENDPOINT) are set correctly in Data_Ingestion/.env"
-    )
 
 
 def call_vision_with_fallback(
@@ -153,12 +115,7 @@ def call_vision_with_fallback(
     log_prefix: str = "[Vision]",
 ) -> tuple[str, str]:
     """
-    Send an image + text prompt to a vision-capable LLM.
-    Provider order: Gemini 2.5 Flash (Vertex AI) → Azure GPT-5 (fallback).
-
-    Both providers receive a standard OpenAI-compatible multimodal message:
-      content = [{"type": "image_url", ...}, {"type": "text", ...}]
-    litellm translates this to the provider's native format automatically.
+    Send an image + text prompt to Gemini 2.5 Flash (Vertex AI).
 
     Args:
         text_prompt:  The instruction / question about the image.
@@ -172,7 +129,7 @@ def call_vision_with_fallback(
         Tuple of (response_text, provider_used).
 
     Raises:
-        RuntimeError: if ALL providers fail.
+        RuntimeError: if the Gemini call fails.
     """
     messages = [{
         "role": "user",
@@ -188,11 +145,10 @@ def call_vision_with_fallback(
         ],
     }]
     return call_with_fallback(
-        messages              = messages,
-        max_tokens            = max_tokens,
-        max_completion_tokens = max_tokens,   # same budget for both providers
-        timeout               = timeout,
-        log_prefix            = log_prefix,
+        messages   = messages,
+        max_tokens = max_tokens,
+        timeout    = timeout,
+        log_prefix = log_prefix,
     )
 
 
@@ -312,68 +268,3 @@ def _call_gemini(
     return text
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Azure GPT-5 call (fallback)
-# ─────────────────────────────────────────────────────────────────────────────
-
-def _call_azure_gpt5(
-    messages:              list[dict],
-    *,
-    max_completion_tokens: int,
-    timeout:               int,
-    log_prefix:            str,
-) -> str:
-    """
-    Call Azure GPT-5 via litellm.
-
-    GPT-5 is a reasoning model — key differences vs GPT-4:
-      - Does NOT accept temperature parameter (drop_params handles this)
-      - Uses max_completion_tokens (not max_tokens) for output length
-      - System + user are merged into a single user message to avoid the
-        "system message ignored" bug observed with reasoning models in litellm
-    """
-    import litellm
-    litellm.drop_params = True   # GPT-5 doesn't support temperature, top_p etc.
-
-    key     = os.getenv("AZURE_GPT5_OPENAI_API_KEY",      "")
-    base    = os.getenv("AZURE_GPT5_OPENAI_ENDPOINT",     "")
-    version = os.getenv("AZURE_GPT5_API_VERSION",         "2024-12-01-preview")
-    dep     = os.getenv("AZURE_GPT5_MODEL_DEPLOYMENT_ID", "gpt-5")
-    model   = f"azure/{dep}"
-
-    if not key or not base:
-        raise EnvironmentError(
-            "Azure GPT-5 credentials not configured. "
-            "Set AZURE_GPT5_OPENAI_API_KEY and AZURE_GPT5_OPENAI_ENDPOINT in .env"
-        )
-
-    # litellm reads Azure credentials from os.environ
-    os.environ.update({
-        "AZURE_API_KEY":     key,
-        "AZURE_API_BASE":    base,
-        "AZURE_API_VERSION": version,
-    })
-
-    logger.info(
-        "%s → Azure GPT-5  model=%s  max_completion_tokens=%d  timeout=%ds",
-        log_prefix, model, max_completion_tokens, timeout,
-    )
-
-    t0 = time.time()
-    response = litellm.completion(
-        model                 = model,
-        messages              = messages,
-        max_completion_tokens = max_completion_tokens,
-        timeout               = timeout,
-    )
-    elapsed = time.time() - t0
-
-    text  = (response.choices[0].message.content or "").strip()
-    usage = getattr(response, "usage", None)
-    logger.info(
-        "%s ✓ Azure GPT-5 success  elapsed=%.1fs  response_len=%d  usage=%s",
-        log_prefix, elapsed, len(text), usage,
-    )
-    if not text:
-        raise ValueError("Azure GPT-5 returned an empty response")
-    return text

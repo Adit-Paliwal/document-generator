@@ -4,7 +4,7 @@ Storage Layer
 Supports two modes controlled by LOCAL_MODE in .env:
 
   LOCAL_MODE=true  → LocalStorageService  (files saved to ./local_storage/)
-  LOCAL_MODE=false → AzureStorageService  (Azure Blob + Cosmos DB)
+  LOCAL_MODE=false → GCSStorageService    (Google Cloud Storage bucket)
 
 Both implementations expose an identical public API.
 Use get_storage_service() everywhere — it returns the correct implementation.
@@ -24,7 +24,8 @@ from models.meta_schema import ParsedDocument, ImageElement
 
 logger = logging.getLogger(__name__)
 
-LOCAL_MODE = os.environ.get("LOCAL_MODE", "true").lower() == "true"
+LOCAL_MODE       = os.environ.get("LOCAL_MODE",       "true").lower()  == "true"
+DATABRICKS_MODE  = os.environ.get("DATABRICKS_MODE", "false").lower() == "true"
 
 # Absolute path to Data_Ingestion/local_storage/ — consistent regardless of CWD.
 _DEFAULT_LOCAL_STORAGE = Path(__file__).parent.parent / "local_storage"
@@ -80,19 +81,19 @@ def _analyze_images(parsed_doc: ParsedDocument) -> ParsedDocument:
 
 class LocalStorageService:
     """
-    Mirrors AzureStorageService using the local filesystem.
-    Layout under ./local_storage/ exactly mirrors Azure Blob paths.
+    Mirrors GCSStorageService using the local filesystem.
+    Layout under ./local_storage/ exactly mirrors GCS blob paths.
 
       local_storage/documents/{doc_id}/source/{filename}
       local_storage/documents/{doc_id}/images/img_XXXX.{ext}
       local_storage/documents/{doc_id}/tables/tbl_XXXX.csv
       local_storage/documents/{doc_id}/meta.json
-      local_storage/cosmos/{doc_id}.json        ← Cosmos DB simulation
+      local_storage/cosmos/{doc_id}.json        ← GCS index simulation
     """
 
     def __init__(self, base_dir: str | None = None):
         # Default to an absolute path so storage works regardless of which
-        # directory `adk web` or the Azure Function host is started from.
+        # directory the server is started from.
         self.base = Path(base_dir) if base_dir else _DEFAULT_LOCAL_STORAGE
         (self.base / "documents").mkdir(parents=True, exist_ok=True)
         (self.base / "cosmos").mkdir(parents=True, exist_ok=True)
@@ -156,10 +157,10 @@ class LocalStorageService:
         return url
 
     def save_to_cosmos(self, parsed_doc: ParsedDocument) -> None:
-        record = _build_cosmos_record(parsed_doc)
+        record = _build_index_record(parsed_doc)
         path   = self.base / "cosmos" / f"{parsed_doc.document_id}.json"
         path.write_text(json.dumps(record, indent=2, default=str))
-        logger.info("[LOCAL] Cosmos index saved: %s", path)
+        logger.info("[LOCAL] Index saved: %s", path)
 
     def get_meta_json(self, document_id: str) -> dict:
         path = self.base / "documents" / document_id / "meta.json"
@@ -170,7 +171,7 @@ class LocalStorageService:
     def get_document_index(self, document_id: str) -> dict:
         path = self.base / "cosmos" / f"{document_id}.json"
         if not path.exists():
-            raise FileNotFoundError(f"Cosmos record not found for document_id={document_id}")
+            raise FileNotFoundError(f"Index record not found for document_id={document_id}")
         return json.loads(path.read_text(encoding="utf-8"))
 
     def persist_all(self, parsed_doc: ParsedDocument, source_file: Path) -> ParsedDocument:
@@ -188,54 +189,52 @@ class LocalStorageService:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# AZURE STORAGE SERVICE  (production)
+# GCS STORAGE SERVICE  (production — Google Cloud Storage)
 # ─────────────────────────────────────────────────────────────────────────────
 
-class AzureStorageService:
+class GCSStorageService:
     """
-    Production Azure implementation.
-    Requires: AZURE_BLOB_ACCOUNT_URL, AZURE_COSMOS_URL in environment.
-    Authentication via DefaultAzureCredential (managed identity in Azure,
-    or az login / env vars locally when LOCAL_MODE=false).
+    Production GCP implementation using Google Cloud Storage.
+    Requires: GCS_BUCKET_NAME in environment.
+    Authentication via Application Default Credentials (service account key.json,
+    Workload Identity, or GOOGLE_APPLICATION_CREDENTIALS env var).
+
+    Blob layout mirrors LocalStorageService:
+      documents/{doc_id}/source/{filename}
+      documents/{doc_id}/images/img_XXXX.{ext}
+      documents/{doc_id}/tables/tbl_XXXX.csv
+      documents/{doc_id}/meta.json
+      cosmos/{doc_id}.json                      ← document index
+      outputs/{job_id}/{filename}               ← exported documents
     """
 
     def __init__(self):
-        from azure.identity         import DefaultAzureCredential
-        from azure.storage.blob     import BlobServiceClient
-        from azure.cosmos           import CosmosClient
+        from google.cloud import storage as gcs
 
-        BLOB_ACCOUNT_URL = os.environ["AZURE_BLOB_ACCOUNT_URL"]
-        BLOB_CONTAINER   = os.environ.get("AZURE_BLOB_CONTAINER",   "doc-processor")
-        COSMOS_URL       = os.environ["AZURE_COSMOS_URL"]
-        COSMOS_DB        = os.environ.get("AZURE_COSMOS_DB",        "docprocessor")
-        COSMOS_CONTAINER = os.environ.get("AZURE_COSMOS_CONTAINER", "documents")
+        bucket_name = os.environ.get("GCS_BUCKET_NAME", "")
+        if not bucket_name:
+            raise EnvironmentError(
+                "GCS_BUCKET_NAME environment variable is not set. "
+                "Set it to your GCS bucket name in Data_Ingestion/.env"
+            )
 
-        cred = DefaultAzureCredential()
-        self._blob_container = (
-            BlobServiceClient(account_url=BLOB_ACCOUNT_URL, credential=cred)
-            .get_container_client(BLOB_CONTAINER)
-        )
-        self._cosmos = (
-            CosmosClient(url=COSMOS_URL, credential=cred)
-            .get_database_client(COSMOS_DB)
-            .get_container_client(COSMOS_CONTAINER)
-        )
-        self._account_url = BLOB_ACCOUNT_URL
-        self._container   = BLOB_CONTAINER
+        self._client     = gcs.Client()
+        self._bucket     = self._client.bucket(bucket_name)
+        self._bucket_name = bucket_name
+        logger.info("[GCS] Storage bucket: gs://%s", bucket_name)
 
     def _upload_blob(
         self, blob_path: str, data: bytes, content_type: str = "application/octet-stream"
     ) -> str:
-        from azure.storage.blob import ContentSettings
-        self._blob_container.upload_blob(
-            name             = blob_path,
-            data             = data,
-            overwrite        = True,
-            content_settings = ContentSettings(content_type=content_type),
-        )
-        url = f"{self._account_url}/{self._container}/{blob_path}"
-        logger.info("[AZURE] Uploaded blob: %s", url)
+        blob = self._bucket.blob(blob_path)
+        blob.upload_from_string(data, content_type=content_type)
+        url = f"gs://{self._bucket_name}/{blob_path}"
+        logger.info("[GCS] Uploaded: %s", url)
         return url
+
+    def _download_blob(self, blob_path: str) -> bytes:
+        blob = self._bucket.blob(blob_path)
+        return blob.download_as_bytes()
 
     def upload_source_file(self, document_id: str, file_path: Path) -> str:
         return self._upload_blob(
@@ -275,16 +274,21 @@ class AzureStorageService:
         )
 
     def save_to_cosmos(self, parsed_doc: ParsedDocument) -> None:
-        self._cosmos.upsert_item(_build_cosmos_record(parsed_doc))
+        """Store the document index as a JSON blob in GCS (replaces Cosmos DB)."""
+        record = _build_index_record(parsed_doc)
+        self._upload_blob(
+            f"cosmos/{parsed_doc.document_id}.json",
+            json.dumps(record, indent=2, default=str).encode("utf-8"),
+            "application/json",
+        )
 
     def get_meta_json(self, document_id: str) -> dict:
-        stream = self._blob_container.download_blob(
-            f"documents/{document_id}/meta.json"
-        )
-        return json.loads(stream.readall())
+        data = self._download_blob(f"documents/{document_id}/meta.json")
+        return json.loads(data)
 
     def get_document_index(self, document_id: str) -> dict:
-        return self._cosmos.read_item(item=document_id, partition_key=document_id)
+        data = self._download_blob(f"cosmos/{document_id}.json")
+        return json.loads(data)
 
     def persist_all(self, parsed_doc: ParsedDocument, source_file: Path) -> ParsedDocument:
         parsed_doc.blob_base_path = f"documents/{parsed_doc.document_id}/"
@@ -303,8 +307,8 @@ class AzureStorageService:
 # Shared helpers
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _build_cosmos_record(parsed_doc: ParsedDocument) -> dict:
-    """Lightweight index record written to Cosmos DB."""
+def _build_index_record(parsed_doc: ParsedDocument) -> dict:
+    """Lightweight index record written to GCS (replaces Cosmos DB)."""
     return {
         "id":               parsed_doc.document_id,
         "document_id":      parsed_doc.document_id,
@@ -323,9 +327,21 @@ def _build_cosmos_record(parsed_doc: ParsedDocument) -> dict:
 # Factory
 # ─────────────────────────────────────────────────────────────────────────────
 
-def get_storage_service() -> LocalStorageService | AzureStorageService:
-    if LOCAL_MODE:
-        logger.info("[STORAGE] Using LocalStorageService (LOCAL_MODE=true)")
-        return LocalStorageService()
-    logger.info("[STORAGE] Using AzureStorageService (LOCAL_MODE=false)")
-    return AzureStorageService()
+_storage_instance: "LocalStorageService | GCSStorageService | None" = None
+
+
+def get_storage_service() -> "LocalStorageService | GCSStorageService":
+    """Return the module-level singleton storage service (created once, reused)."""
+    global _storage_instance
+    if _storage_instance is None:
+        if DATABRICKS_MODE:
+            logger.info("[STORAGE] Using DatabricksVolumeStorageService (DATABRICKS_MODE=true)")
+            from storage.databricks_volume_storage import DatabricksVolumeStorageService
+            _storage_instance = DatabricksVolumeStorageService()
+        elif LOCAL_MODE:
+            logger.info("[STORAGE] Using LocalStorageService (LOCAL_MODE=true)")
+            _storage_instance = LocalStorageService()
+        else:
+            logger.info("[STORAGE] Using GCSStorageService (LOCAL_MODE=false)")
+            _storage_instance = GCSStorageService()
+    return _storage_instance
