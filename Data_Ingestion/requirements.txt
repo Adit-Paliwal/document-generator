@@ -91,9 +91,12 @@ click==8.1.8
 markdown2==2.5.5            # Markdown → HTML
 xlsxwriter==3.2.9           # Excel export
 
-# ── Preview — LibreOffice async conversion ───────────────────────────────────
-# celery==5.5.2             # REMOVED — not needed when CELERY_ENABLED=false (Databricks deployment)
-# redis==5.2.1              # REMOVED — not needed when CELERY_ENABLED=false (Databricks deployment)
+# ── Preview — LibreOffice async conversion (Docker / Celery mode) ────────────
+# Only imported when CELERY_ENABLED=true (docker-compose celery-worker). On
+# Databricks / Cloud Run with CELERY_ENABLED=false these are installed but never
+# imported — harmless, and keeps the Docker preview stack working.
+celery==5.5.2
+redis==5.2.1
 
 # ── Utilities ────────────────────────────────────────────────────────────────
 python-dateutil==2.9.0.post0

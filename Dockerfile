@@ -24,9 +24,10 @@
 #   - Paginated project list, N+1-free job queries, version_hash caching
 #   - Celery async preview tasks (CELERY_ENABLED=true) or sync fallback
 #
-# Frontend (chat.html / index.html) is served separately — NOT in this image.
-#   Local dev:  open frontend/index.html directly in browser
-#   Production: serve via nginx or CDN; point BASE_URL to this API
+# Frontend (index.html / chat.html) is now served BY this Flask app from
+#   Data_Ingestion/frontend/ at the same origin as the API:
+#     http://localhost:7071/           -> index.html (project wizard)
+#     http://localhost:7071/chat.html  -> chat studio
 # ══════════════════════════════════════════════════════════════════════════════
 
 FROM python:3.11-slim

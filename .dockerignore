@@ -45,8 +45,10 @@ Thumbs.db
 *.bak
 ~$*
 
-# ── Frontend (served separately or via serve.py) ──────────
-frontend/
+# ── Frontend — legacy top-level dir only ──────────────────
+# The real UI now lives in Data_Ingestion/frontend/ and is served by Flask,
+# so it MUST stay in the image (re-included via negations below).
+/frontend/
 
 # ── Docs / assets (not needed in image) ──────────────────
 *.md
@@ -55,6 +57,11 @@ frontend/
 *.xlsx
 *.zip
 *.pdf
+
+# ── Re-include the HTML the Flask app serves (UI pages + API docs) ───────────
+!Data_Ingestion/frontend/index.html
+!Data_Ingestion/frontend/chat.html
+!Data_Ingestion/api-docs.html
 
 # ── ADK session state ─────────────────────────────────────
 .adk/
