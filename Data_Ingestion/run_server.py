@@ -1053,6 +1053,15 @@ def get_project_data(project_id):
         with get_session() as s:
             proj    = _get_proj_or_404(s, project_id)
             ingested = proj.to_ingested_dict()
+            # Capture meta BEFORE popping so callers can still read the document
+            # type / format from the /data response (else clients default to BRD).
+            meta = {
+                "document_type":           proj.document_type or "BRD",
+                "output_format":           proj.output_format or "Word (.docx)",
+                "template_id":             proj.template_id or "",
+                "additional_instructions": proj.additional_instructions or "",
+                "status":                  proj.status,
+            }
             for k in ("project_id","status","job_id","created_at","updated_at",
                       "document_type","output_format","additional_instructions",
                       "document_ids","template_id"):
@@ -1071,7 +1080,7 @@ def get_project_data(project_id):
                     "data_sources","constraints_dependencies",
                 ]}
                 generated_at = None
-        return json_resp({"project_id": project_id, "ingested": ingested,
+        return json_resp({"project_id": project_id, **meta, "ingested": ingested,
                           "derived": derived, "derived_generated_at": generated_at})
     except FileNotFoundError:
         return json_resp({"error": f"Project '{project_id}' not found."}, 404)

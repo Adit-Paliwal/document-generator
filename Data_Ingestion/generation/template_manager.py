@@ -51,6 +51,37 @@ _DOC_TYPE_MAP: dict[str, str] = {
 _seeded = False   # guard against repeated seeding in the same process
 
 
+def _resolve_template_id(document_type: Optional[str]) -> Optional[str]:
+    """
+    Map a document_type in ANY form to its system-template file id.
+    Robust to case and short/long/parenthesised forms, e.g.:
+      'Request for Proposal (RFP)', 'RFP', 'rfp'      → 'rfp'
+      'Notice Inviting Tender (NIT)', 'NIT', 'nit'    → 'nit'
+      'Business Requirements Document (BRD)', 'brd'   → 'brd'
+    Returns None if the type is unknown (caller then uses a generic fallback).
+    """
+    if not document_type:
+        return None
+    raw = document_type.strip()
+    # 1. exact key
+    if raw in _DOC_TYPE_MAP:
+        return _DOC_TYPE_MAP[raw]
+    # 2. case-insensitive key match (handles 'rfp' vs 'RFP', long names, etc.)
+    low = raw.lower()
+    for k, v in _DOC_TYPE_MAP.items():
+        if k.lower() == low:
+            return v
+    # 3. parenthesised abbreviation, e.g. 'Something (RFP)' → 'RFP'
+    import re as _re
+    m = _re.search(r"\(([A-Za-z]{2,6})\)", raw)
+    if m and m.group(1).upper() in _DOC_TYPE_MAP:
+        return _DOC_TYPE_MAP[m.group(1).upper()]
+    # 4. bare upper short code
+    if raw.upper() in _DOC_TYPE_MAP:
+        return _DOC_TYPE_MAP[raw.upper()]
+    return None
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Public API
 # ─────────────────────────────────────────────────────────────────────────────
@@ -114,7 +145,7 @@ def get_template_for_doc_type(document_type: str) -> Optional[Template]:
     Returns None if no matching template exists.
     """
     ensure_seeded()
-    template_id = _DOC_TYPE_MAP.get(document_type)
+    template_id = _resolve_template_id(document_type)
     if not template_id:
         return None
 
@@ -139,7 +170,7 @@ def list_templates(document_type: Optional[str] = None) -> list[dict]:
     with get_session() as session:
         q = session.query(Template)
         if document_type:
-            resolved_id = _DOC_TYPE_MAP.get(document_type)
+            resolved_id = _resolve_template_id(document_type)
             if resolved_id:
                 from sqlalchemy import or_
                 q = q.filter(or_(
@@ -170,8 +201,22 @@ def get_sections_for_job(
     ensure_seeded()
 
     template = None
+    resolved_tid = _resolve_template_id(document_type)   # e.g. 'rfp' for an RFP job
     if template_id:
-        template = get_template_by_id(template_id)
+        cand = get_template_by_id(template_id)
+        # Guard against a stale/default SYSTEM template_id that does not match the
+        # requested document_type — this is what made every doc type render as BRD.
+        # Custom (non-system) templates are always honoured.
+        if cand is not None:
+            if cand.is_system and resolved_tid and cand.template_id != resolved_tid:
+                logger.info(
+                    "Ignoring mismatched system template_id=%s for document_type=%s "
+                    "(expected %s) — using the document type's own template",
+                    template_id, document_type, resolved_tid,
+                )
+                template = None
+            else:
+                template = cand
     if template is None:
         template = get_template_for_doc_type(document_type)
 

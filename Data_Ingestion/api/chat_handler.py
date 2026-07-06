@@ -42,6 +42,11 @@ _DOC_ALIASES: dict[str, str] = {
     "tech spec":  "Technical Specification",
     "tech_spec":  "Technical Specification",
     "scope":      "Scope Document",
+    "ndpr":       "Non-Detailed Project Report (NDPR)",
+    "nfa":        "Note for Approval (NFA)",
+    "nit":        "Notice Inviting Tender (NIT)",
+    "boq":        "Bill of Quantities (BOQ)",
+    "arb":        "Architecture Review Board (ARB) Submission",
 }
 
 

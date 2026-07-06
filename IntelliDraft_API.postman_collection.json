@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "IntelliDraft API",
-    "description": "Complete API collection for IntelliDraft — v2 (Sprint: Inline Editing + Snapshots).\n\n**Base URL:** http://localhost:7071/api\n\n**API Key (x-functions-key):**\n- Local dev (run_server.py / Flask): leave `api_key` variable EMPTY — no key needed.\n- Azure Functions deployment: set the `api_key` collection variable to your function host key.\nAll requests automatically send the key via the pre-request script — you only set it once.\n\n**Quick Start:**\n1. Set `base_url` variable (default: http://localhost:7071/api)\n2. Set `api_key` variable (empty for local dev, host key for Azure)\n3. Run requests in the 🔁 Full Flow folder to test the complete workflow\n\n**Typical flow:**  Upload → Extract AI fields → Create Draft → Finalize → Generate → Preview → Edit → Snapshot → Export\n\n**New in this sprint:**\n- `PATCH /generate/{job_id}/section/{section_id}` — manual section edit (creates versioned record)\n- `GET  /generate/{job_id}/preview/html` — LibreOffice DOCX→HTML with inline editing scripts\n- `GET  /generate/{job_id}/preview/status` — poll Celery conversion task\n- `POST /generate/{job_id}/snapshot` — save version checkpoint\n- `GET  /generate/{job_id}/snapshots` — list all checkpoints\n- `POST /generate/{job_id}/snapshot/{id}/restore` — roll back to any checkpoint\n- `GET  /projects?page=N&per_page=50` — paginated project list (100× faster at scale)",
+    "description": "IntelliDraft backend API. Every document type (BRD, RFP, SOW, NIT, BOQ, NDPR, NFA, ARB, Proposal, Tech Spec, Scope) generates its own sections from its template and is styled with the Adani template. Set the {{document_type}} variable to switch types. Preview is asynchronous — poll /preview/html (or /preview/status) until status=ready.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "event": [
@@ -80,6 +80,12 @@
       "value": "",
       "type": "string",
       "description": "Celery task ID for LibreOffice HTML preview conversion. Auto-set by GET /preview/html when pending."
+    },
+    {
+      "key": "document_type",
+      "value": "BRD",
+      "type": "string",
+      "description": "Document type to generate. One of: BRD, RFP, SOW, Proposal, Technical Specification, Scope, NDPR, NFA, NIT, BOQ, ARB — case-insensitive; long form e.g. 'Request for Proposal (RFP)' also works."
     }
   ],
   "item": [
@@ -300,7 +306,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"project_id\": \"{{project_id}}\",\n  \"_comment\": \"project_id is OPTIONAL \\u2014 pass a client-generated UUID (crypto.randomUUID()) for idempotent creation. Leave blank to have server generate one.\",\n  \"project_name\": \"AESL Data Foundation\",\n  \"project_code\": \"AESL-DF-001\",\n  \"business_unit\": \"IT\",\n  \"business_priority\": \"Critical\",\n  \"document_type\": \"BRD\"\n}",
+              "raw": "{\n  \"project_id\": \"{{project_id}}\",\n  \"_comment\": \"project_id is OPTIONAL \\u2014 pass a client-generated UUID (crypto.randomUUID()) for idempotent creation. Leave blank to have server generate one.\",\n  \"project_name\": \"AESL Data Foundation\",\n  \"project_code\": \"AESL-DF-001\",\n  \"business_unit\": \"IT\",\n  \"business_priority\": \"Critical\",\n  \"document_type\": \"{{document_type}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -338,7 +344,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"business_unit\": \"AESL\",\n  \"project_name\": \"Smart Meter Analytics\",\n  \"project_code\": \"AESL-2025-042\",\n  \"problem_statement\": \"Manual meter reading is error-prone and costly, leading to billing disputes.\",\n  \"project_objective\": \"Automate meter data collection with real-time analytics dashboard.\",\n  \"stakeholders\": [\n    { \"name\": \"Srinivas Gutta\", \"designation\": \"Project Manager\" },\n    { \"name\": \"Ali Imam\", \"designation\": \"Technical Lead\" }\n  ],\n  \"start_date\": \"2025-04-01\",\n  \"end_date\": \"2025-12-31\",\n  \"as_is_processes\": \"Field engineers visit each meter monthly for manual reading.\",\n  \"proposed_solution\": \"Deploy IoT smart meters with a central analytics platform integrated with SAP.\",\n  \"technical_landscape\": \"Azure IoT Hub, Power BI, SAP ERP integration via REST API.\",\n  \"business_priority\": \"Critical\",\n  \"constraints\": \"Budget capped at 5 Crores. No disruption to existing billing cycle.\",\n  \"risks\": \"Device connectivity in remote areas. Data privacy regulations.\",\n  \"estimated_cost_crores\": \"4.5\",\n  \"document_type\": \"BRD\",\n  \"output_format\": \"Word (.docx)\",\n  \"document_ids\": [\"{{document_id}}\"]\n}"
+              "raw": "{\n  \"business_unit\": \"AESL\",\n  \"project_name\": \"Smart Meter Analytics\",\n  \"project_code\": \"AESL-2025-042\",\n  \"problem_statement\": \"Manual meter reading is error-prone and costly, leading to billing disputes.\",\n  \"project_objective\": \"Automate meter data collection with real-time analytics dashboard.\",\n  \"stakeholders\": [\n    { \"name\": \"Srinivas Gutta\", \"designation\": \"Project Manager\" },\n    { \"name\": \"Ali Imam\", \"designation\": \"Technical Lead\" }\n  ],\n  \"start_date\": \"2025-04-01\",\n  \"end_date\": \"2025-12-31\",\n  \"as_is_processes\": \"Field engineers visit each meter monthly for manual reading.\",\n  \"proposed_solution\": \"Deploy IoT smart meters with a central analytics platform integrated with SAP.\",\n  \"technical_landscape\": \"Azure IoT Hub, Power BI, SAP ERP integration via REST API.\",\n  \"business_priority\": \"Critical\",\n  \"constraints\": \"Budget capped at 5 Crores. No disruption to existing billing cycle.\",\n  \"risks\": \"Device connectivity in remote areas. Data privacy regulations.\",\n  \"estimated_cost_crores\": \"4.5\",\n  \"document_type\": \"{{document_type}}\",\n  \"output_format\": \"Word (.docx)\",\n  \"document_ids\": [\"{{document_id}}\"]\n}"
             }
           },
           "event": [
@@ -495,7 +501,7 @@
           "request": {
             "method": "GET",
             "url": "{{base_url}}/projects/{{project_id}}/data",
-            "description": "Returns both ingested (15 fields) and derived (12 AI fields) in one call. Used by the Project Data sub-page with two tabs."
+            "description": "Returns project meta at the top level (document_type, output_format, template_id, status) plus the 'ingested' form fields and 'derived' AI fields."
           },
           "event": [
             {
@@ -710,7 +716,7 @@
           "request": {
             "method": "POST",
             "url": "{{base_url}}/generate/project/{{project_id}}",
-            "description": "Start document generation from a saved project.\n\nBody is optional. Omit for default (BRD, from project settings).\n\n**Optional body fields:**\n- `document_type`: Override the project's document type (BRD, RFP, NFA, NDPR, NIT, BOQ, ARB, SOW)\n\nDocuments are NOT required — if none are attached, the AI generates from the project form fields alone.\n\nReturns: `{ job_id, status, sections[], message }`. Poll `GET /api/generate/{{job_id}}` for progress.",
+            "description": "Start generation from a saved project. Body may override the type via \"document_type\" (defaults to the project's stored type). Supported: BRD, RFP, SOW, Proposal, Technical Specification, Scope, NDPR, NFA, NIT, BOQ, ARB — case-insensitive; long form e.g. 'Request for Proposal (RFP)' also works. Each type generates its OWN sections/formatting from its template.",
             "header": [
               {
                 "key": "Content-Type",
@@ -719,7 +725,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"document_type\": \"BRD\"\n}",
+              "raw": "{\n  \"document_type\": \"{{document_type}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -759,7 +765,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"document_id\": \"{{document_id}}\",\n  \"user_inputs\": {\n    \"project_name\": \"Smart Meter Analytics\",\n    \"document_type\": \"BRD\",\n    \"output_format\": \"Word (.docx)\",\n    \"stakeholders\": \"Ravi Kumar (PM), Priya Sharma (BA)\",\n    \"project_description\": \"IoT smart meter analytics platform for AESL.\",\n    \"business_problem\": \"Manual meter reading is costly and error-prone.\",\n    \"expected_outcome\": \"Real-time meter data with automated billing.\"\n  }\n}"
+              "raw": "{\n  \"document_id\": \"{{document_id}}\",\n  \"user_inputs\": {\n    \"project_name\": \"Smart Meter Analytics\",\n    \"document_type\": \"{{document_type}}\",\n    \"output_format\": \"Word (.docx)\",\n    \"stakeholders\": \"Ravi Kumar (PM), Priya Sharma (BA)\",\n    \"project_description\": \"IoT smart meter analytics platform for AESL.\",\n    \"business_problem\": \"Manual meter reading is costly and error-prone.\",\n    \"expected_outcome\": \"Real-time meter data with automated billing.\"\n  }\n}"
             }
           },
           "event": [
@@ -951,7 +957,11 @@
             "body": {
               "mode": "raw",
               "raw": "{\n  \"content\": \"## Introduction\\n\\nThis section has been manually edited to include updated project scope and revised KPIs.\\n\\n- KPI 1: Reduce manual effort by 40%\\n- KPI 2: Real-time data latency < 5 seconds\\n- KPI 3: 99.9% system uptime\"\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             }
           },
           "event": [
@@ -1043,7 +1053,7 @@
           "request": {
             "method": "GET",
             "url": "{{base_url}}/generate/{{job_id}}/preview/html",
-            "description": "Return the Word document as LibreOffice-rendered HTML.\n\n**Cache hit** (most calls): returns `{ status: 'ready', html: '...', cached: true }` instantly (~5ms).\n\n**Cache miss / first call**: starts Celery task and returns `{ status: 'pending', task_id: '...' }`. Poll `/preview/status?task_id=...` until ready (~2–5s).\n\n**CELERY_ENABLED=false** (local sync mode): converts synchronously and returns `{ status: 'ready', html: '...' }` directly (~2–5s).\n\nThe returned HTML has inline editing scripts injected — section headings are clickable."
+            "description": "Get the rendered HTML preview. ASYNCHRONOUS: may return {\"status\":\"pending\", \"poll_url\":\"...\", \"retry_after_ms\":1500}. Keep re-GETting poll_url (this same endpoint in sync mode, or /preview/status?task_id=... in Celery mode) until {\"status\":\"ready\", \"html\":...}. Do NOT treat 'pending' as an error."
           },
           "event": [
             {
@@ -1069,9 +1079,21 @@
             "method": "GET",
             "url": {
               "raw": "{{base_url}}/generate/{{job_id}}/preview/status?task_id={{preview_task_id}}",
-              "host": ["{{base_url}}"],
-              "path": ["generate", "{{job_id}}", "preview", "status"],
-              "query": [{ "key": "task_id", "value": "{{preview_task_id}}" }]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "generate",
+                "{{job_id}}",
+                "preview",
+                "status"
+              ],
+              "query": [
+                {
+                  "key": "task_id",
+                  "value": "{{preview_task_id}}"
+                }
+              ]
             },
             "description": "Poll Celery task status for HTML preview conversion.\n\nResponse: `{ status: 'pending' | 'ready' | 'error', html?, error? }`\n\nRepeat every 2s until `status === 'ready'`. The `html` field contains the full LibreOffice HTML with inline-editing scripts injected."
           },
@@ -1089,25 +1111,6 @@
               }
             }
           ]
-        },
-        {
-          "name": "Invalidate Preview Cache",
-          "request": {
-            "method": "POST",
-            "url": "{{base_url}}/generate/{{job_id}}/preview/invalidate",
-            "description": "Force-bust the Redis preview cache for this job. Next GET /preview/html will re-run LibreOffice conversion.\n\nCalled automatically after section edits and snapshot restores — manual call rarely needed."
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
-                  "console.log('Cache invalidated:', pm.response.json());"
-                ]
-              }
-            }
-          ]
         }
       ]
     },
@@ -1121,11 +1124,20 @@
             "method": "POST",
             "url": "{{base_url}}/generate/{{job_id}}/snapshot",
             "description": "Create a DocumentSnapshot capturing the current accepted (or latest) version of every section.\n\nReturns `{ snapshot_id, label, section_count, created_at }`.\n\nUse `label` to describe what this snapshot represents (e.g. 'After legal review', 'Pre-client review v1').",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"label\": \"After legal review — v1\",\n  \"trigger_type\": \"manual\"\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             }
           },
           "event": [
@@ -1174,8 +1186,16 @@
             "method": "POST",
             "url": "{{base_url}}/generate/{{job_id}}/snapshot/{{snapshot_id}}/restore",
             "description": "Restore a document to a saved snapshot.\n\nMarks the referenced SectionVersion for each section as `is_accepted=true`, clears the accepted flag on other versions, and invalidates the preview cache.\n\nResponse: `{ restored_sections: [{ section_id, version_number }], snapshot_id }`",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{}" }
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
           },
           "event": [
             {
@@ -1248,7 +1268,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"AESL Custom BRD\",\n  \"document_type\": \"BRD\",\n  \"sections\": [\n    \"Executive Summary\",\n    \"Problem Statement\",\n    \"Business Requirements\",\n    \"Technical Requirements\",\n    \"Implementation Plan\"\n  ],\n  \"description\": \"AESL internal BRD format\",\n  \"system_instructions\": \"Always use formal tone. Include AESL branding. Use metric units.\"\n}"
+              "raw": "{\n  \"name\": \"AESL Custom BRD\",\n  \"document_type\": \"{{document_type}}\",\n  \"sections\": [\n    \"Executive Summary\",\n    \"Problem Statement\",\n    \"Business Requirements\",\n    \"Technical Requirements\",\n    \"Implementation Plan\"\n  ],\n  \"description\": \"AESL internal BRD format\",\n  \"system_instructions\": \"Always use formal tone. Include AESL branding. Use metric units.\"\n}"
             }
           },
           "event": [
@@ -1305,7 +1325,7 @@
           "request": {
             "method": "POST",
             "url": "{{base_url}}/chat/init",
-            "description": "Create a new chat session.\n\n**project_id is now OPTIONAL.**\n\nIf omitted, a new draft project is automatically created and returned as `auto_created_project_id` in the response. This enables a chat-first workflow where the user doesn't need to create a project first.\n\nIf project_id is provided, the session is attached to that existing project.\n\nStore both session_id and auto_created_project_id (if present) for subsequent calls.",
+            "description": "Create/resume a chat session. \"document_type\" selects the type (short or long form). Supported: BRD, RFP, SOW, Proposal, Technical Specification, Scope, NDPR, NFA, NIT, BOQ, ARB — case-insensitive; long form e.g. 'Request for Proposal (RFP)' also works.",
             "header": [
               {
                 "key": "Content-Type",
@@ -1314,7 +1334,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"_comment\": \"project_id is OPTIONAL. If omitted, a draft project is auto-created.\",\n  \"project_id\": \"{{project_id}}\",\n  \"document_type\": \"BRD\",\n  \"project_name\": \"AESL Data Foundation\"\n}",
+              "raw": "{\n  \"_comment\": \"project_id is OPTIONAL. If omitted, a draft project is auto-created.\",\n  \"project_id\": \"{{project_id}}\",\n  \"document_type\": \"{{document_type}}\",\n  \"project_name\": \"AESL Data Foundation\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1354,7 +1374,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"session_id\": \"{{session_id}}\",\n  \"message\": \"Please generate the BRD document now.\",\n  \"project_id\": \"{{project_id}}\",\n  \"document_type\": \"BRD\"\n}"
+              "raw": "{\n  \"session_id\": \"{{session_id}}\",\n  \"message\": \"Please generate the BRD document now.\",\n  \"project_id\": \"{{project_id}}\",\n  \"document_type\": \"{{document_type}}\"\n}"
             }
           },
           "event": [
@@ -1528,7 +1548,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"project_id\": \"{{project_id}}\",\n  \"project_name\": \"AESL Data Foundation\",\n  \"project_code\": \"AESL-DF-001\",\n  \"business_unit\": \"IT\",\n  \"document_type\": \"BRD\"\n}",
+              "raw": "{\n  \"project_id\": \"{{project_id}}\",\n  \"project_name\": \"AESL Data Foundation\",\n  \"project_code\": \"AESL-DF-001\",\n  \"business_unit\": \"IT\",\n  \"document_type\": \"{{document_type}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1566,7 +1586,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"project_objective\": \"Automate meter data collection with real-time analytics.\",\n  \"stakeholders\": [{ \"name\": \"Srinivas Gutta\", \"designation\": \"Project Manager\" }],\n  \"start_date\": \"2025-04-01\",\n  \"end_date\": \"2025-12-31\",\n  \"as_is_processes\": \"Field engineers visit each meter monthly for manual reading.\",\n  \"proposed_solution\": \"Deploy IoT smart meters with a central analytics platform.\",\n  \"technical_landscape\": \"Azure IoT Hub, Power BI, SAP ERP integration.\",\n  \"business_priority\": \"Critical\",\n  \"document_type\": \"BRD\",\n  \"output_format\": \"Word (.docx)\",\n  \"status\": \"ready\"\n}"
+              "raw": "{\n  \"project_objective\": \"Automate meter data collection with real-time analytics.\",\n  \"stakeholders\": [{ \"name\": \"Srinivas Gutta\", \"designation\": \"Project Manager\" }],\n  \"start_date\": \"2025-04-01\",\n  \"end_date\": \"2025-12-31\",\n  \"as_is_processes\": \"Field engineers visit each meter monthly for manual reading.\",\n  \"proposed_solution\": \"Deploy IoT smart meters with a central analytics platform.\",\n  \"technical_landscape\": \"Azure IoT Hub, Power BI, SAP ERP integration.\",\n  \"business_priority\": \"Critical\",\n  \"document_type\": \"{{document_type}}\",\n  \"output_format\": \"Word (.docx)\",\n  \"status\": \"ready\"\n}"
             }
           },
           "event": [
@@ -1629,7 +1649,8 @@
             "body": {
               "mode": "raw",
               "raw": "{}"
-            }
+            },
+            "description": "Start generation from a saved project. Body may override the type via \"document_type\" (defaults to the project's stored type). Supported: BRD, RFP, SOW, Proposal, Technical Specification, Scope, NDPR, NFA, NIT, BOQ, ARB — case-insensitive; long form e.g. 'Request for Proposal (RFP)' also works. Each type generates its OWN sections/formatting from its template."
           },
           "event": [
             {
