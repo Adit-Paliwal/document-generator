@@ -7,11 +7,14 @@ Sub-agents  (all live under agents/ — one place, easy to find):
   agents/doc_parser/          — DocParserAgent   (file upload, parsing, Vision AI)
   agents/context_collector/   — ContextCollectorAgent  (load project from DB)
   agents/document_generator/  — DocumentGeneratorAgent (generate + modify + export)
+  agents/reviewer/            — ReviewerAgent    (share for review, comments, AI
+                                 persona reviews, feedback summaries, approvals)
 
 Routing (ADK reads each sub-agent's `description` to decide):
   "parse / upload / extract content from file"    → DocParserAgent
   "project context / load project / check fields" → ContextCollectorAgent
   "generate / modify section / export document"   → DocumentGeneratorAgent
+  "share / review / comments / approve / summarize feedback" → ReviewerAgent
 
 Session state shared across all sub-agents via InvocationContext:
   parsed_document_ids      — set by DocParserAgent after each successful parse
@@ -39,10 +42,11 @@ if str(_BASE) not in sys.path:
 from google.adk.agents import LlmAgent
 from ._model           import get_agent_model
 
-# ── All three specialist agents live under agents/ ───────────────────────────
+# ── All four specialist agents live under agents/ ────────────────────────────
 from .doc_parser.agent         import doc_parser_agent
 from .context_collector.agent  import context_collector_agent
 from .document_generator.agent import document_generator_agent
+from .reviewer.agent           import reviewer_agent
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Orchestrator instruction
@@ -77,6 +81,14 @@ SPECIALIST AGENTS
      (only the requested section is regenerated — never the full document),
      and export (Word, PDF, Markdown).
 
+4. ReviewerAgent
+   → When: user wants to share a document for review, check reviewer statuses,
+     add or discuss review comments, run an AI persona review, summarize
+     reviewer feedback, approve/reject a document, or apply review feedback
+     to a section.
+   → Handles: the full post-generation review lifecycle, including AI persona
+     reviews and persona-wise feedback summaries.
+
 TYPICAL FLOW
 ------------
   Step 1  User uploads source document       → route to doc_processor
@@ -84,6 +96,10 @@ TYPICAL FLOW
   Step 3  User provides project_id           → route to ContextCollectorAgent
   Step 4  User says "generate my BRD"        → route to DocumentGeneratorAgent
   Step 5  User requests section changes      → DocumentGeneratorAgent handles
+  Step 6  User shares document for review    → ReviewerAgent handles
+  Step 7  Reviewers comment / approve        → ReviewerAgent handles
+  Step 8  Author applies review feedback     → ReviewerAgent (regenerates the
+          targeted section via the standard flow)
 
 RULES
 -----
@@ -111,5 +127,6 @@ root_agent = LlmAgent(
         doc_parser_agent,        # agents/doc_parser/agent.py
         context_collector_agent, # agents/context_collector/agent.py
         document_generator_agent,# agents/document_generator/agent.py
+        reviewer_agent,          # agents/reviewer/agent.py
     ],
 )

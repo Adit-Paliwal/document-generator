@@ -86,6 +86,36 @@
       "value": "BRD",
       "type": "string",
       "description": "Document type to generate. One of: BRD, RFP, SOW, Proposal, Technical Specification, Scope, NDPR, NFA, NIT, BOQ, ARB — case-insensitive; long form e.g. 'Request for Proposal (RFP)' also works."
+    },
+    {
+      "key": "review_id",
+      "value": "",
+      "type": "string",
+      "description": "Set from POST /review/share response"
+    },
+    {
+      "key": "persona_id",
+      "value": "",
+      "type": "string",
+      "description": "Set from POST /personas response"
+    },
+    {
+      "key": "review_comment_id",
+      "value": "",
+      "type": "string",
+      "description": "Set from POST /review/{id}/comments response"
+    },
+    {
+      "key": "user_email",
+      "value": "author@adani.com",
+      "type": "string",
+      "description": "Caller identity (X-User-Email header)"
+    },
+    {
+      "key": "user_name",
+      "value": "Rajesh Kumar",
+      "type": "string",
+      "description": "Caller identity (X-User-Name header)"
     }
   ],
   "item": [
@@ -1732,6 +1762,764 @@
               }
             }
           ]
+        }
+      ]
+    },
+    {
+      "name": "👤 Users",
+      "item": [
+        {
+          "name": "List Users",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Email",
+                "value": "{{user_email}}",
+                "description": "Caller identity (Entra ID email)"
+              },
+              {
+                "key": "X-User-Name",
+                "value": "{{user_name}}",
+                "description": "Caller display name"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users"
+              ]
+            },
+            "description": "All registered users (feeds the Admin Panel)."
+          }
+        },
+        {
+          "name": "Create / Update User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Email",
+                "value": "{{user_email}}",
+                "description": "Caller identity (Entra ID email)"
+              },
+              {
+                "key": "X-User-Name",
+                "value": "{{user_name}}",
+                "description": "Caller display name"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users"
+              ]
+            },
+            "description": "Upsert by email. Roles: Admin | Project Manager | Contributor | Viewer.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"srinivas@adani.com\",\n  \"name\": \"Srinivas Gutta\",\n  \"role\": \"Project Manager\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Delete User",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-User-Email",
+                "value": "{{user_email}}",
+                "description": "Caller identity (Entra ID email)"
+              },
+              {
+                "key": "X-User-Name",
+                "value": "{{user_name}}",
+                "description": "Caller display name"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users/{{user_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users",
+                "{{user_id}}"
+              ]
+            },
+            "description": ""
+          }
+        }
+      ]
+    },
+    {
+      "name": "🎭 Personas",
+      "item": [
+        {
+          "name": "List Personas",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Email",
+                "value": "{{user_email}}",
+                "description": "Caller identity (Entra ID email)"
+              },
+              {
+                "key": "X-User-Name",
+                "value": "{{user_name}}",
+                "description": "Caller display name"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/personas",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "personas"
+              ]
+            },
+            "description": "5 system personas (PM, Technical Reviewer, BA, Compliance Officer, Financial Auditor) + caller's custom personas."
+          }
+        },
+        {
+          "name": "Create Persona",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Email",
+                "value": "{{user_email}}",
+                "description": "Caller identity (Entra ID email)"
+              },
+              {
+                "key": "X-User-Name",
+                "value": "{{user_name}}",
+                "description": "Caller display name"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/personas",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "personas"
+              ]
+            },
+            "description": "Custom persona owned by the caller (X-User-Email).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Security Reviewer\",\n  \"description\": \"Focus on security, data protection, and access control\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Update Persona",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-User-Email",
+                "value": "{{user_email}}",
+                "description": "Caller identity (Entra ID email)"
+              },
+              {
+                "key": "X-User-Name",
+                "value": "{{user_name}}",
+                "description": "Caller display name"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/personas/{{persona_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "personas",
+                "{{persona_id}}"
+              ]
+            },
+            "description": "System personas cannot be edited (403).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Security Reviewer\",\n  \"description\": \"Updated description\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Delete Persona",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-User-Email",
+                "value": "{{user_email}}",
+                "description": "Caller identity (Entra ID email)"
+              },
+              {
+                "key": "X-User-Name",
+                "value": "{{user_name}}",
+                "description": "Caller display name"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/personas/{{persona_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "personas",
+                "{{persona_id}}"
+              ]
+            },
+            "description": ""
+          }
+        }
+      ]
+    },
+    {
+      "name": "🔍 Review (Review Agent)",
+      "item": [
+        {
+          "name": "Share for Review",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Email",
+                "value": "{{user_email}}",
+                "description": "Caller identity (Entra ID email)"
+              },
+              {
+                "key": "X-User-Name",
+                "value": "{{user_name}}",
+                "description": "Caller display name"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/review/share",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "review",
+                "share"
+              ]
+            },
+            "description": "Author shares a generated document. Sets job review_status=under_review. Save review_id from the response.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"job_id\": \"{{job_id}}\",\n  \"message\": \"Please review by Friday\",\n  \"reviewers\": [\n    {\n      \"email\": \"srinivas@adani.com\",\n      \"name\": \"Srinivas Gutta\",\n      \"role\": \"Project Manager\"\n    },\n    {\n      \"email\": \"ali@adani.com\",\n      \"name\": \"Ali Imam\",\n      \"role\": \"Technical Lead\"\n    }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "My Sent Reviews",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Email",
+                "value": "{{user_email}}",
+                "description": "Caller identity (Entra ID email)"
+              },
+              {
+                "key": "X-User-Name",
+                "value": "{{user_name}}",
+                "description": "Caller display name"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/review/sent",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "review",
+                "sent"
+              ]
+            },
+            "description": "Reviews the caller requested — reviewers with statuses (shared/reviewing/accepted/rejected/revision_requested), comment counts, days since shared."
+          }
+        },
+        {
+          "name": "My Received Reviews",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Email",
+                "value": "{{user_email}}",
+                "description": "Caller identity (Entra ID email)"
+              },
+              {
+                "key": "X-User-Name",
+                "value": "{{user_name}}",
+                "description": "Caller display name"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/review/received",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "review",
+                "received"
+              ]
+            },
+            "description": "Documents shared WITH the caller, including who shared and my_status."
+          }
+        },
+        {
+          "name": "Review Workspace",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Email",
+                "value": "{{user_email}}",
+                "description": "Caller identity (Entra ID email)"
+              },
+              {
+                "key": "X-User-Name",
+                "value": "{{user_name}}",
+                "description": "Caller display name"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/review/{{review_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "review",
+                "{{review_id}}"
+              ]
+            },
+            "description": "Everything for the review screen: meta, reviewers, document sections (for anchoring), threaded comments, cached AI summaries. Opening as a reviewer flips shared→reviewing."
+          }
+        },
+        {
+          "name": "Add Comment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Email",
+                "value": "{{user_email}}",
+                "description": "Caller identity (Entra ID email)"
+              },
+              {
+                "key": "X-User-Name",
+                "value": "{{user_name}}",
+                "description": "Caller display name"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/review/{{review_id}}/comments",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "review",
+                "{{review_id}}",
+                "comments"
+              ]
+            },
+            "description": "section_id optional (document-level if omitted). For replies pass parent_id.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Budget allocation needs more clarity\",\n  \"section_id\": \"{{section_id}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Reply to Comment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Email",
+                "value": "{{user_email}}",
+                "description": "Caller identity (Entra ID email)"
+              },
+              {
+                "key": "X-User-Name",
+                "value": "{{user_name}}",
+                "description": "Caller display name"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/review/{{review_id}}/comments",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "review",
+                "{{review_id}}",
+                "comments"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Good catch \\u2014 updating now\",\n  \"parent_id\": \"{{review_comment_id}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Edit / Resolve Comment",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "X-User-Email",
+                "value": "{{user_email}}",
+                "description": "Caller identity (Entra ID email)"
+              },
+              {
+                "key": "X-User-Name",
+                "value": "{{user_name}}",
+                "description": "Caller display name"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/review/comments/{{review_comment_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "review",
+                "comments",
+                "{{review_comment_id}}"
+              ]
+            },
+            "description": "text: author-only edit. resolved: anyone can toggle.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Updated comment text\",\n  \"resolved\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "Delete Comment",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-User-Email",
+                "value": "{{user_email}}",
+                "description": "Caller identity (Entra ID email)"
+              },
+              {
+                "key": "X-User-Name",
+                "value": "{{user_name}}",
+                "description": "Caller display name"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/review/comments/{{review_comment_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "review",
+                "comments",
+                "{{review_comment_id}}"
+              ]
+            },
+            "description": "Author-only; replies are removed too."
+          }
+        },
+        {
+          "name": "AI Persona Review",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Email",
+                "value": "{{user_email}}",
+                "description": "Caller identity (Entra ID email)"
+              },
+              {
+                "key": "X-User-Name",
+                "value": "{{user_name}}",
+                "description": "Caller display name"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/review/{{review_id}}/ai-review",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "review",
+                "{{review_id}}",
+                "ai-review"
+              ]
+            },
+            "description": "Returns {summary, section_comments:[{section_id, section_title, comment}]}. NOT persisted — reviewer picks what to keep.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"persona\": \"Technical Reviewer\",\n  \"instructions\": \"Focus on integration risks\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Keep Selected AI Comments",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Email",
+                "value": "{{user_email}}",
+                "description": "Caller identity (Entra ID email)"
+              },
+              {
+                "key": "X-User-Name",
+                "value": "{{user_name}}",
+                "description": "Caller display name"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/review/{{review_id}}/ai-review/keep",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "review",
+                "{{review_id}}",
+                "ai-review",
+                "keep"
+              ]
+            },
+            "description": "Persists the AI comments the reviewer selected (source=ai, tagged with persona).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"persona\": \"Technical Reviewer\",\n  \"comments\": [\n    {\n      \"section_id\": \"{{section_id}}\",\n      \"comment\": \"Add integration test plan\"\n    }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Summarize Feedback (AI)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Email",
+                "value": "{{user_email}}",
+                "description": "Caller identity (Entra ID email)"
+              },
+              {
+                "key": "X-User-Name",
+                "value": "{{user_name}}",
+                "description": "Caller display name"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/review/{{review_id}}/summarize",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "review",
+                "{{review_id}}",
+                "summarize"
+              ]
+            },
+            "description": "Author: persona-wise AI summaries of ALL reviewer comments. Cached.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"personas\": [\n    \"Project Manager\",\n    \"Technical Reviewer\",\n    \"Business Analyst\"\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Get Cached Summaries",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Email",
+                "value": "{{user_email}}",
+                "description": "Caller identity (Entra ID email)"
+              },
+              {
+                "key": "X-User-Name",
+                "value": "{{user_name}}",
+                "description": "Caller display name"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/review/{{review_id}}/summaries",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "review",
+                "{{review_id}}",
+                "summaries"
+              ]
+            },
+            "description": "Latest summary per persona, no LLM call."
+          }
+        },
+        {
+          "name": "Submit Verdict",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Email",
+                "value": "{{user_email}}",
+                "description": "Caller identity (Entra ID email)"
+              },
+              {
+                "key": "X-User-Name",
+                "value": "{{user_name}}",
+                "description": "Caller display name"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/review/{{review_id}}/respond",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "review",
+                "{{review_id}}",
+                "respond"
+              ]
+            },
+            "description": "accepted | rejected | revision_requested. Rolls up job review_status: any rejected→rejected, any revision→revision_requested, all accepted→approved.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"accepted\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Renotify Reviewers",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Email",
+                "value": "{{user_email}}",
+                "description": "Caller identity (Entra ID email)"
+              },
+              {
+                "key": "X-User-Name",
+                "value": "{{user_name}}",
+                "description": "Caller display name"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/review/{{review_id}}/renotify",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "review",
+                "{{review_id}}",
+                "renotify"
+              ]
+            },
+            "description": "Stamps last_renotified_at on pending reviewers (notification stub)."
+          }
+        },
+        {
+          "name": "Apply Comment to Section",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-User-Email",
+                "value": "{{user_email}}",
+                "description": "Caller identity (Entra ID email)"
+              },
+              {
+                "key": "X-User-Name",
+                "value": "{{user_name}}",
+                "description": "Caller display name"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/review/comments/{{review_comment_id}}/apply",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "review",
+                "comments",
+                "{{review_comment_id}}",
+                "apply"
+              ]
+            },
+            "description": "Author: converts the review comment into the standard section-regeneration flow → new SectionVersion. section_id only needed for un-anchored comments.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"section_id\": \"{{section_id}}\"\n}"
+            }
+          }
         }
       ]
     }

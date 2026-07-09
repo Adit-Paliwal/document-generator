@@ -1259,6 +1259,7 @@ def generate_from_project(project_id):
         return json_resp({
             "job_id":         job["job_id"],
             "status":         job["status"],
+            "review_status":  job.get("review_status", "draft"),
             "already_complete": False,
             "sections":       sections,
             "total_sections": job.get("total_sections", len(sections)),
@@ -1416,6 +1417,303 @@ def chat_upload(session_id):
     except Exception as e:
         logger.exception("chat_upload failed")
         return json_resp({"error": str(e)}, 500)
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# REVIEW MODULE — users, personas, review workflow (Review Agent)
+# Identity: X-User-Email / X-User-Name headers (Entra ID SSO on the frontend);
+# body fields "email"/"name" are accepted as a fallback for API testing.
+# ═════════════════════════════════════════════════════════════════════════════
+
+def _caller_identity(body: dict | None = None) -> dict:
+    body = body or {}
+    email = (request.headers.get("X-User-Email") or body.get("email") or "").strip().lower()
+    name  = (request.headers.get("X-User-Name")  or body.get("name")  or "").strip()
+    return {"email": email, "name": name or (email.split("@")[0] if email else "")}
+
+
+def _review_error(e: Exception):
+    """Map service exceptions to HTTP codes."""
+    if isinstance(e, FileNotFoundError):
+        return json_resp({"error": str(e)}, 404)
+    if isinstance(e, PermissionError):
+        return json_resp({"error": str(e)}, 403)
+    if isinstance(e, ValueError):
+        return json_resp({"error": str(e)}, 400)
+    logger.exception("review route failed")
+    return json_resp({"error": str(e)}, 500)
+
+
+# ── Users ─────────────────────────────────────────────────────────────────────
+
+@app.route("/api/users", methods=["GET"])
+def users_list():
+    try:
+        from generation.review_service import list_users
+        return json_resp({"users": list_users()})
+    except Exception as e:
+        return _review_error(e)
+
+
+@app.route("/api/users", methods=["POST"])
+def users_upsert():
+    """Body: { email, name, role? } — creates or updates by email."""
+    try:
+        from generation.review_service import upsert_user
+        body = request.get_json() or {}
+        if not body.get("email"):
+            return json_resp({"error": "email is required"}, 400)
+        return json_resp(upsert_user(body["email"].strip().lower(),
+                                     body.get("name", ""), body.get("role", "Contributor")), 201)
+    except Exception as e:
+        return _review_error(e)
+
+
+@app.route("/api/users/<user_id>", methods=["DELETE"])
+def users_delete(user_id):
+    try:
+        from generation.review_service import delete_user
+        delete_user(user_id)
+        return json_resp({"status": "deleted", "user_id": user_id})
+    except Exception as e:
+        return _review_error(e)
+
+
+# ── Personas ──────────────────────────────────────────────────────────────────
+
+@app.route("/api/personas", methods=["GET"])
+def personas_list():
+    try:
+        from generation.review_service import list_personas
+        me = _caller_identity()
+        return json_resp({"personas": list_personas(me["email"] or None)})
+    except Exception as e:
+        return _review_error(e)
+
+
+@app.route("/api/personas", methods=["POST"])
+def personas_create():
+    """Body: { name, description }"""
+    try:
+        from generation.review_service import create_persona
+        body = request.get_json() or {}
+        if not body.get("name"):
+            return json_resp({"error": "name is required"}, 400)
+        me = _caller_identity(body)
+        return json_resp(create_persona(body["name"], body.get("description", ""), me["email"] or None), 201)
+    except Exception as e:
+        return _review_error(e)
+
+
+@app.route("/api/personas/<persona_id>", methods=["PUT"])
+def personas_update(persona_id):
+    try:
+        from generation.review_service import update_persona
+        body = request.get_json() or {}
+        return json_resp(update_persona(persona_id, body.get("name"), body.get("description")))
+    except Exception as e:
+        return _review_error(e)
+
+
+@app.route("/api/personas/<persona_id>", methods=["DELETE"])
+def personas_delete(persona_id):
+    try:
+        from generation.review_service import delete_persona
+        delete_persona(persona_id)
+        return json_resp({"status": "deleted", "persona_id": persona_id})
+    except Exception as e:
+        return _review_error(e)
+
+
+# ── Review workflow ───────────────────────────────────────────────────────────
+
+@app.route("/api/review/share", methods=["POST"])
+def review_share():
+    """Body: { job_id, reviewers: [{email, name?, role?}], message? } (+ caller identity)."""
+    try:
+        from generation.review_service import share_for_review
+        body = request.get_json() or {}
+        me   = _caller_identity(body)
+        if not me["email"]:
+            return json_resp({"error": "Caller identity required (X-User-Email header or body.email)"}, 400)
+        if not body.get("job_id"):
+            return json_resp({"error": "job_id is required"}, 400)
+        result = share_for_review(body["job_id"], me, body.get("reviewers") or [], body.get("message"))
+        return json_resp(result, 201)
+    except Exception as e:
+        return _review_error(e)
+
+
+@app.route("/api/review/sent", methods=["GET"])
+def review_sent():
+    try:
+        from generation.review_service import list_sent
+        me = _caller_identity()
+        if not me["email"]:
+            return json_resp({"error": "X-User-Email header required"}, 400)
+        return json_resp({"reviews": list_sent(me["email"])})
+    except Exception as e:
+        return _review_error(e)
+
+
+@app.route("/api/review/received", methods=["GET"])
+def review_received():
+    try:
+        from generation.review_service import list_received
+        me = _caller_identity()
+        if not me["email"]:
+            return json_resp({"error": "X-User-Email header required"}, 400)
+        return json_resp({"reviews": list_received(me["email"])})
+    except Exception as e:
+        return _review_error(e)
+
+
+@app.route("/api/review/<review_id>", methods=["GET"])
+def review_workspace(review_id):
+    """Full review workspace: meta, reviewers, sections, threaded comments, AI summaries."""
+    try:
+        from generation.review_service import get_review_workspace
+        me = _caller_identity()
+        return json_resp(get_review_workspace(review_id, me["email"] or None))
+    except Exception as e:
+        return _review_error(e)
+
+
+@app.route("/api/review/<review_id>/comments", methods=["POST"])
+def review_add_comment(review_id):
+    """Body: { text, section_id?, parent_id? } (+ caller identity)."""
+    try:
+        from generation.review_service import add_review_comment
+        body = request.get_json() or {}
+        me   = _caller_identity(body)
+        if not me["email"]:
+            return json_resp({"error": "Caller identity required"}, 400)
+        return json_resp(add_review_comment(
+            review_id, me, body.get("text", ""),
+            section_id=body.get("section_id"), parent_id=body.get("parent_id"),
+        ), 201)
+    except Exception as e:
+        return _review_error(e)
+
+
+@app.route("/api/review/comments/<comment_id>", methods=["PATCH"])
+def review_edit_comment(comment_id):
+    """Body: { text? , resolved? } — edit own text and/or set resolved state."""
+    try:
+        from generation.review_service import update_review_comment, resolve_review_comment
+        body = request.get_json() or {}
+        me   = _caller_identity(body)
+        result = None
+        if body.get("text") is not None:
+            result = update_review_comment(comment_id, me["email"], body["text"])
+        if body.get("resolved") is not None:
+            result = resolve_review_comment(comment_id, bool(body["resolved"]))
+        if result is None:
+            return json_resp({"error": "Provide 'text' and/or 'resolved'"}, 400)
+        return json_resp(result)
+    except Exception as e:
+        return _review_error(e)
+
+
+@app.route("/api/review/comments/<comment_id>", methods=["DELETE"])
+def review_delete_comment(comment_id):
+    try:
+        from generation.review_service import delete_review_comment
+        me = _caller_identity()
+        delete_review_comment(comment_id, me["email"])
+        return json_resp({"status": "deleted", "comment_id": comment_id})
+    except Exception as e:
+        return _review_error(e)
+
+
+@app.route("/api/review/comments/<comment_id>/apply", methods=["POST"])
+def review_apply_comment(comment_id):
+    """
+    Author action: apply a review comment to a document section via the
+    existing generation flow (SectionComment + regenerate → new version).
+    Body: { section_id? } — required only when the comment isn't section-anchored.
+    """
+    try:
+        from generation.review_service import apply_comment_to_section
+        body = request.get_json(silent=True) or {}
+        return json_resp(apply_comment_to_section(comment_id, body.get("section_id")))
+    except Exception as e:
+        return _review_error(e)
+
+
+@app.route("/api/review/<review_id>/respond", methods=["POST"])
+def review_respond(review_id):
+    """Reviewer verdict. Body: { action: accepted|rejected|revision_requested } (+ identity)."""
+    try:
+        from generation.review_service import respond
+        body = request.get_json() or {}
+        me   = _caller_identity(body)
+        if not me["email"]:
+            return json_resp({"error": "Caller identity required"}, 400)
+        return json_resp(respond(review_id, me["email"], body.get("action", "")))
+    except Exception as e:
+        return _review_error(e)
+
+
+@app.route("/api/review/<review_id>/renotify", methods=["POST"])
+def review_renotify(review_id):
+    try:
+        from generation.review_service import renotify
+        return json_resp(renotify(review_id))
+    except Exception as e:
+        return _review_error(e)
+
+
+@app.route("/api/review/<review_id>/ai-review", methods=["POST"])
+def review_ai_review(review_id):
+    """
+    Reviewer: generate a persona-lens AI review (summary + per-section comments).
+    Body: { persona, instructions? }. Nothing is persisted — use /ai-review/keep.
+    """
+    try:
+        from generation.review_service import ai_persona_review
+        body = request.get_json() or {}
+        persona = body.get("persona") or "Project Manager"
+        return json_resp(ai_persona_review(review_id, persona, body.get("instructions", "")))
+    except Exception as e:
+        return _review_error(e)
+
+
+@app.route("/api/review/<review_id>/ai-review/keep", methods=["POST"])
+def review_ai_keep(review_id):
+    """Persist selected AI comments. Body: { persona, comments: [{section_id?, comment}] } (+ identity)."""
+    try:
+        from generation.review_service import keep_ai_comments
+        body = request.get_json() or {}
+        me   = _caller_identity(body)
+        if not me["email"]:
+            return json_resp({"error": "Caller identity required"}, 400)
+        kept = keep_ai_comments(review_id, me, body.get("persona", ""), body.get("comments") or [])
+        return json_resp({"kept": kept, "count": len(kept)}, 201)
+    except Exception as e:
+        return _review_error(e)
+
+
+@app.route("/api/review/<review_id>/summarize", methods=["POST"])
+def review_summarize(review_id):
+    """Author: (re)generate persona-wise AI summaries of reviewer feedback.
+    Body: { personas?: [names] } — defaults to PM / Technical Reviewer / Business Analyst."""
+    try:
+        from generation.review_service import summarize_for_author
+        body = request.get_json(silent=True) or {}
+        return json_resp({"summaries": summarize_for_author(review_id, body.get("personas"))})
+    except Exception as e:
+        return _review_error(e)
+
+
+@app.route("/api/review/<review_id>/summaries", methods=["GET"])
+def review_summaries(review_id):
+    """Cached summaries (latest per persona) without triggering the LLM."""
+    try:
+        from generation.review_service import get_summaries
+        return json_resp({"summaries": get_summaries(review_id)})
+    except Exception as e:
+        return _review_error(e)
 
 
 # ═════════════════════════════════════════════════════════════════════════════

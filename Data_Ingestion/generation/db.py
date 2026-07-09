@@ -277,6 +277,9 @@ class GenerationJob(Base):
     error              = Column(Text,        nullable=True)
     total_sections     = Column(Integer,     default=0)
     completed_sections = Column(Integer,     default=0)
+    # Review lifecycle of the generated document (independent of generation status):
+    # draft | under_review | revision_requested | approved | rejected
+    review_status      = Column(String(30),  nullable=True, default="draft")
     created_at         = Column(DateTime,    default=datetime.utcnow)
     completed_at       = Column(DateTime,    nullable=True)
 
@@ -298,6 +301,7 @@ class GenerationJob(Base):
             "error":              self.error,
             "total_sections":     self.total_sections,
             "completed_sections": self.completed_sections,
+            "review_status":      self.review_status or "draft",
             "created_at":         self.created_at.isoformat() if self.created_at else None,
             "completed_at":       self.completed_at.isoformat() if self.completed_at else None,
         }
@@ -737,3 +741,211 @@ class ChatSession(Base):
             "created_at":    self.created_at.isoformat() if self.created_at else None,
             "updated_at":    self.updated_at.isoformat() if self.updated_at else None,
         }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# REVIEW MODULE — users, personas, review requests / assignments / comments
+# (implements the Figma "Review" flow: share for review, reviewer statuses,
+#  threaded comments, AI persona reviews, AI summaries for the author)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class User(Base):
+    """
+    Application user (feeds the Admin Panel + reviewer identity).
+    Auth is Entra ID SSO on the frontend; the backend receives identity via
+    X-User-Email / X-User-Name headers until full token validation is wired.
+    """
+    __tablename__ = "users"
+
+    user_id    = Column(String(36),  primary_key=True)
+    email      = Column(String(255), nullable=False, unique=True, index=True)
+    name       = Column(String(200), nullable=False)
+    role       = Column(String(50),  nullable=False, default="Contributor")
+    # Admin | Project Manager | Contributor | Viewer
+    is_active  = Column(Boolean,     default=True)
+    created_at = Column(DateTime,    default=datetime.utcnow)
+
+    def to_dict(self) -> dict:
+        initials = "".join(w[0].upper() for w in (self.name or "?").split()[:2])
+        return {
+            "user_id":  self.user_id,
+            "email":    self.email,
+            "name":     self.name,
+            "role":     self.role,
+            "avatar":   initials,
+            "is_active": bool(self.is_active),
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class Persona(Base):
+    """
+    AI reviewer profile — guides ai_persona_review() and summarize_for_author().
+    System personas are seeded; users can add their own (owner_email set).
+    """
+    __tablename__ = "personas"
+
+    persona_id  = Column(String(36),  primary_key=True)
+    name        = Column(String(120), nullable=False)
+    description = Column(Text,        nullable=True)
+    is_system   = Column(Boolean,     default=False)
+    owner_email = Column(String(255), nullable=True, index=True)  # null = global
+    created_at  = Column(DateTime,    default=datetime.utcnow)
+
+    def to_dict(self) -> dict:
+        return {
+            "persona_id":  self.persona_id,
+            "name":        self.name,
+            "description": self.description or "",
+            "is_system":   bool(self.is_system),
+            "owner_email": self.owner_email,
+        }
+
+
+class ReviewRequest(Base):
+    """One 'share for review' action on a generated document (job)."""
+    __tablename__ = "review_requests"
+
+    review_id     = Column(String(36),  primary_key=True)
+    job_id        = Column(String(36),  ForeignKey("generation_jobs.job_id"), nullable=False, index=True)
+    project_id    = Column(String(36),  nullable=True, index=True)
+    document_type = Column(String(100), nullable=True)
+    requested_by_email = Column(String(255), nullable=False, index=True)
+    requested_by_name  = Column(String(200), nullable=True)
+    message       = Column(Text,        nullable=True)   # optional note to reviewers
+    status        = Column(String(30),  nullable=False, default="open")
+    # open | completed | cancelled
+    created_at    = Column(DateTime,    default=datetime.utcnow)
+    updated_at    = Column(DateTime,    default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    assignments = relationship(
+        "ReviewAssignment", back_populates="review",
+        cascade="all, delete-orphan",
+    )
+    comments = relationship(
+        "ReviewComment", back_populates="review",
+        cascade="all, delete-orphan",
+        order_by="ReviewComment.created_at",
+    )
+
+    def to_dict(self, include_children: bool = True) -> dict:
+        d = {
+            "review_id":     self.review_id,
+            "job_id":        self.job_id,
+            "project_id":    self.project_id,
+            "document_type": self.document_type,
+            "requested_by":  {"email": self.requested_by_email, "name": self.requested_by_name},
+            "message":       self.message,
+            "status":        self.status,
+            "created_at":    self.created_at.isoformat() if self.created_at else None,
+        }
+        if include_children:
+            d["reviewers"]      = [a.to_dict() for a in self.assignments]
+            d["comments_count"] = len(self.comments)
+        return d
+
+
+class ReviewAssignment(Base):
+    """One reviewer on a review request, with their per-reviewer status."""
+    __tablename__ = "review_assignments"
+
+    assignment_id  = Column(String(36),  primary_key=True)
+    review_id      = Column(String(36),  ForeignKey("review_requests.review_id"), nullable=False, index=True)
+    reviewer_email = Column(String(255), nullable=False, index=True)
+    reviewer_name  = Column(String(200), nullable=True)
+    reviewer_role  = Column(String(100), nullable=True)   # e.g. "Technical Lead"
+    status         = Column(String(30),  nullable=False, default="shared")
+    # shared | reviewing | accepted | rejected | revision_requested
+    notified_at        = Column(DateTime, default=datetime.utcnow)
+    last_renotified_at = Column(DateTime, nullable=True)
+    responded_at       = Column(DateTime, nullable=True)
+
+    review = relationship("ReviewRequest", back_populates="assignments")
+
+    def to_dict(self) -> dict:
+        return {
+            "assignment_id": self.assignment_id,
+            "review_id":     self.review_id,
+            "email":         self.reviewer_email,
+            "name":          self.reviewer_name,
+            "role":          self.reviewer_role,
+            "status":        self.status,
+            "notified_at":   self.notified_at.isoformat() if self.notified_at else None,
+            "last_renotified_at": self.last_renotified_at.isoformat() if self.last_renotified_at else None,
+            "responded_at":  self.responded_at.isoformat() if self.responded_at else None,
+        }
+
+
+class ReviewComment(Base):
+    """
+    A comment inside a review — human or AI-generated (kept), optionally
+    anchored to a section and threaded via parent_id.
+    """
+    __tablename__ = "review_comments"
+
+    comment_id   = Column(String(36),  primary_key=True)
+    review_id    = Column(String(36),  ForeignKey("review_requests.review_id"), nullable=False, index=True)
+    section_id   = Column(String(36),  nullable=True, index=True)   # anchor (Section.section_id)
+    section_title = Column(String(200), nullable=True)              # denormalised for display
+    parent_id    = Column(String(36),  nullable=True, index=True)   # reply thread
+    author_email = Column(String(255), nullable=False, index=True)
+    author_name  = Column(String(200), nullable=True)
+    source       = Column(String(10),  nullable=False, default="user")   # user | ai
+    persona      = Column(String(120), nullable=True)   # persona used when source=ai
+    text         = Column(Text,        nullable=False)
+    status       = Column(String(20),  nullable=False, default="open")   # open | resolved
+    applied_section_comment_id = Column(String(36), nullable=True)
+    # set when the author applies this comment to a section via the generation flow
+    created_at   = Column(DateTime,    default=datetime.utcnow)
+    updated_at   = Column(DateTime,    default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    review = relationship("ReviewRequest", back_populates="comments")
+
+    def to_dict(self) -> dict:
+        return {
+            "comment_id":   self.comment_id,
+            "review_id":    self.review_id,
+            "section_id":   self.section_id,
+            "section_title": self.section_title,
+            "parent_id":    self.parent_id,
+            "author":       {"email": self.author_email, "name": self.author_name},
+            "source":       self.source,
+            "persona":      self.persona,
+            "text":         self.text,
+            "status":       self.status,
+            "applied_section_comment_id": self.applied_section_comment_id,
+            "created_at":   self.created_at.isoformat() if self.created_at else None,
+            "updated_at":   self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
+class ReviewSummary(Base):
+    """Cached AI persona-wise summary of reviewer feedback (author's carousel)."""
+    __tablename__ = "review_summaries"
+
+    summary_id   = Column(String(36),  primary_key=True)
+    review_id    = Column(String(36),  ForeignKey("review_requests.review_id"), nullable=False, index=True)
+    persona      = Column(String(120), nullable=False)
+    summary_text = Column(Text,        nullable=False)
+    model        = Column(String(100), nullable=True)
+    created_at   = Column(DateTime,    default=datetime.utcnow)
+
+    def to_dict(self) -> dict:
+        return {
+            "summary_id": self.summary_id,
+            "review_id":  self.review_id,
+            "persona":    self.persona,
+            "summary":    self.summary_text,
+            "model":      self.model,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+# Default AI reviewer personas (from the Figma design) — seeded on first use.
+DEFAULT_PERSONAS: list[dict] = [
+    {"name": "Project Manager",    "description": "Focus on project execution, timelines, milestones, and deliverables"},
+    {"name": "Technical Reviewer", "description": "Focus on technical accuracy, architecture, and feasibility"},
+    {"name": "Business Analyst",   "description": "Focus on business requirements, process clarity, and ROI"},
+    {"name": "Compliance Officer", "description": "Focus on regulatory compliance, policy adherence, and risk"},
+    {"name": "Financial Auditor",  "description": "Focus on budget, cost estimates, and financial soundness"},
+]
