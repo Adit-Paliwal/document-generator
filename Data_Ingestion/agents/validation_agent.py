@@ -20,7 +20,7 @@ Source-document provenance:
     (this is what POST /api/generate/{job_id}/validate uses).
 
 Usage:
-    from generation.validation_agent import ValidationAgent, EdgeCheck, SourceDoc
+    from agents.validation_agent import ValidationAgent, EdgeCheck, SourceDoc
 
     agent  = ValidationAgent()                    # deterministic (offline)
     agent  = ValidationAgent(use_llm=True)        # + Gemini semantic judge

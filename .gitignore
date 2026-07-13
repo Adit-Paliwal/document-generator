@@ -109,3 +109,6 @@ Data_Ingestion/build/
 *.egg-info/
 # Cloud Run / Cloud Build
 .gcloudignore
+
+# Vite dev cache
+frontend-react/.vite/

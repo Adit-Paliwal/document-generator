@@ -758,7 +758,7 @@ def generate_restore_snapshot(job_id: str, snapshot_id: str):
 def generate_validate(job_id: str):
     try:
         from generation.generation_service import get_job
-        from generation.validation_agent import EdgeCheck, SourceDoc, ValidationAgent
+        from agents.validation_agent import EdgeCheck, SourceDoc, ValidationAgent
 
         job = get_job(job_id)
         if job.get("status") != "completed":

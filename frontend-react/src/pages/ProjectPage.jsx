@@ -124,7 +124,7 @@ function DataTab({ projectId }) {
   const load = useCallback(() => {
     api.get(`/projects/${projectId}/data`).then(setData).catch(() => {});
   }, [projectId]);
-  useEffect(load, [load]);
+  useEffect(() => { load(); }, [load]);
 
   if (!data) return <Spinner label="Loading data…" />;
 
@@ -343,7 +343,10 @@ function PreviewTab({ projectId, docType, job, refreshDocs }) {
     catch (e) { toast(`Preview failed: ${e.message}`, "err"); }
     finally { setLoading(false); }
   }, [jobId, toast]);
-  useEffect(load, [load]);
+  // NB: wrap the async load — passing it directly as the effect would return a
+  // Promise, which React would try to call as the cleanup ("destroy is not a
+  // function") on unmount and break the Preview tab.
+  useEffect(() => { load(); }, [load]);
 
   if (!jobId) {
     return (
