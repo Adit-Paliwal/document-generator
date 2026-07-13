@@ -110,20 +110,33 @@ def _make_engine():
         # connection out to exactly one thread at a time. check_same_thread stays
         # False because a pooled connection may be reused by a different thread
         # on the next checkout (never concurrently).
+        # driver `timeout` = how long the sqlite3 driver itself waits on a busy
+        # lock before raising (seconds). This is the most reliable busy knob;
+        # the PRAGMA below reinforces it.
         engine = create_engine(
             DATABASE_URL,
-            connect_args={"check_same_thread": False, "timeout": 15},
+            connect_args={"check_same_thread": False, "timeout": 30},
             pool_size=10,
             max_overflow=20,
             echo=False,
         )
-        # WAL: concurrent readers during the background generation writer.
-        # busy_timeout: wait for the single SQLite writer instead of failing.
+
         @event.listens_for(engine, "connect")
-        def _set_wal(dbapi_conn, _):
-            dbapi_conn.execute("PRAGMA journal_mode=WAL")
-            dbapi_conn.execute("PRAGMA busy_timeout=15000")
-            dbapi_conn.execute("PRAGMA foreign_keys=ON")
+        def _set_sqlite_pragmas(dbapi_conn, _):
+            cur = dbapi_conn.cursor()
+            # WAL: readers never block the single writer.
+            cur.execute("PRAGMA journal_mode=WAL")
+            # busy_timeout: wait up to 30s for the writer instead of raising
+            # "database is locked" — covers wave-parallel generation + polling.
+            cur.execute("PRAGMA busy_timeout=30000")
+            # synchronous=NORMAL is the recommended WAL pairing: it drops the
+            # per-commit fsync, so a write transaction holds the lock for
+            # microseconds instead of milliseconds — the single biggest lever
+            # against write contention. Durable across app crashes; only a host
+            # power-loss can lose the last transaction (regenerable here).
+            cur.execute("PRAGMA synchronous=NORMAL")
+            cur.execute("PRAGMA foreign_keys=ON")
+            cur.close()
         return engine
 
     # Databricks OAuth mode: no explicit URL — build from parts using the App's
@@ -235,6 +248,15 @@ def _migrate_sqlite_columns(engine) -> None:
                 )
 
 
+def _is_sqlite_locked(exc: BaseException) -> bool:
+    """True for a transient SQLite 'database is locked' / 'busy' error."""
+    from sqlalchemy.exc import OperationalError
+    if not isinstance(exc, OperationalError):
+        return False
+    msg = str(getattr(exc, "orig", exc)).lower()
+    return "database is locked" in msg or "database is busy" in msg
+
+
 @contextmanager
 def get_session():
     """
@@ -248,8 +270,13 @@ def get_session():
     Guarantees:
       - Always closes the session on exit (returns connection to pool).
       - Rolls back automatically on any unhandled exception, so DB locks
-        are never left hanging — critical for PostgreSQL / Cloud SQL in production.
+        are never left hanging — critical for a shared DB in production.
       - Callers must still call s.commit() explicitly; nothing is auto-committed.
+
+    NOTE on locking: this does NOT retry. Wrap write functions that can contend
+    under SQLite (wave-parallel generation, concurrent job creation) with the
+    @retry_on_locked decorator, which re-runs the whole function on a transient
+    'database is locked' error.
     """
     session = Session(get_engine())
     try:
@@ -259,6 +286,47 @@ def get_session():
         raise
     finally:
         session.close()
+
+
+def retry_on_locked(retries: int = 6, base_delay: float = 0.15):
+    """
+    Decorator: re-run a write function from the top when its transaction hits a
+    transient SQLite 'database is locked' error (busy_timeout exhausted under
+    heavy concurrent writes). Exponential backoff + jitter.
+
+    Only safe on functions whose body is a self-contained DB transaction with
+    no external side effects before the commit (they re-run wholesale). On
+    non-SQLite backends the lock class never occurs, so this is a no-op.
+
+        @retry_on_locked()
+        def start_job(...):
+            with get_session() as s: ...
+    """
+    import functools
+    import logging as _lg
+    import random
+    import time as _time
+
+    _log = _lg.getLogger(__name__)
+
+    def decorator(fn):
+        @functools.wraps(fn)
+        def wrapper(*args, **kwargs):
+            attempt = 0
+            while True:
+                try:
+                    return fn(*args, **kwargs)
+                except Exception as exc:
+                    if _is_sqlite_locked(exc) and attempt < retries:
+                        delay = base_delay * (2 ** attempt) + random.uniform(0, base_delay)
+                        _log.warning("[db] %s locked — retry %d/%d in %.2fs",
+                                     fn.__name__, attempt + 1, retries, delay)
+                        _time.sleep(delay)
+                        attempt += 1
+                        continue
+                    raise
+        return wrapper
+    return decorator
 
 
 # ─────────────────────────────────────────────────────────────────────────────

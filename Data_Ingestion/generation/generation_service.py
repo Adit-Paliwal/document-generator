@@ -34,7 +34,7 @@ from sqlalchemy import func, select
 
 from generation.db import (
     GenerationJob, Section, SectionVersion, SectionComment, DocumentSnapshot,
-    get_session,
+    get_session, retry_on_locked,
 )
 from generation.template_manager import get_sections_for_job, get_template_by_id
 from generation.generator import generate_section
@@ -57,6 +57,7 @@ GENERATION_CONCURRENCY = max(1, int(os.environ.get("GENERATION_CONCURRENCY", "4"
 # Start a generation job
 # ─────────────────────────────────────────────────────────────────────────────
 
+@retry_on_locked()   # job+section INSERTs can contend with in-flight generation writes
 def start_job(
     document_id:    str,
     user_inputs:    dict,
@@ -138,6 +139,39 @@ def start_job(
 # ─────────────────────────────────────────────────────────────────────────────
 # Background generation loop
 # ─────────────────────────────────────────────────────────────────────────────
+
+@retry_on_locked()
+def _persist_section_version(job_id: str, section_id: str, content: str,
+                             prompt: str, model_id: str) -> None:
+    """Write a completed section's v1 + atomically bump the job counter.
+    Retries the whole transaction on a transient SQLite lock (wave workers write
+    concurrently). Self-contained — no side effects outside the DB — so it is
+    safe to re-run. The expensive LLM call happens in the caller, never here."""
+    import hashlib as _hm
+    with get_session() as session:
+        sec = session.get(Section, section_id)
+        if not sec:
+            return
+        session.add(SectionVersion(
+            version_id        = str(uuid.uuid4()),
+            section_id        = section_id,
+            version_number    = 1,
+            content           = content,
+            word_count        = len(content.split()),
+            generation_prompt = prompt,
+            generation_model  = model_id,
+            trigger_type      = "ai_generation",
+        ))
+        sec.status          = "completed"
+        sec.current_version = 1
+        sec.version_hash    = _hm.md5(f"{section_id}:1".encode(), usedforsecurity=False).hexdigest()[:16]
+        sec.updated_at      = datetime.utcnow()
+        # Atomic increment — safe under concurrent wave workers
+        session.query(GenerationJob).filter(GenerationJob.job_id == job_id).update(
+            {GenerationJob.completed_sections: GenerationJob.completed_sections + 1},
+            synchronize_session=False,
+        )
+        session.commit()
 
 def _run_generation_job(job_id: str) -> None:
     """
@@ -229,29 +263,8 @@ def _run_generation_job(job_id: str) -> None:
                 target_words         = target_words,
             )
 
-            import hashlib as _hm
-            with get_session() as session:
-                sec = session.get(Section, section_id)
-                session.add(SectionVersion(
-                    version_id        = str(uuid.uuid4()),
-                    section_id        = section_id,
-                    version_number    = 1,
-                    content           = content,
-                    word_count        = len(content.split()),
-                    generation_prompt = prompt,
-                    generation_model  = model_id,
-                    trigger_type      = "ai_generation",
-                ))
-                sec.status          = "completed"
-                sec.current_version = 1
-                sec.version_hash    = _hm.md5(f"{section_id}:1".encode(), usedforsecurity=False).hexdigest()[:16]
-                sec.updated_at      = datetime.utcnow()
-                # Atomic increment — safe under concurrent wave workers
-                session.query(GenerationJob).filter(GenerationJob.job_id == job_id).update(
-                    {GenerationJob.completed_sections: GenerationJob.completed_sections + 1},
-                    synchronize_session=False,
-                )
-                session.commit()
+            # Persist in a lock-retrying write (the LLM call above is NOT retried)
+            _persist_section_version(job_id, section_id, content, prompt, model_id)
 
             logger.info("[gen] Section '%s' done (%d words)", section_key, len(content.split()))
             return {"title": section_title, "content": content, "order": order_index}
