@@ -1,0 +1,69 @@
+{
+  "steps": [
+    {
+      "step": "Step 1",
+      "document": "BRD – Business Requirements Document",
+      "doc_type": "BRD",
+      "when_starts": "This stage starts when a business problem is identified, or when a new idea, improvement, or strategic goal is proposed.",
+      "explanation": "The BRD is the starting point of the project. It explains what problem we are trying to solve, why the project is needed, and what the business expects from the solution. It does not go too deep into technical design. Instead, it captures the business need in a clear and structured way. It also explains the current situation, pain points, expected future process, stakeholders involved, high-level scope, assumptions, constraints, risks, and expected benefits. In simple words, the BRD makes sure everyone understands the same problem before spending time and money on the solution.",
+      "predecessor": "Business Need / Idea",
+      "inputs_needed": "current process details, business pain points, strategic goals, basic scope,",
+      "output": "A clear document that explains the business problem, project need, scope, objective, stakeholders, current process, expected future process, constraints, risks, timeline expectations, cost assumptions, and high-level technical landscape.",
+      "owner": "Project Owner in Digital Team / Business Team",
+      "reviewers": "Business Sponsor, Department Head",
+      "risk_if_not_done": "If this stage is weak, the project may solve the wrong problem. Scope may keep changing, teams may misunderstand the requirement, and the final solution may not give business value."
+    },
+    {
+      "step": "Step 2",
+      "document": "NDPR – Non-Detailed Project Report",
+      "doc_type": "NDPR",
+      "when_starts": "This stage starts after the BRD shows that the requirement is important and may need budget, resources, or management attention.",
+      "explanation": "The NDPR checks whether the project is practical and worth exploring further. It gives a high-level view of project feasibility before detailed planning starts. It checks whether the project makes sense from business, cost, technical, market, and implementation points of view. This document helps the organisation decide whether the idea should move forward or stop early. In simple words, NDPR answers: Can we do this project? Is it worth doing? What may it roughly cost? What benefits can we expect? An NDPR wil be applicable only for small projects where the value is less than 25 Crs.",
+      "predecessor": "BRD + Cost benefit analysis",
+      "inputs_needed": "Approved BRD, high-level business scope, market information, benchmark cost, similar past project data, basic technical inputs, expected benefits, and rough timeline, Cost Benefit Analysis,",
+      "output": "A Go/No-Go recommendation. This means the report clearly says whether the project should move forward, needs more study, or should be dropped. It may also include rough cost, expected benefits, possible risks, and project viability.",
+      "owner": "Project Sponsor / Strategy Team",
+      "reviewers": "Finance Head, Strategy Director",
+      "risk_if_not_done": "If feasibility is not checked properly, the company may spend money on a project that is too costly, technically difficult, not useful, or not profitable."
+    },
+    {
+      "step": "Step 3",
+      "document": "NFA – Note for Approval",
+      "doc_type": "NFA",
+      "when_starts": "This stage starts when the NDPR confirms that the project is feasible and worth pursuing.",
+      "explanation": "The NFA is the formal approval document used to request budget and management permission. It combines the business reason from the BRD and the feasibility details from the NDPR. It explains why the project should be approved, how much money is needed, what benefits are expected, who will own the project, and what approvals are required. In simple words, NFA is the document that asks leadership: Please approve this project and release the budget.",
+      "predecessor": "NDPR & BRD",
+      "inputs_needed": "Approved NDPR, final BRD, estimated budget, cost breakup, funding source, business justification, expected benefits, project owner details, risk points, and approval hierarchy.",
+      "output": "A signed approval note. Once approved, the budget is released, authority is given to proceed, and a Project Manager or Project Owner can be formally assigned.",
+      "owner": "Project Owner / Department Head",
+      "reviewers": "CFO, CEO, or designated financial authority",
+      "risk_if_not_done": "If NFA is skipped or poorly prepared, spending may happen without proper approval. This can create audit issues, compliance problems, budget confusion, or project delays due to lack of funds."
+    },
+    {
+      "step": "Step 4",
+      "document": "NIT – Notice Inviting Tender",
+      "doc_type": "NIT",
+      "when_starts": "This stage starts after NFA is approved and the budget is officially available.",
+      "explanation": "The NIT is used to inform the market that the company is planning to buy a product, service, or solution. It invites interested and qualified vendors to participate. It usually contains a brief project description, eligibility criteria, submission timeline, and instructions for vendors. In simple words, NIT tells vendors: We have an approved requirement, and we are inviting you to show interest or participate.",
+      "predecessor": "NFA (Approved)",
+      "inputs_needed": "Approved NFA, basic project scope, eligibility criteria, high-level requirements, tender timeline, vendor qualification rules, and procurement instructions.",
+      "output": "A published notice or tender invitation. It helps create a list of interested vendors and may result in a shortlist of vendors who are eligible for the next stage.",
+      "owner": "Procurement / Commercial Team",
+      "reviewers": "Head of Procurement, Legal",
+      "risk_if_not_done": "If this stage is weak, the company may not get good vendor participation. There may be fewer bids, poor competition, transparency issues, or the best vendors may miss the opportunity."
+    },
+    {
+      "step": "Step 5",
+      "document": "RFP – Request for Proposal",
+      "doc_type": "RFP",
+      "when_starts": "This stage starts when vendors respond to the NIT and a shortlist of qualified vendors is ready.",
+      "explanation": "The RFP is the detailed document sent to shortlisted vendors. It explains exactly what the company wants and asks vendors to submit their solution, approach, timeline, technical details, commercial quote, assumptions, risks, and implementation plan. It helps compare vendors in a fair and structured way. In simple words, RFP tells vendors: Please explain how you will solve our requirement, how long it will take, and how much it will cost.",
+      "predecessor": "NDPR & BRD",
+      "inputs_needed": "Shortlisted vendor list, detailed scope, technical specifications from the BRD, business requirements, evaluation criteria, contract terms, timeline expectations, and commercial format.",
+      "output": "Detailed vendor proposals. These proposals are evaluated using a scorecard, leading to vendor comparison, negotiation, final vendor selection, and contract award.",
+      "owner": "Procurement / Project Manager",
+      "reviewers": "Evaluation Committee, Business Sponsor",
+      "risk_if_not_done": "If the RFP is not clear, vendors may give incomplete or mismatched proposals. The company may select the wrong vendor, face hidden costs, receive poor-quality delivery, or suffer delays during implementation."
+    }
+  ]
+}

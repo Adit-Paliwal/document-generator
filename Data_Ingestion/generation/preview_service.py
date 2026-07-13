@@ -3,34 +3,20 @@ preview_service.py
 ==================
 Production-grade LibreOffice document preview for IntelliDraft.
 
-How it works
-------------
+How it works (synchronous — the Celery/Redis async path was retired with the
+Docker/Cloud Run deployment; Databricks Apps runs a single process)
+------------------------------------------------------------------
 1. Client calls GET /api/generate/{job_id}/preview/html
-2. Service checks Redis for a cached HTML string (key: preview:{job_id}:{version_hash})
-3. Cache hit  → return HTML immediately (< 5 ms)
-4. Cache miss → submit a Celery task to the "preview" queue → return 202 + task_id
-5. Celery worker picks up the task, calls LibreOffice headless to convert DOCX→HTML,
-   stores result in Redis, returns HTML via Celery result backend
-6. Client polls GET /api/generate/{job_id}/preview/status?task_id=...
-7. When status==ready the client renders the HTML in an <iframe>
+2. In-memory cache hit → return HTML immediately
+3. Cache miss → convert DOCX→HTML via LibreOffice headless in the request
+   thread (unique -env:UserInstallation per conversion so parallel requests
+   don't hit profile locks); falls back to a markdown2 renderer when
+   LibreOffice is not installed (e.g. on Databricks).
+4. Any PATCH to a section calls invalidate_preview_cache(job_id) so the next
+   request re-converts.
 
-Parallelism
------------
-Each Celery task gets a unique -env:UserInstallation directory so multiple
-LibreOffice processes can run simultaneously without profile-lock conflicts.
-Set --concurrency=N on the worker to control parallelism (default 4).
-
-Modes
------
-CELERY_ENABLED=true  — full async path with Redis + Celery (production)
-CELERY_ENABLED=false — synchronous conversion in the Flask request (local dev,
-                       no Redis or worker needed, but blocks the request thread)
-
-Cache invalidation
-------------------
-Any PATCH to a section calls invalidate_preview_cache(job_id), which deletes
-all preview:{job_id}:* keys from Redis so the next preview request triggers
-a fresh conversion.
+NOTE: the React SPA renders previews client-side from section markdown; this
+endpoint chiefly serves the legacy chat.html preview panel.
 """
 from __future__ import annotations
 
@@ -48,17 +34,14 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-CELERY_ENABLED = os.environ.get("CELERY_ENABLED", "false").lower() == "true"
-REDIS_URL      = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
-CACHE_TTL      = int(os.environ.get("PREVIEW_CACHE_TTL", "3600"))   # seconds
-LO_TIMEOUT     = int(os.environ.get("LO_CONVERT_TIMEOUT", "90"))    # seconds
+LO_TIMEOUT = int(os.environ.get("LO_CONVERT_TIMEOUT", "90"))    # seconds
 
 # ── In-process deduplication state ───────────────────────────────────────────
 # Prevents multiple simultaneous conversions for the same job regardless of
 # how many API calls arrive concurrently (polling, React auto-trigger, etc.).
 #
-# _preview_cache : job_id → HTML string  (sync-mode only; Celery uses Redis)
-# _inflight      : job_id → Celery task_id (str) or "sync" (bool sentinel)
+# _preview_cache : job_id → HTML string
+# _inflight      : job_id → "sync" sentinel while a conversion is running
 # _inflight_lock : guards both dicts
 _preview_cache:  dict[str, str]  = {}
 _inflight:       dict[str, str]  = {}   # value = task_id or "sync"
@@ -66,7 +49,7 @@ _inflight_lock = threading.Lock()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Public API — called from Flask routes
+# Public API — called from the FastAPI routes (main.py)
 # ─────────────────────────────────────────────────────────────────────────────
 
 def pregenerate_preview(job_id: str) -> None:
@@ -94,112 +77,39 @@ def get_or_submit_preview(job_id: str) -> dict:
       {"status": "pending", "task_id": "…",    "poll_url": "…"}
       {"status": "error",   "error": "…"}
     """
-    if not CELERY_ENABLED:
-        return _sync_preview(job_id)
-
-    # Fast path — check Redis cache
-    cached_html = _cache_get(job_id)
-    if cached_html:
-        html = _inject_section_handlers(cached_html, job_id)
-        return {"status": "ready", "html": html, "cached": True}
-
-    # Deduplication: if a Celery task is already in flight, return it — don't submit another
-    with _inflight_lock:
-        existing_task_id = _inflight.get(job_id)
-    if existing_task_id:
-        return {
-            "status":   "pending",
-            "task_id":  existing_task_id,
-            "poll_url": f"/api/generate/{job_id}/preview/status?task_id={existing_task_id}",
-        }
-
-    # Submit a new Celery task and record its id for deduplication
-    try:
-        from generation.preview_tasks import convert_docx_task
-        task = convert_docx_task.apply_async(args=[job_id], queue="preview")
-        with _inflight_lock:
-            _inflight[job_id] = task.id
-        logger.info("[preview] Submitted Celery task %s for job %s", task.id, job_id)
-        return {
-            "status":   "pending",
-            "task_id":  task.id,
-            "poll_url": f"/api/generate/{job_id}/preview/status?task_id={task.id}",
-        }
-    except Exception as e:
-        logger.exception("[preview] Task submission failed for job %s", job_id)
-        return {"status": "error", "error": str(e)}
+    return _sync_preview(job_id)
 
 
 def poll_preview_status(job_id: str, task_id: str) -> dict:
     """
-    Check Celery task state.  Returns same shape as get_or_submit_preview.
-    The cache is checked first — if another caller already completed the
-    conversion its result is served immediately.
-    Clears the in-flight entry when the task reaches a terminal state.
+    LEGACY endpoint shim — the Celery worker path was retired. Serves the
+    in-memory cache when the conversion already finished; otherwise tells the
+    caller to poll the (synchronous) /preview/html endpoint instead.
     """
-    # Check Redis first (avoids Celery round-trip if result already cached)
-    cached_html = _cache_get(job_id)
-    if cached_html:
-        with _inflight_lock:
-            _inflight.pop(job_id, None)
-        return {"status": "ready", "html": cached_html, "cached": True}
-
-    try:
-        from celery.result import AsyncResult
-        from celery_app import celery_app
-        result = AsyncResult(task_id, app=celery_app)
-
-        if result.state == "SUCCESS":
-            with _inflight_lock:
-                _inflight.pop(job_id, None)
-            html = _inject_section_handlers(result.result, job_id)
-            return {"status": "ready", "html": html, "cached": False}
-        elif result.state == "FAILURE":
-            with _inflight_lock:
-                _inflight.pop(job_id, None)
-            err = str(result.result) if result.result else "Unknown conversion error"
-            return {"status": "error", "error": err}
-        else:
-            # PENDING | STARTED | RETRY
-            return {"status": "pending", "state": result.state}
-
-    except Exception as e:
-        logger.exception("[preview] Status poll failed for task %s", task_id)
-        return {"status": "error", "error": str(e)}
+    with _inflight_lock:
+        cached = _preview_cache.get(job_id)
+        still_running = _inflight.get(job_id) == "sync"
+    if cached:
+        return {"status": "ready", "html": cached, "cached": True}
+    if still_running:
+        return {"status": "pending", "state": "CONVERTING",
+                "poll_url": f"/api/generate/{job_id}/preview/html"}
+    return {"status": "pending", "state": "NOT_STARTED",
+            "poll_url": f"/api/generate/{job_id}/preview/html"}
 
 
 def invalidate_preview_cache(job_id: str) -> None:
     """
-    Delete all cached previews for this job (Redis + in-memory).
+    Delete the cached preview for this job so the next request re-converts.
     Call this after any section is patched (manual edit) or regenerated.
     """
-    # Always clear in-memory state so the next request re-converts
     with _inflight_lock:
         _preview_cache.pop(job_id, None)
         _inflight.pop(job_id, None)
 
-    if not CELERY_ENABLED:
-        return
-    try:
-        r = _redis_client()
-        pattern = f"preview:{job_id}:*"
-        cursor = 0
-        deleted = 0
-        while True:
-            cursor, keys = r.scan(cursor, match=pattern, count=200)
-            if keys:
-                r.delete(*keys)
-                deleted += len(keys)
-            if cursor == 0:
-                break
-        if deleted:
-            logger.debug("[preview] Invalidated %d cache key(s) for job %s", deleted, job_id)
-    except Exception as e:
-        logger.warning("[preview] Cache invalidation failed (non-fatal): %s", e)
-
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Core conversion — called by the Celery task and the sync fallback
+# Core conversion — LibreOffice headless DOCX→HTML
 # ─────────────────────────────────────────────────────────────────────────────
 
 def convert_job_to_html(job_id: str) -> str:
@@ -209,7 +119,7 @@ def convert_job_to_html(job_id: str) -> str:
     can run in parallel without lock conflicts.
 
     Returns the HTML string (CSS and small images are inlined).
-    Raises on any failure — the Celery task handles retries.
+    Raises on any failure — the caller falls back to the markdown2 renderer.
     """
     from generation.doc_writer import export_job_to_temp
 
@@ -440,67 +350,9 @@ def _find_soffice() -> str:
             return c
 
     raise EnvironmentError(
-        "LibreOffice (soffice) not found. "
-        "Install it and add it to your PATH. "
-        "See PREVIEW_SETUP.md for step-by-step instructions."
+        "LibreOffice (soffice) not found — install it and add it to PATH, "
+        "or rely on the built-in markdown2 preview fallback."
     )
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Redis cache helpers
-# ─────────────────────────────────────────────────────────────────────────────
-
-def _redis_client():
-    import redis as _redis
-    return _redis.from_url(REDIS_URL, decode_responses=True, socket_timeout=3)
-
-
-def _version_hash(job_id: str) -> str:
-    """
-    Cached MD5 of {section_id}:{current_version} per section.
-    Lookup is O(1) per section (no MD5 recalc).
-    Cache is invalidated when current_version changes (PATCH section).
-    """
-    from generation.db import GenerationJob, get_session
-    try:
-        with get_session() as session:
-            job = session.get(GenerationJob, job_id)
-            if not job:
-                return "nodata"
-            # Use pre-computed version_hash from each section (auto-migrated on startup)
-            ids = sorted(
-                sec.version_hash or f"{sec.section_id}:{sec.current_version}"
-                for sec in job.sections if sec.version_hash
-            )
-            if not ids:
-                # Fallback: compute on first run (before version_hash column is populated)
-                ids = sorted(
-                    f"{sec.section_id}:{sec.current_version}"
-                    for sec in job.sections
-                )
-            return hashlib.md5("|".join(ids).encode(), usedforsecurity=False).hexdigest()[:16]
-    except Exception:
-        return uuid.uuid4().hex[:16]
-
-
-def _cache_key(job_id: str) -> str:
-    return f"preview:{job_id}:{_version_hash(job_id)}"
-
-
-def _cache_get(job_id: str) -> str | None:
-    try:
-        return _redis_client().get(_cache_key(job_id))
-    except Exception as e:
-        logger.warning("[preview] Redis GET failed (non-fatal): %s", e)
-        return None
-
-
-def _cache_set(job_id: str, html: str) -> None:
-    try:
-        _redis_client().setex(_cache_key(job_id), CACHE_TTL, html)
-        logger.debug("[preview] Cached HTML for job %s (TTL %ds)", job_id, CACHE_TTL)
-    except Exception as e:
-        logger.warning("[preview] Redis SET failed (non-fatal): %s", e)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

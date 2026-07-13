@@ -61,6 +61,24 @@ class ProjectFormData(BaseModel):
     risks:                 Optional[str] = None
     estimated_cost_crores: Optional[str] = None  # stored as string e.g. "12.5"
 
+    # ── Figma 5-step wizard fields (all optional at API level) ────────────────
+    # Step 1 — Core Details
+    project_type:           Optional[str] = None   # internal | external
+    # Step 2 — Project Summary
+    pain_points:            Optional[str] = None
+    opportunities:          Optional[str] = None
+    business_justification: Optional[str] = None
+    deadline:               Optional[str] = None   # ISO date YYYY-MM-DD
+    # Step 3 — Project Details
+    integration_requirement: Optional[str] = None
+    assumptions:             Optional[str] = None
+    # Step 4 — Optional Information
+    approval_matrix:            Optional[str] = None
+    future_roadmap:             Optional[str] = None
+    scalability_considerations: Optional[str] = None
+    innovation_objectives:      Optional[str] = None
+    sustainability_esg:         Optional[str] = None
+
     # ── Generation settings (Step 2) ──────────────────────────────────────────
     document_type:           str           = "BRD"
     output_format:           str           = "Word (.docx)"

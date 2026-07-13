@@ -1,0 +1,34 @@
+{
+  "documents": {
+    "BRD": {
+      "full_form": "Business Requirements Document",
+      "purpose": "To outline what the business needs a new system or project to do to fulfill business goals.",
+      "input_required": "Current challenges, project scope, \"as-is\" process, stakeholder needs,scope, Timeline,Constraints,Risk & mitigation,Cost,project objective,Technical Landscape,",
+      "owner": "Business Analyst (BA)"
+    },
+    "NIT": {
+      "full_form": "Notice Inviting Tender",
+      "purpose": "To publicly invite suppliers or contractors to submit bids for a project or service.",
+      "input_required": "Tender description, project purpose, estimated amount, eligibility criteria, forms to fill.",
+      "owner": "Procurement / Financial Consultant"
+    },
+    "RFP": {
+      "full_form": "Request for Proposal",
+      "purpose": "To solicit comprehensive proposals from potential vendors for a specific project or service.",
+      "input_required": "Project background, technical requirements, evaluation criteria, budget expectations.",
+      "owner": "Procurement / Project Manager"
+    },
+    "NDPR": {
+      "full_form": "Non-Detailed Project Report (or Pre-feasibility Report)",
+      "purpose": "To provide a high-level overview of a proposed project's viability before committing to a full Detailed Project Report.",
+      "input_required": "High-level cost estimates, basic technical viability, broad market analysis, initial risk assessment.",
+      "owner": "Project Sponsor / Strategy Team"
+    },
+    "NFA": {
+      "full_form": "Note for Approval",
+      "purpose": "To seek formal internal management or financial approval for a specific decision, expenditure, or project phase.",
+      "input_required": "Business justification, cost/budget availability, ROI or benefits, alternative options considered.",
+      "owner": "Project Owner / Department Head"
+    }
+  }
+}

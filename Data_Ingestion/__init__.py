@@ -19,16 +19,10 @@
 #   cd "…\Intellidraft"        ← the PARENT of Data_Ingestion\
 #   adk web                    ← discovers Data_Ingestion as the agent app
 #
-# HOW TO DEPLOY (Agent Engine):
-#   adk deploy agent_engine \
-#     --project=$GCP_PROJECT_ID \
-#     --region=us-central1 \
-#     --display_name="IntelliDraft Document Generator" \
-#     Data_Ingestion
+# DEPLOYMENT: the platform ships as a FastAPI app on Databricks Apps (main.py
+# + app.yaml). The Vertex AI Agent Engine deployment path was retired
+# 2026-07-13 — these agents run in-process; `adk web` remains for local dev.
 #
 # DO NOT run from inside Data_Ingestion\ — doubled path breaks ADK discovery.
-#
-# LEGACY: agents/doc_parser/ replaces the old single-agent at agent/agent.py.
-#         agent/agent.py is kept for backward-compat single-agent testing.
 # ─────────────────────────────────────────────────────────────────────────────
 from .agents import root_agent  # noqa: F401

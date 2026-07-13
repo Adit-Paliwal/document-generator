@@ -14,11 +14,12 @@ Background generation (dev mode):
   Sections are generated one-by-one in a daemon thread so the HTTP call
   that started the job returns immediately. The client polls GET /api/generate/{job_id}.
 
-Production note (GCP Cloud Run):
-  Replace the thread with a Cloud Tasks or Pub/Sub push subscription.
-  The `_run_generation_job` function is the exact body the task handler would execute.
-  Set ASYNC_GENERATION=false to generate synchronously inside the request (useful for
-  testing or very small documents).
+Production note (Databricks Apps):
+  Generation runs on in-process daemon threads; main.py's startup sweep marks
+  jobs orphaned by a restart as failed. When scale demands it, move
+  `_run_generation_job` to a Databricks Job — it is the exact body the task
+  handler would execute. Set ASYNC_GENERATION=false to generate synchronously
+  inside the request (useful for testing or very small documents).
 """
 
 from __future__ import annotations
@@ -44,6 +45,12 @@ logger = logging.getLogger(__name__)
 # Set ASYNC_GENERATION=false to generate synchronously (blocking) inside the request.
 # Default true = background thread, HTTP call returns immediately.
 ASYNC_GENERATION = os.environ.get("ASYNC_GENERATION", "true").lower() == "true"
+
+# How many sections to generate CONCURRENTLY within a wave. Sections only see a
+# 150-char preview of prior sections (see generator._build_section_prompt), so
+# wave-parallelism is quality-neutral while cutting wall-clock ~concurrency-fold.
+# Set to 1 to restore strictly sequential generation.
+GENERATION_CONCURRENCY = max(1, int(os.environ.get("GENERATION_CONCURRENCY", "4")))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -185,9 +192,17 @@ def _run_generation_job(job_id: str) -> None:
     section_configs   = get_sections_for_job(document_type, template_id, None)
     config_by_key     = {c["key"]: c for c in section_configs}
 
-    previous_sections: list[dict] = []   # accumulated for coherence
+    previous_sections: list[dict] = []   # accumulated for coherence (150-char previews in prompt)
 
-    for section_id, section_key, section_title, order_index in section_rows:
+    def _generate_one(row: tuple, prev_snapshot: list[dict]) -> Optional[dict]:
+        """
+        Generate one section end-to-end. Runs on a wave worker thread —
+        every DB touch uses its own session, and the job progress counter is
+        incremented with an ATOMIC SQL expression (a plain `job.x += 1` here
+        would be a read-modify-write race across concurrent workers).
+        Returns {"title", "content", "order"} on success, None on skip/failure.
+        """
+        section_id, section_key, section_title, order_index = row
         cfg          = config_by_key.get(section_key, {})
         instructions = cfg.get("instructions", f"Generate the {section_title} section.")
         target_words = cfg.get("target_words", 300)
@@ -196,7 +211,7 @@ def _run_generation_job(job_id: str) -> None:
         with get_session() as session:
             sec = session.get(Section, section_id)
             if not sec or sec.status not in ("pending",):
-                continue   # skip if already done or failed
+                return None   # already done or failed
             sec.status     = "generating"
             sec.updated_at = datetime.utcnow()
             session.commit()
@@ -210,15 +225,15 @@ def _run_generation_job(job_id: str) -> None:
                 system_instructions  = system_instructions,
                 llm_context          = llm_context,
                 user_inputs          = user_inputs,
-                previous_sections    = previous_sections,
+                previous_sections    = prev_snapshot,
                 target_words         = target_words,
             )
 
-            version_id = str(uuid.uuid4())
+            import hashlib as _hm
             with get_session() as session:
                 sec = session.get(Section, section_id)
-                ver = SectionVersion(
-                    version_id        = version_id,
+                session.add(SectionVersion(
+                    version_id        = str(uuid.uuid4()),
                     section_id        = section_id,
                     version_number    = 1,
                     content           = content,
@@ -226,32 +241,55 @@ def _run_generation_job(job_id: str) -> None:
                     generation_prompt = prompt,
                     generation_model  = model_id,
                     trigger_type      = "ai_generation",
-                )
-                session.add(ver)
+                ))
                 sec.status          = "completed"
                 sec.current_version = 1
-                import hashlib as _hm
                 sec.version_hash    = _hm.md5(f"{section_id}:1".encode(), usedforsecurity=False).hexdigest()[:16]
                 sec.updated_at      = datetime.utcnow()
-
-                # Increment job counter
-                job = session.get(GenerationJob, job_id)
-                job.completed_sections += 1
+                # Atomic increment — safe under concurrent wave workers
+                session.query(GenerationJob).filter(GenerationJob.job_id == job_id).update(
+                    {GenerationJob.completed_sections: GenerationJob.completed_sections + 1},
+                    synchronize_session=False,
+                )
                 session.commit()
 
-            previous_sections.append({"title": section_title, "content": content})
             logger.info("[gen] Section '%s' done (%d words)", section_key, len(content.split()))
+            return {"title": section_title, "content": content, "order": order_index}
 
         except Exception as e:
             logger.exception("[gen] Section '%s' failed", section_key)
             with get_session() as session:
                 sec = session.get(Section, section_id)
-                sec.status     = "failed"
-                sec.error      = str(e)
-                sec.updated_at = datetime.utcnow()
-                job = session.get(GenerationJob, job_id)
-                job.completed_sections += 1
+                if sec:
+                    sec.status     = "failed"
+                    sec.error      = str(e)
+                    sec.updated_at = datetime.utcnow()
+                session.query(GenerationJob).filter(GenerationJob.job_id == job_id).update(
+                    {GenerationJob.completed_sections: GenerationJob.completed_sections + 1},
+                    synchronize_session=False,
+                )
                 session.commit()
+            return None
+
+    # ── Wave-parallel execution ──────────────────────────────────────────────
+    # Sections run GENERATION_CONCURRENCY at a time. Each wave sees the
+    # completed output (truncated previews) of all previous waves — same
+    # coherence signal as the old sequential loop, at a fraction of the
+    # wall-clock time (25 sections: ~10 min sequential → ~2-3 min at c=4).
+    from concurrent.futures import ThreadPoolExecutor
+
+    for wave_start in range(0, len(section_rows), GENERATION_CONCURRENCY):
+        wave = section_rows[wave_start:wave_start + GENERATION_CONCURRENCY]
+        prev_snapshot = list(previous_sections)   # immutable view for this wave
+        if len(wave) == 1:
+            results = [_generate_one(wave[0], prev_snapshot)]
+        else:
+            with ThreadPoolExecutor(max_workers=len(wave),
+                                    thread_name_prefix=f"gen-{job_id[:8]}") as pool:
+                results = list(pool.map(lambda r: _generate_one(r, prev_snapshot), wave))
+        # Keep document order stable in the coherence context
+        for res in sorted((r for r in results if r), key=lambda d: d["order"]):
+            previous_sections.append({"title": res["title"], "content": res["content"]})
 
     # ── Retry pass: re-call generate_section for any section that failed ────────
     # Uses the same function and same context variables as the main loop above.
@@ -629,11 +667,12 @@ def accept_version(section_id: str, version_number: int) -> dict:
         return accepted.to_dict() if accepted else {}
 
 
-def update_section_content(section_id: str, content: str) -> dict:
+def update_section_content(section_id: str, content: str, edited_by: str = None) -> dict:
     """
     Directly overwrite a section with manually-edited content.
     Creates a new SectionVersion (incrementing from the latest) and marks it accepted.
     Used by the frontend preview panel's inline editor.
+    edited_by: email of the editor (X-User-Email) — enables reviewer-edit attribution.
     """
     with get_session() as session:
         sec = session.get(Section, section_id)
@@ -656,6 +695,7 @@ def update_section_content(section_id: str, content: str) -> dict:
             word_count        = len(content.split()),
             generation_prompt = None,
             trigger_type      = "manual_edit",
+            edited_by         = (edited_by or "").strip().lower() or None,
             is_accepted       = True,
         )
         session.add(ver)
@@ -690,8 +730,21 @@ def get_job(job_id: str, include_all_versions: bool = False) -> dict:
     include_all_versions=True: Return all versions per section
       → Slow (358ms). Use only when explicitly requested.
     """
+    from sqlalchemy.orm import selectinload
+
     with get_session() as session:
-        job = session.get(GenerationJob, job_id)
+        # selectinload: 3 queries total instead of 1 + 2×N lazy loads.
+        # This endpoint is polled every ~2.5s during generation — the N+1
+        # was 51 queries per poll on a 25-section job.
+        job = (
+            session.query(GenerationJob)
+            .options(
+                selectinload(GenerationJob.sections).selectinload(Section.versions),
+                selectinload(GenerationJob.sections).selectinload(Section.comments),
+            )
+            .filter(GenerationJob.job_id == job_id)
+            .first()
+        )
         if not job:
             raise ValueError(f"Job {job_id} not found")
         result = job.to_dict(include_sections=True)
@@ -728,7 +781,7 @@ def list_jobs(document_id: Optional[str] = None) -> list[dict]:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Convenience wrapper — project-based generation (used by Flask + ADK agent)
+# Convenience wrapper — project-based generation (used by FastAPI + ADK agent)
 # ─────────────────────────────────────────────────────────────────────────────
 
 def start_job_from_project(
@@ -744,7 +797,7 @@ def start_job_from_project(
 
     This is the single source of truth for project-based generation.
     It is called by:
-      - run_server.py  →  POST /api/generate/project/<project_id>
+      - main.py (FastAPI)  →  POST /api/generate/project/<project_id>
       - agents/document_generator/tools.py  →  start_generation ADK tool
       - api/chat_handler.py  →  Document Chat Studio
 
@@ -770,24 +823,37 @@ def start_job_from_project(
         if not proj:
             raise FileNotFoundError(f"Project '{project_id}' not found.")
 
-        # ── Idempotency: skip re-generation if a completed job already exists ──
-        # This covers every caller: REST endpoint, chat handler, ADK agent tool.
-        # The caller receives the same dict shape as start_job() but with the
-        # extra flag "already_complete": True so it can give appropriate feedback.
-        if proj.job_id:
-            try:
-                existing = get_job(proj.job_id)
-                if existing.get("status") == "completed":
-                    logger.info(
-                        "[gen] Project %s already has completed job %s — returning existing",
-                        project_id, proj.job_id,
-                    )
-                    existing["already_complete"] = True
-                    return existing
-            except Exception:
-                pass  # job record missing or DB error — proceed to create a new job
+        fd = proj.to_ingested_dict()
+        effective_doc_type = doc_type_override or fd.get("document_type") or "BRD"
 
-        fd      = proj.to_ingested_dict()
+        # ── Idempotency — PER (project, document_type) ─────────────────────────
+        # A project holds multiple documents (BRD, NFA, NIT, …). Re-requesting a
+        # doc type that already completed returns that job instead of regenerating.
+        # Covers every caller: REST endpoint, chat handler, ADK agent tool.
+        existing_job = (
+            session.query(GenerationJob)
+            .filter(GenerationJob.project_id == project_id,
+                    GenerationJob.document_type == effective_doc_type,
+                    GenerationJob.status == "completed")
+            .order_by(GenerationJob.created_at.desc())
+            .first()
+        )
+        # Legacy fallback: pre-multi-doc jobs have no project_id — check proj.job_id,
+        # but only honour it when the document type actually matches.
+        if existing_job is None and proj.job_id:
+            legacy = session.get(GenerationJob, proj.job_id)
+            if (legacy and legacy.status == "completed"
+                    and (legacy.document_type or "").lower() == effective_doc_type.lower()):
+                existing_job = legacy
+        if existing_job is not None:
+            logger.info(
+                "[gen] Project %s already has completed %s job %s — returning existing",
+                project_id, effective_doc_type, existing_job.job_id,
+            )
+            existing = get_job(existing_job.job_id)
+            existing["already_complete"] = True
+            return existing
+
         doc_ids = json_mod.loads(proj.document_ids_json or "[]")
         sths    = json_mod.loads(proj.stakeholders_json  or "[]")
 
@@ -813,6 +879,18 @@ def start_job_from_project(
         ("Risks",               "risks"),
         ("Technical Landscape", "technical_landscape"),
         ("Business Priority",   "business_priority"),
+        ("Project Type",        "project_type"),
+        ("Pain Points",         "pain_points"),
+        ("Opportunities",       "opportunities"),
+        ("Business Justification", "business_justification"),
+        ("Deadline",            "deadline"),
+        ("Integration Requirement", "integration_requirement"),
+        ("Assumptions",         "assumptions"),
+        ("Approval Matrix",     "approval_matrix"),
+        ("Future Roadmap",      "future_roadmap"),
+        ("Scalability Considerations", "scalability_considerations"),
+        ("Innovation Objectives", "innovation_objectives"),
+        ("Sustainability / ESG", "sustainability_esg"),
     ]:
         if fd.get(key):
             extra_parts.append(f"{label}: {fd[key]}")
@@ -851,7 +929,7 @@ def start_job_from_project(
         )
 
     # ── Assemble user_inputs for start_job ───────────────────────────────────
-    effective_doc_type = doc_type_override or fd.get("document_type", "BRD")
+    # (effective_doc_type resolved above, before the idempotency check)
     user_inputs = {
         "project_name":            fd.get("project_name", ""),
         "document_type":           effective_doc_type,
@@ -876,20 +954,122 @@ def start_job_from_project(
     primary_doc_id = doc_ids[0] if doc_ids else project_id
     job = start_job(primary_doc_id, user_inputs, fd.get("template_id"))
 
-    # ── Flip project status → 'generating' ───────────────────────────────────
+    # ── Link job ↔ project, flip project status → 'generating' ────────────────
     with _get_session() as session:
+        # Stamp project_id on the job (multi-document support: one job per doc type)
+        job_row = session.get(GenerationJob, job["job_id"])
+        if job_row:
+            job_row.project_id = project_id
         proj2 = session.get(Project, project_id)
         if proj2:
-            proj2.job_id     = job["job_id"]
+            proj2.job_id     = job["job_id"]   # legacy alias: most recent job
             proj2.status     = "generating"
             proj2.updated_at = datetime.utcnow()
-            session.commit()
+        session.commit()
 
+    job["project_id"] = project_id
     logger.info(
         "[gen] start_job_from_project: project=%s job=%s doc_type=%s docs=%d",
-        project_id, job["job_id"], fd.get("document_type"), len(doc_ids),
+        project_id, job["job_id"], effective_doc_type, len(doc_ids),
     )
     return job
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Multi-document-per-project queries (Figma: BRD/NFA/NIT/… each with own state)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _project_jobs(session, project_id: str) -> list:
+    """All jobs belonging to a project — project_id column plus the legacy
+    Project.job_id pointer (pre-multi-doc jobs that were never stamped)."""
+    from generation.db import Project as _P
+    jobs = (
+        session.query(GenerationJob)
+        .filter(GenerationJob.project_id == project_id)
+        .all()
+    )
+    seen = {j.job_id for j in jobs}
+    proj = session.get(_P, project_id)
+    if proj and proj.job_id and proj.job_id not in seen:
+        legacy = session.get(GenerationJob, proj.job_id)
+        if legacy:
+            jobs.append(legacy)
+    return jobs
+
+
+def list_project_documents(project_id: str) -> list[dict]:
+    """
+    One entry per document type generated (or generating) for this project —
+    the latest job per type wins. Powers GET /api/projects/{id}/documents
+    (the Documents section of the Individual Project page).
+    """
+    from generation.db import Project as _P
+    with get_session() as session:
+        if not session.get(_P, project_id):
+            raise FileNotFoundError(f"Project '{project_id}' not found")
+        latest_by_type: dict[str, GenerationJob] = {}
+        for j in _project_jobs(session, project_id):
+            key = (j.document_type or "").upper()
+            cur = latest_by_type.get(key)
+            if cur is None or (j.created_at and cur.created_at and j.created_at > cur.created_at):
+                latest_by_type[key] = j
+        out = []
+        for j in latest_by_type.values():
+            out.append({
+                "document_type":      j.document_type,
+                "job_id":             j.job_id,
+                "status":             j.status,
+                "review_status":      j.review_status or "draft",
+                "total_sections":     j.total_sections,
+                "completed_sections": j.completed_sections,
+                "created_at":         j.created_at.isoformat() if j.created_at else None,
+                "completed_at":       j.completed_at.isoformat() if j.completed_at else None,
+            })
+        out.sort(key=lambda d: d["created_at"] or "", reverse=True)
+        return out
+
+
+def project_review_rollup(jobs: list) -> str:
+    """
+    Roll a project's document review states up to the dashboard KPI status:
+      approved     — documents exist and ALL are approved
+      under_review — any document under_review / revision_requested / rejected
+      under_draft  — everything else (no jobs, or drafts only)
+    """
+    states = {(j.review_status or "draft") for j in jobs}
+    if not states:
+        return "under_draft"
+    if states & {"under_review", "revision_requested", "rejected"}:
+        return "under_review"
+    if states == {"approved"}:
+        return "approved"
+    return "under_draft"
+
+
+def get_project_stats() -> dict:
+    """Dashboard KPI counts: Total / Under Draft / Under Review / Approved."""
+    from generation.db import Project as _P
+    with get_session() as session:
+        projects = session.query(_P).all()
+        # Batch: all project-linked jobs in one query, grouped in Python
+        all_jobs = (
+            session.query(GenerationJob)
+            .filter(GenerationJob.project_id.isnot(None))
+            .all()
+        )
+        by_project: dict[str, list] = {}
+        for j in all_jobs:
+            by_project.setdefault(j.project_id, []).append(j)
+
+        counts = {"total": len(projects), "under_draft": 0, "under_review": 0, "approved": 0}
+        for p in projects:
+            jobs = by_project.get(p.project_id, [])
+            if not jobs and p.job_id:   # legacy single-job projects
+                legacy = session.get(GenerationJob, p.job_id)
+                if legacy:
+                    jobs = [legacy]
+            counts[project_review_rollup(jobs)] += 1
+        return counts
 
 
 # ─────────────────────────────────────────────────────────────────────────────

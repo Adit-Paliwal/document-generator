@@ -10,17 +10,19 @@
 # scope — never hardcode them here as this file is committed to source control.
 # ═══════════════════════════════════════════════════════════════════════════════
 
+# FastAPI (main.py) via gunicorn + uvicorn ASGI workers — the only API server.
+# Frontend: copy frontend-react/dist → Data_Ingestion/frontend-react-dist before deploy.
 command:
   - gunicorn
-  - run_server:app
+  - main:app
   - --workers
   - "4"
   - --bind
   - "0.0.0.0:${DATABRICKS_APP_PORT}"
   - --timeout
-  - "120"
+  - "200"
   - --worker-class
-  - sync
+  - uvicorn.workers.UvicornWorker
 
 env:
   # ── Mode flags ─────────────────────────────────────────────────────────────
@@ -32,9 +34,6 @@ env:
 
   - name: DATABRICKS_MODE
     value: "true"
-
-  - name: CELERY_ENABLED
-    value: "false"
 
   # ── Unity Catalog (non-sensitive) ───────────────────────────────────────────
   - name: DATABRICKS_CATALOG
@@ -55,10 +54,9 @@ env:
   # Required (set in UI):
   #   DATABRICKS_SERVER_HOSTNAME  → <workspace>.azuredatabricks.net   (no https://)
   #   DATABRICKS_HTTP_PATH  → /sql/1.0/warehouses/<warehouse-id>
-  #   VERTEX_AI_PROJECT     → your-gcp-project-id
+  #   VERTEX_AI_PROJECT     → your-gcp-project-id  (Gemini LLM calls)
   #   VERTEX_AI_LOCATION    → us-central1
   #   GOOGLE_APPLICATION_CREDENTIALS_JSON → contents of GCP service account JSON
-  #   SECRET_KEY            → any long random string (Flask session secret)
   #
   # Prerequisite grants (run once, in SQL Editor or Catalog UI) — give the App's
   # service principal access to the warehouse, catalog/schema, and volume:

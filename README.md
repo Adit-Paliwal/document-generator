@@ -9,21 +9,25 @@ Automatically generates BRDs, RFPs, SOWs, Proposals, Tech Specs, and Scope Docum
 
 ```
 Intellidraft/
-├── Data_Ingestion/                 # Flask backend (REST API — port 7071)
-│   ├── run_server.py               # 20+ REST endpoints
+├── Data_Ingestion/                 # FastAPI backend (REST API — port 7071)
+│   ├── main.py                     # 60+ REST endpoints (Swagger at /docs)
+│   ├── app.yaml                    # Databricks Apps deployment config
+│   ├── ontology/                   # Business ontology pack (prompt grounding)
 │   ├── parsers/                    # PDF, DOCX, PPTX, Excel, Vision AI
-│   ├── storage/                    # Azure Blob / local filesystem
-│   ├── generation/                 # LLM doc generation, DB ORM, derive fields
+│   ├── storage/                    # Databricks Volumes / local filesystem
+│   ├── generation/                 # LLM generation, review, validation agent, DB ORM
 │   ├── models/                     # Pydantic schemas
+│   ├── tests/                      # pytest suites + API contract + load test
 │   ├── agents/                     # Google ADK multi-agent system
 │   │   ├── orchestrator.py         # Root LlmAgent — routes to sub-agents
 │   │   ├── doc_parser/             # Agent 1 — upload, parse, Vision AI
 │   │   ├── context_collector/      # Agent 2 — load project context from DB
-│   │   └── document_generator/     # Agent 3 — generate, modify, export
+│   │   ├── document_generator/     # Agent 3 — generate, modify, export
+│   │   └── reviewer/               # Agent 4 — share, comments, AI reviews
 │   └── requirements.txt
-├── frontend/                       # Single-page HTML frontend (index.html)
-├── Data_Ingestion/api-docs.html    # Full API reference (open in browser)
-└── IntelliDraft_API.postman_collection.json  # Postman collection (30+ requests)
+├── frontend-react/                 # React SPA (Vite + Tailwind) — primary UI
+├── Data_Ingestion/frontend/        # Legacy single-file HTML pages (fallback)
+└── DATABRICKS_DEPLOY_GUIDE.md      # The only supported deployment target
 ```
 
 ---
@@ -115,21 +119,32 @@ AZURE_GPT5_MODEL_DEPLOYMENT_ID=<your-deployment-name>
 
 ---
 
+## Setup & Deployment
+
+- **Local setup on any machine** (native or Docker): see **[SETUP.md](SETUP.md)**
+- **Production on Azure Databricks**: see **[DATABRICKS_DEPLOY_GUIDE.md](DATABRICKS_DEPLOY_GUIDE.md)**
+- **Docker / self-host**: `docker compose up -d --build` → http://localhost:7071/
+
+Quick native run below.
+
+---
+
 ## Running Locally
 
-### 1 — Start the Flask API
+### 1 — Start the FastAPI server
 
 ```bash
-python Data_Ingestion/run_server.py
+python Data_Ingestion/main.py
 ```
 
 API available at **`http://localhost:7071/api/`**  
-Health check: `http://localhost:7071/api/health`
+Health check: `http://localhost:7071/api/health` · Swagger: `http://localhost:7071/docs`
 
 ### 2 — Open the Frontend
 
-Open `frontend/index.html` directly in your browser (double-click or drag into Chrome).  
-No build step required — it's a single HTML file.
+The React SPA is served by the API itself at **`http://localhost:7071/`**
+(build it once with `cd frontend-react && npm install && npm run build`).
+For frontend development with hot reload: `cd frontend-react && npm run dev` → http://localhost:5173.
 
 ### 3 — Start the Google ADK web UI (optional — AI agent chat)
 

@@ -1,126 +1,41 @@
-# ══════════════════════════════════════════════════════════════════════════════
-# Document Generator — Docker Compose
+# IntelliDraft — local / self-hosted Docker deployment (FastAPI, single service).
 #
-# Usage:
-#   1. Copy Data_Ingestion/.env.example  →  Data_Ingestion/.env
-#   2. Fill in your API keys in .env
-#   3. (Gemini) Place GCP service account key at  Data_Ingestion/key.json
-#      and uncomment the key.json volume mount below.
-#   4. docker-compose up -d
-#   5. API available at http://localhost:7071/api
+#   docker compose up -d --build
+#   open http://localhost:7071/
 #
-# Useful commands:
-#   docker-compose up -d          start in background
-#   docker-compose logs -f        stream logs
-#   docker-compose down           stop and remove containers
-#   docker-compose down -v        stop + wipe data volume (fresh start)
-#   docker-compose build          rebuild image after code changes
-# ══════════════════════════════════════════════════════════════════════════════
-
-version: "3.9"
+# The Celery worker + Redis services were removed with the async preview stack —
+# document preview is now synchronous (LibreOffice in-process, markdown2 fallback)
+# and section generation is wave-parallel inside the app process.
 
 services:
-
-  # ── Redis — broker, result backend, and preview HTML cache ───────────────────
-  redis:
-    image: redis:7-alpine
-    restart: unless-stopped
-    ports:
-      - "6379:6379"
-    command: >
-      redis-server
-        --maxmemory 512mb
-        --maxmemory-policy allkeys-lru
-        --save 60 1000
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    volumes:
-      - redis-data:/data
-
-  # ── Celery worker — LibreOffice preview conversions ──────────────────────────
-  #
-  # --concurrency=4 : 4 parallel LibreOffice processes (each uses a unique profile dir)
-  # --queues=preview: only handles document conversion tasks
-  # Increase --concurrency if the host has more CPUs; each process uses ~200 MB RAM.
-  celery-worker:
+  intellidraft:
     build:
       context: .
       dockerfile: Dockerfile
-    image: document-generator-api:latest
-    container_name: celery-worker
-    command: >
-      celery -A celery_app worker
-        --queues=preview
-        --concurrency=4
-        --loglevel=info
-        --without-gossip
-        --without-mingle
-    env_file:
-      - Data_Ingestion/.env
-    environment:
-      - LOCAL_DB=true
-      - CELERY_ENABLED=true
-      - ASYNC_GENERATION=true
-    depends_on:
-      redis:
-        condition: service_healthy
-    volumes:
-      - document-generator-data:/app/Data_Ingestion/local_storage
-      # - ./Data_Ingestion/key.json:/app/Data_Ingestion/key.json:ro
-    restart: unless-stopped
-
-  document-generator-api:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: document-generator-api:latest
-    container_name: document-generator-api
+    image: intellidraft:latest
+    container_name: intellidraft
     ports:
-      - "7071:7071"      # API available at  http://localhost:7071/api
-
-    # ── Environment variables ─────────────────────────────────────────────────
-    # Reads from Data_Ingestion/.env  (copy from .env.example and fill in keys)
+      - "7071:7071"
     env_file:
-      - Data_Ingestion/.env
-
-    # Runtime overrides (these win over .env values)
+      - Data_Ingestion/.env          # LLM creds, DATABRICKS_MODE, flags, etc.
     environment:
-      - LOCAL_MODE=true          # store files locally, no Azure Blob needed
-      - LOCAL_DB=true            # SQLite DB at local_storage/intellidraft.db
-      - ASYNC_GENERATION=true    # background generation (non-blocking)
-      - CELERY_ENABLED=true      # use Celery + Redis for async LibreOffice preview
-      - REDIS_URL=redis://redis:6379/0   # internal Docker network
-
-    depends_on:
-      redis:
-        condition: service_healthy
-
-    # ── Persistent storage ────────────────────────────────────────────────────
-    # SQLite DB + parsed documents survive container restarts
+      - PORT=7071
+      - GENERATION_CONCURRENCY=4      # parallel section generation
+      - THREADPOOL_TOKENS=80          # sync-endpoint concurrency
+      # - CORS_ALLOW_ORIGINS=https://your-host   # restrict origins in prod
     volumes:
-      - document-generator-data:/app/Data_Ingestion/local_storage
-      # ── Gemini / Vertex AI key (optional) ───────────────────────────────────
-      # To use Gemini as the primary LLM:
-      #   1. Place your GCP service account JSON at  Data_Ingestion/key.json
-      #   2. Uncomment the line below
-      #   key.json is in .dockerignore — it is NEVER baked into the image.
-      # - ./Data_Ingestion/key.json:/app/Data_Ingestion/key.json:ro
-
+      # Persist the local SQLite DB + parsed documents across restarts
+      # (ignored when DATABRICKS_MODE=true — data then lives in Databricks).
+      - intellidraft_storage:/app/Data_Ingestion/local_storage
+      # Mount the GCP service-account key for Gemini (read-only)
+      - ./Data_Ingestion/key.json:/app/Data_Ingestion/key.json:ro
     restart: unless-stopped
-
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:7071/api/health"]
       interval: 30s
       timeout: 10s
-      start_period: 25s
       retries: 3
+      start_period: 25s
 
-# ── Named volumes ─────────────────────────────────────────────────────────────
 volumes:
-  document-generator-data:
-    name: document-generator-data
-  redis-data:
-    name: intellidraft-redis-data
+  intellidraft_storage:

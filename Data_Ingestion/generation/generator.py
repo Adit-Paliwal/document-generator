@@ -43,6 +43,8 @@ You are generating the "{document_type}" document for the project described belo
 - **Stakeholders:** {stakeholders}
 - **Language:** {language}
 
+{ontology_block}
+
 ## BUSINESS CONTEXT
 {business_problem}
 
@@ -79,6 +81,12 @@ FORMATTING RULES (follow exactly):
 CONTENT QUALITY RULES:
 - Be specific and concrete. Pull real names, numbers, systems, dates, and processes from the
   SOURCE DOCUMENT CONTENT above — do NOT invent generic filler.
+- Use Adani terminology exactly as defined in the ADANI TERMINOLOGY glossary (when present):
+  expand each acronym on first use, then use the acronym. Never redefine an acronym differently.
+- When naming systems, prefer the AESL technical estate entries provided above over
+  hypothetical or generic system names.
+- Respect the DOCUMENT-TYPE GUIDANCE (when present): cover its required inputs, honour its
+  position in the BRD → NDPR → NFA → NIT → RFP chain, and write for its stated reviewers.
 - Never emit placeholders such as "TBD", "Lorem ipsum", "[insert ...]", "XYZ", or "example.com".
   If a detail is genuinely unavailable, state a reasonable, professional assumption instead.
 - Maintain a formal, precise, enterprise-grade tone. No marketing fluff, no aspirational vagueness.
@@ -244,6 +252,24 @@ def _build_system_prompt(
     else:
         additional_instructions_block = ""
 
+    # Business ontology block — org framing, doc-type semantics, matched glossary
+    # and matched AESL systems. Scans everything the model will see so only
+    # RELEVANT ontology entries are injected (token discipline lives in ontology.py).
+    from generation.ontology import for_generation as _ontology_for_generation
+    _scan = " ".join(filter(None, (
+        user_inputs.get("project_name", ""),
+        user_inputs.get("business_problem") or "",
+        user_inputs.get("project_description") or "",
+        additional or "",
+        user_inputs.get("derived_context") or "",
+        llm_context or "",
+    )))
+    try:
+        ontology_block = _ontology_for_generation(document_type, _scan)
+    except Exception:
+        logger.exception("[Generator] Ontology block build failed — continuing without it")
+        ontology_block = ""
+
     # Also prepend template system instructions
     if system_instructions:
         additional_instructions_block = (
@@ -260,6 +286,7 @@ def _build_system_prompt(
         business_problem             = user_inputs.get("business_problem") or "Not provided",
         project_description          = user_inputs.get("project_description") or "Not provided",
         additional_instructions_block= additional_instructions_block,
+        ontology_block               = ontology_block,
         llm_context                  = llm_context or "(No source document provided)",
         previous_sections_block      = previous_sections_block,
         target_words                 = target_words,

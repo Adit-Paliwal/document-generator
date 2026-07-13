@@ -326,7 +326,7 @@ async def export_document(
     """
     try:
         # doc_writer.export_job is the single export entry point used by
-        # the Flask API (run_server.py /api/generate/<job_id>/export) too.
+        # the FastAPI server (main.py /api/generate/<job_id>/export) too.
         from generation.doc_writer import export_job
         from generation.generation_service import get_job
 

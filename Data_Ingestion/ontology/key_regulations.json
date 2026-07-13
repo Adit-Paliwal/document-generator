@@ -1,0 +1,24 @@
+{
+  "regulations": [
+    {
+      "name": "MERC",
+      "description": "",
+      "source_available": ""
+    },
+    {
+      "name": "DFPO",
+      "description": "",
+      "source_available": ""
+    },
+    {
+      "name": "BEE",
+      "description": "",
+      "source_available": ""
+    },
+    {
+      "name": "LIS",
+      "description": "",
+      "source_available": ""
+    }
+  ]
+}

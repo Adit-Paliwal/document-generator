@@ -103,17 +103,26 @@ else:
 
 def _make_engine():
     if DATABASE_URL and DATABASE_URL.startswith("sqlite"):
-        from sqlalchemy.pool import StaticPool
+        # QueuePool (SQLAlchemy default), NOT StaticPool: StaticPool shares ONE
+        # sqlite3 connection across every thread, and concurrent requests then
+        # interleave cursor state — sqlite3.InterfaceError ("bad parameter or
+        # other API misuse") and corrupted rows under load. QueuePool checks a
+        # connection out to exactly one thread at a time. check_same_thread stays
+        # False because a pooled connection may be reused by a different thread
+        # on the next checkout (never concurrently).
         engine = create_engine(
             DATABASE_URL,
-            connect_args={"check_same_thread": False},
-            poolclass=StaticPool,
+            connect_args={"check_same_thread": False, "timeout": 15},
+            pool_size=10,
+            max_overflow=20,
             echo=False,
         )
-        # Enable WAL mode for concurrent reads during background generation
+        # WAL: concurrent readers during the background generation writer.
+        # busy_timeout: wait for the single SQLite writer instead of failing.
         @event.listens_for(engine, "connect")
         def _set_wal(dbapi_conn, _):
             dbapi_conn.execute("PRAGMA journal_mode=WAL")
+            dbapi_conn.execute("PRAGMA busy_timeout=15000")
             dbapi_conn.execute("PRAGMA foreign_keys=ON")
         return engine
 
@@ -266,6 +275,10 @@ class GenerationJob(Base):
 
     job_id             = Column(String(36),  primary_key=True)
     document_id        = Column(String(36),  nullable=False, index=True)
+    # Owning project — enables MULTIPLE documents (BRD, NFA, NIT, …) per project.
+    # Latest job per (project_id, document_type) is that document's current state.
+    # Project.job_id remains as a legacy "most recent job" alias.
+    project_id         = Column(String(36),  nullable=True, index=True)
     status             = Column(String(20),  nullable=False, default="pending")
     # pending | in_progress | completed | failed
     document_type      = Column(String(100), nullable=False)
@@ -293,6 +306,7 @@ class GenerationJob(Base):
         d = {
             "job_id":             self.job_id,
             "document_id":        self.document_id,
+            "project_id":         self.project_id,
             "status":             self.status,
             "document_type":      self.document_type,
             "output_format":      self.output_format,
@@ -381,6 +395,8 @@ class SectionVersion(Base):
     trigger_comment_id  = Column(String(36),  nullable=True)    # comment that triggered regen
     # Who/what created this version: ai_generation | ai_regeneration | manual_edit | review_comment
     trigger_type        = Column(String(50),  nullable=True,    default="ai_generation")
+    # Email of the person who made a manual edit (attribution for reviewer-edit highlighting)
+    edited_by           = Column(String(255), nullable=True)
     created_at          = Column(DateTime,    default=datetime.utcnow)
 
     section = relationship("Section", back_populates="versions")
@@ -396,6 +412,7 @@ class SectionVersion(Base):
             "is_accepted":        self.is_accepted,
             "trigger_type":       self.trigger_type,
             "trigger_comment_id": self.trigger_comment_id,
+            "edited_by":          self.edited_by,
             "created_at":         self.created_at.isoformat() if self.created_at else None,
         }
 
@@ -528,6 +545,24 @@ class Project(Base):
     risks                 = Column(Text,       nullable=True)
     estimated_cost_crores = Column(String(50), nullable=True)   # stored as string e.g. "12.5"
 
+    # ── Figma create-form fields (5-step wizard, msg#293/#313) ────────────────
+    # Step 2 — Project Summary
+    pain_points            = Column(Text,       nullable=True)
+    opportunities          = Column(Text,       nullable=True)
+    business_justification = Column(Text,       nullable=True)
+    deadline               = Column(String(20), nullable=True)   # ISO: YYYY-MM-DD
+    # Step 3 — Project Details
+    integration_requirement = Column(Text,      nullable=True)
+    assumptions             = Column(Text,      nullable=True)
+    # Step 4 — Optional Information
+    approval_matrix            = Column(Text,   nullable=True)
+    future_roadmap             = Column(Text,   nullable=True)
+    scalability_considerations = Column(Text,   nullable=True)
+    innovation_objectives      = Column(Text,   nullable=True)
+    sustainability_esg         = Column(Text,   nullable=True)
+    # Step 1 — Core Details
+    project_type               = Column(String(20), nullable=True)   # internal | external
+
     # ── Structured fields (serialised as JSON strings) ────────────────────────
     stakeholders_json  = Column(Text, nullable=True)   # [{"name":"...", "designation":"..."}]
     start_date         = Column(String(20), nullable=True)   # ISO: YYYY-MM-DD
@@ -591,6 +626,18 @@ class Project(Base):
             "risks":                  self.risks                  or "",
             "technical_landscape":    self.technical_landscape    or "",
             "estimated_cost_crores":  self.estimated_cost_crores  or "",
+            "pain_points":            self.pain_points            or "",
+            "opportunities":          self.opportunities          or "",
+            "business_justification": self.business_justification or "",
+            "deadline":               self.deadline               or "",
+            "integration_requirement": self.integration_requirement or "",
+            "assumptions":            self.assumptions            or "",
+            "approval_matrix":        self.approval_matrix        or "",
+            "future_roadmap":         self.future_roadmap         or "",
+            "scalability_considerations": self.scalability_considerations or "",
+            "innovation_objectives":  self.innovation_objectives  or "",
+            "sustainability_esg":     self.sustainability_esg     or "",
+            "project_type":           self.project_type           or "",
             "document_type":          self.document_type          or "BRD",
             "output_format":          self.output_format          or "Word (.docx)",
             "additional_instructions": self.additional_instructions or "",
@@ -928,6 +975,9 @@ class ReviewSummary(Base):
     persona      = Column(String(120), nullable=False)
     summary_text = Column(Text,        nullable=False)
     model        = Column(String(100), nullable=True)
+    # Fingerprint of the comment set the summary was generated from — lets
+    # summarize_for_author() reuse the cache when nothing changed (staleness check).
+    comments_fingerprint = Column(String(64), nullable=True)
     created_at   = Column(DateTime,    default=datetime.utcnow)
 
     def to_dict(self) -> dict:
@@ -937,6 +987,43 @@ class ReviewSummary(Base):
             "persona":    self.persona,
             "summary":    self.summary_text,
             "model":      self.model,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class Notification(Base):
+    """
+    In-app notification (no email infra — bell icon in the UI).
+    Keyed by recipient email; emitted by the review flow:
+      review_shared | review_renotified | review_responded |
+      comment_added | comments_kept | comment_applied
+    """
+    __tablename__ = "notifications"
+
+    notification_id = Column(String(36),  primary_key=True)
+    recipient_email = Column(String(255), nullable=False, index=True)
+    actor_email     = Column(String(255), nullable=True)
+    actor_name      = Column(String(200), nullable=True)
+    type            = Column(String(40),  nullable=False)
+    title           = Column(String(255), nullable=False)
+    body            = Column(Text,        nullable=True)
+    review_id       = Column(String(36),  nullable=True, index=True)
+    job_id          = Column(String(36),  nullable=True)
+    project_id      = Column(String(36),  nullable=True)
+    is_read         = Column(Boolean,     default=False)
+    created_at      = Column(DateTime,    default=datetime.utcnow)
+
+    def to_dict(self) -> dict:
+        return {
+            "notification_id": self.notification_id,
+            "type":       self.type,
+            "title":      self.title,
+            "body":       self.body or "",
+            "actor":      {"email": self.actor_email, "name": self.actor_name},
+            "review_id":  self.review_id,
+            "job_id":     self.job_id,
+            "project_id": self.project_id,
+            "is_read":    bool(self.is_read),
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 

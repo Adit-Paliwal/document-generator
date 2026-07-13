@@ -2,7 +2,7 @@
 # IntelliDraft — Python Dependencies (frozen)
 # Tested on: Python 3.11.9+  (minimum required: Python 3.11)
 # Install:   pip install -r requirements.txt
-# Deploy:    Azure Databricks Apps — gunicorn run_server:app
+# Deploy:    Azure Databricks Apps — gunicorn -k uvicorn.workers.UvicornWorker main:app
 #
 # WINDOWS NOTE: enable Long Paths before installing (litellm needs it):
 #   Run as Administrator in PowerShell:
@@ -37,8 +37,10 @@ pyarrow>=14.0.6                  # Required by databricks-sql-connector
 # google-cloud-storage==2.19.0   # REMOVED — replaced by Unity Catalog Volumes (DATABRICKS_MODE=true)
 
 # ── Google ADK + LLM ─────────────────────────────────────────────────────────
+# (google-cloud-aiplatform removed 2026-07-13 — it was only needed for the
+#  retired Vertex AI Agent Engine deployment; pip restores it automatically
+#  if google-adk requires it transitively.)
 google-adk==2.2.0
-google-cloud-aiplatform>=1.91.0  # Vertex AI SDK — required for Agent Engine deployment
 litellm==1.83.14            # Gemini via litellm. SECURITY: 1.83.14 fixes CVE-2026-49468 (critical auth bypass) + 47101/47102/40217
 openai==2.30.0              # Used by litellm internally
 google-genai==1.75.0        # Gemini SDK
@@ -75,28 +77,24 @@ sniffio==1.3.1
 nest-asyncio==1.6.0
 aiosqlite==0.22.1
 
-# ── Web framework (ADK web UI) ───────────────────────────────────────────────
+# ── Web framework — FastAPI ONLY (main.py). Flask was removed 2026-07-13. ────
 fastapi==0.136.1
 uvicorn==0.47.0
 starlette==1.0.1           # SECURITY: 1.0.1 fixes CVE-2026-48710/48817/48818/48283/54282/54283 (needs fastapi>=0.121)
-Flask==3.1.3
-Werkzeug==3.1.8
-gunicorn==23.0.0            # production WSGI server (used by Docker)
-Jinja2==3.1.6
+python-multipart==0.0.32    # FastAPI multipart uploads (POST /api/upload)
+Werkzeug==3.1.8             # secure_filename() used by main.py upload handling
+gunicorn==23.0.0            # Databricks Apps: gunicorn -k uvicorn.workers.UvicornWorker main:app
+Jinja2==3.1.6               # used by litellm prompt templating
 MarkupSafe==3.0.3
-itsdangerous==2.2.0
-click==8.1.8
+click==8.1.8                # CLI dep of uvicorn
 
 # ── Document export / generation ─────────────────────────────────────────────
 markdown2==2.5.5            # Markdown → HTML
 xlsxwriter==3.2.9           # Excel export
 
-# ── Preview — LibreOffice async conversion (Docker / Celery mode) ────────────
-# Only imported when CELERY_ENABLED=true (docker-compose celery-worker). On
-# Databricks / Cloud Run with CELERY_ENABLED=false these are installed but never
-# imported — harmless, and keeps the Docker preview stack working.
-celery==5.5.2
-redis==5.2.1
+
+# ── Testing (dev/CI only — not needed at runtime) ────────────────────────────
+pytest==9.1.1               # unit/integration suite: pytest Data_Ingestion/tests
 
 # ── Utilities ────────────────────────────────────────────────────────────────
 python-dateutil==2.9.0.post0

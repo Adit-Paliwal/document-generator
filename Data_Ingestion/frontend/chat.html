@@ -488,6 +488,96 @@ input,textarea,select{font-family:inherit;font-size:14px}
 .toast.err{background:#fee2e2;border:1px solid #fca5a5;color:var(--red)}
 .toast.info{background:var(--purple-light);border:1px solid var(--purple-mid);color:var(--purple)}
 
+/* ── Doc-tab status badges (multi-document per project) ── */
+.doc-tab .tab-badge{font-size:11px;color:var(--green);font-weight:700}
+
+/* ── User chip / notification bell ─────────────────────── */
+.user-chip{
+  display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:14px;
+  background:var(--purple-light);color:var(--purple);font-size:12px;font-weight:600;
+  border:1px solid var(--purple-mid);cursor:pointer;white-space:nowrap;max-width:190px;
+  overflow:hidden;text-overflow:ellipsis
+}
+.bell-btn{
+  position:relative;background:none;border:1px solid var(--border);border-radius:8px;
+  padding:5px 9px;cursor:pointer;font-size:15px;line-height:1
+}
+.bell-btn:hover{background:var(--purple-light);border-color:var(--purple-mid)}
+.bell-badge{
+  position:absolute;top:-6px;right:-6px;min-width:16px;height:16px;border-radius:8px;
+  background:var(--red);color:#fff;font-size:10px;font-weight:700;display:flex;
+  align-items:center;justify-content:center;padding:0 4px
+}
+.notif-panel{
+  position:fixed;top:52px;right:16px;width:380px;max-height:70vh;background:#fff;
+  border:1px solid var(--border);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.18);
+  z-index:8500;display:flex;flex-direction:column;overflow:hidden
+}
+.notif-head{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:10px 14px;border-bottom:1px solid var(--border);font-size:13px;font-weight:700
+}
+.notif-list{overflow-y:auto;flex:1 1 auto}
+.notif-item{
+  padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer;font-size:12.5px
+}
+.notif-item:hover{background:var(--bg)}
+.notif-item.unread{background:var(--purple-light)}
+.notif-item .nt{font-weight:600;color:var(--text)}
+.notif-item .nb{color:var(--muted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.notif-item .nd{color:var(--muted);font-size:11px;margin-top:3px}
+.notif-empty{padding:26px 14px;text-align:center;color:var(--muted);font-size:12.5px}
+
+/* ── Review modal ──────────────────────────────────────── */
+.review-overlay{
+  position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:8000;
+  display:flex;align-items:center;justify-content:center
+}
+.review-box{
+  width:780px;max-width:94vw;max-height:88vh;background:#fff;border-radius:12px;
+  display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.3)
+}
+.review-head{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 18px;border-bottom:1px solid var(--border)
+}
+.review-head-title{font-size:15px;font-weight:700;color:var(--text)}
+.review-body{overflow-y:auto;padding:16px 18px;display:flex;flex-direction:column;gap:16px}
+.review-sec{border:1px solid var(--border);border-radius:10px;padding:12px 14px}
+.review-sec-title{font-size:13px;font-weight:700;color:var(--text);margin-bottom:8px}
+.review-input,.review-ta{
+  width:100%;border:1px solid var(--border);border-radius:8px;padding:8px 10px;
+  font-size:13px;font-family:inherit;box-sizing:border-box
+}
+.review-ta{resize:vertical;min-height:56px}
+.review-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.rev-chip{
+  display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:12px;
+  font-size:11.5px;font-weight:600;border:1px solid var(--border);background:var(--bg)
+}
+.rev-chip.accepted{background:#ecfdf5;color:var(--green);border-color:#6ee7b7}
+.rev-chip.rejected{background:#fee2e2;color:var(--red);border-color:#fca5a5}
+.rev-chip.revision_requested{background:#fef3c7;color:#b45309;border-color:#fcd34d}
+.rev-chip.reviewing{background:var(--purple-light);color:var(--purple);border-color:var(--purple-mid)}
+.sev{font-size:10px;font-weight:700;padding:1px 7px;border-radius:9px;text-transform:uppercase}
+.sev.high{background:#fee2e2;color:var(--red)}
+.sev.medium{background:#fef3c7;color:#b45309}
+.sev.low{background:var(--bg);color:var(--muted)}
+.rc-item{border-top:1px solid var(--border);padding:9px 2px;font-size:12.5px}
+.rc-item .rc-meta{color:var(--muted);font-size:11px;margin-bottom:3px}
+.rc-item.resolved{opacity:.55}
+.rc-reply{margin-left:22px}
+.ai-sug{
+  display:flex;gap:8px;align-items:flex-start;border-top:1px solid var(--border);
+  padding:9px 2px;font-size:12.5px
+}
+.summary-card{
+  border:1px solid var(--purple-mid);background:var(--purple-light);border-radius:10px;
+  padding:10px 12px;font-size:12.5px;margin-top:8px
+}
+.summary-card .sp{font-weight:700;color:var(--purple);margin-bottom:4px;font-size:12px}
+
 /* scrollbar */
 ::-webkit-scrollbar{width:5px;height:5px}
 ::-webkit-scrollbar-track{background:transparent}
@@ -507,6 +597,13 @@ input,textarea,select{font-family:inherit;font-size:14px}
       <span class="topbar-title">Document Chat Studio</span>
     </div>
     <div class="topbar-right">
+      <span class="user-chip" id="user-chip" onclick="changeUser()" title="Click to change user">&#128100; Set user</span>
+      <button class="bell-btn" id="bell-btn" onclick="toggleNotifPanel()" title="Notifications">
+        &#128276;<span class="bell-badge" id="bell-badge" style="display:none">0</span>
+      </button>
+      <button class="preview-btn" id="review-toggle-btn" onclick="openReviewPanel()" title="Share for review, comments & AI persona reviews">
+        &#128101; Review
+      </button>
       <button class="preview-btn" id="preview-toggle-btn" onclick="togglePreview()" title="View & edit the full document">
         &#128196; Preview
       </button>
@@ -676,6 +773,30 @@ input,textarea,select{font-family:inherit;font-size:14px}
   </div>
 </div>
 
+<!-- Notification dropdown -->
+<div class="notif-panel hidden" id="notif-panel">
+  <div class="notif-head">
+    <span>&#128276; Notifications</span>
+    <button class="btn-sm btn-ghost" onclick="markAllNotifsRead()" title="Mark all as read">Mark all read</button>
+  </div>
+  <div class="notif-list" id="notif-list">
+    <div class="notif-empty">No notifications yet.</div>
+  </div>
+</div>
+
+<!-- Review modal -->
+<div class="review-overlay hidden" id="review-overlay" onclick="if(event.target===this)closeReviewPanel()">
+  <div class="review-box">
+    <div class="review-head">
+      <span class="review-head-title">&#128101; Review &amp; Feedback <span id="review-status-chip"></span></span>
+      <button class="preview-btn" onclick="closeReviewPanel()">&#10005;</button>
+    </div>
+    <div class="review-body" id="review-body">
+      <div class="notif-empty">Loading…</div>
+    </div>
+  </div>
+</div>
+
 <!-- Toast container -->
 <div class="toast-wrap" id="toast-wrap"></div>
 
@@ -693,6 +814,7 @@ const S = {
   pollTimer:    null,
   sections:     [],
   activeSectionId: null,
+  docJobs:      {},           // UPPER doc type → latest job record (multi-doc per project)
 };
 
 const DOC_LABELS = {
@@ -759,6 +881,37 @@ async function loadProjects(selectId = null) {
   }
 }
 
+// Multi-document support: fetch per-doc-type job states for the selected
+// project, badge the doc tabs (✓ completed / ● generating), and return the
+// job matching the currently active tab (if any).
+async function refreshDocTabStatuses() {
+  S.docJobs = {};
+  if (!S.projectId) return null;
+  try {
+    const r = await fetch(`${api()}/projects/${S.projectId}/documents`);
+    if (r.ok) {
+      const d = await r.json();
+      (d.documents || []).forEach(doc => {
+        S.docJobs[(doc.document_type || '').toUpperCase()] = doc;
+      });
+    }
+  } catch {}
+  document.querySelectorAll('.doc-tab').forEach(tab => {
+    const doc = S.docJobs[(tab.dataset.type || '').toUpperCase()];
+    let badge = tab.querySelector('.tab-badge');
+    if (!badge) {
+      badge = document.createElement('span');
+      badge.className = 'tab-badge';
+      tab.appendChild(badge);
+    }
+    badge.innerHTML = !doc ? '' :
+      (doc.status === 'completed' ? ' &#10003;' :
+       doc.status === 'failed'    ? ' &#9888;'  : ' &#9679;');
+    badge.title = doc ? `${doc.status} — review: ${doc.review_status}` : '';
+  });
+  return S.docJobs[(S.docType || '').toUpperCase()] || null;
+}
+
 async function onProjectChange() {
   const sel = document.getElementById('proj-sel');
   const pid = sel.value;
@@ -768,15 +921,18 @@ async function onProjectChange() {
   }
   S.projectId = pid;
 
-  // Fetch project name
+  // Fetch project name + per-document-type job states
   try {
     const r = await fetch(`${api()}/projects/${pid}`);
     if (r.ok) {
       const p = await r.json();
       S.projectName = p.project_name || pid;
-      // If project already has a job, try to resume
-      if (p.job_id) {
-        S.jobId  = p.job_id;
+      // Prefer the job for the ACTIVE doc tab; fall back to the legacy pointer
+      const myDoc = await refreshDocTabStatuses();
+      if (myDoc && myDoc.job_id) {
+        S.jobId = myDoc.job_id;
+      } else if (p.job_id && Object.keys(S.docJobs).length === 0) {
+        S.jobId = p.job_id;   // legacy project — job never stamped with a type
       }
     }
   } catch {}
@@ -939,7 +1095,9 @@ async function switchDocType(el, key) {
   // Clear messages and start a new session for this doc type
   clearMessages();
   S.sessionId = null;
-  S.jobId     = null;
+  // Multi-doc: each tab has its own job — resume this doc type's job if it exists
+  const myDoc = S.docJobs[(key || '').toUpperCase()];
+  S.jobId     = (myDoc && myDoc.job_id) || null;
   S.phase     = 'context';
   S.sections  = [];
   renderSectionNav([]);
@@ -1162,6 +1320,8 @@ async function pollStatus() {
       updateQuickPrompts();
       // Send a status message to the AI so it adds a "completed" bubble
       await notifyCompletion(done, total);
+      // Refresh doc-tab badges (this tab's document just completed)
+      refreshDocTabStatuses();
       // Auto-open the preview panel as soon as all sections are done
       openPreview();
     } else if (status === 'failed') {
@@ -2000,6 +2160,526 @@ function toast(msg, type = 'info', ms = 3500) {
   wrap.appendChild(el);
   setTimeout(() => el.remove(), ms);
 }
+
+// ═══════════════════════════════════════════════════════════════
+// User identity (X-User-Email / X-User-Name — Entra SSO placeholder)
+// ═══════════════════════════════════════════════════════════════
+function getUser() {
+  return {
+    email: (localStorage.getItem('id_user_email') || '').trim().toLowerCase(),
+    name:  (localStorage.getItem('id_user_name')  || '').trim(),
+  };
+}
+
+function changeUser() {
+  const u     = getUser();
+  const email = prompt('Your email (used for reviews & notifications):', u.email || '');
+  if (email === null) return;
+  const name  = prompt('Your display name:', u.name || email.split('@')[0]);
+  localStorage.setItem('id_user_email', (email || '').trim().toLowerCase());
+  localStorage.setItem('id_user_name',  (name  || '').trim());
+  renderUserChip();
+  refreshNotifs();
+}
+
+function requireUser() {
+  let u = getUser();
+  if (!u.email) { changeUser(); u = getUser(); }
+  if (!u.email) { toast('Set your user email first (top-right chip)', 'err'); return null; }
+  return u;
+}
+
+function authHeaders() {
+  const u = getUser();
+  const h = {};
+  if (u.email) h['X-User-Email'] = u.email;
+  if (u.name)  h['X-User-Name']  = u.name;
+  return h;
+}
+
+function renderUserChip() {
+  const u  = getUser();
+  const el = document.getElementById('user-chip');
+  el.innerHTML = u.email ? `&#128100; ${esc(u.name || u.email)}` : '&#128100; Set user';
+  el.title = u.email ? `${u.email} — click to change` : 'Click to set your user identity';
+}
+
+// ═══════════════════════════════════════════════════════════════
+// In-app notifications (bell)
+// ═══════════════════════════════════════════════════════════════
+let _notifTimer = null;
+let _notifs     = [];
+
+function startNotifPolling() {
+  if (_notifTimer) clearInterval(_notifTimer);
+  _notifTimer = setInterval(refreshNotifs, 30000);
+  refreshNotifs();
+}
+
+async function refreshNotifs() {
+  const u = getUser();
+  if (!u.email) return;
+  try {
+    const r = await fetch(`${api()}/notifications?limit=50`, { headers: authHeaders() });
+    if (!r.ok) return;
+    const d = await r.json();
+    _notifs = d.notifications || [];
+    const badge = document.getElementById('bell-badge');
+    const n     = d.unread_count || 0;
+    badge.style.display = n > 0 ? 'flex' : 'none';
+    badge.textContent   = n > 99 ? '99+' : String(n);
+    if (!document.getElementById('notif-panel').classList.contains('hidden')) renderNotifs();
+  } catch (_) { /* silent — polling */ }
+}
+
+function toggleNotifPanel() {
+  const u = requireUser();
+  if (!u) return;
+  const panel = document.getElementById('notif-panel');
+  panel.classList.toggle('hidden');
+  if (!panel.classList.contains('hidden')) { renderNotifs(); refreshNotifs(); }
+}
+
+function _notifIcon(t) {
+  return { review_shared: '&#128101;', review_renotified: '&#9200;',
+           review_responded: '&#9989;', comment_added: '&#128172;',
+           comments_kept: '&#129302;', comment_applied: '&#128204;' }[t] || '&#128276;';
+}
+
+function _timeAgo(iso) {
+  if (!iso) return '';
+  const s = Math.floor((Date.now() - new Date(iso + 'Z').getTime()) / 1000);
+  if (s < 60)    return 'just now';
+  if (s < 3600)  return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  return `${Math.floor(s / 86400)}d ago`;
+}
+
+function renderNotifs() {
+  const list = document.getElementById('notif-list');
+  if (!_notifs.length) {
+    list.innerHTML = '<div class="notif-empty">No notifications yet.</div>';
+    return;
+  }
+  list.innerHTML = _notifs.map(n => `
+    <div class="notif-item ${n.is_read ? '' : 'unread'}" onclick="clickNotif('${n.notification_id}')">
+      <div class="nt">${_notifIcon(n.type)} ${esc(n.title)}</div>
+      ${n.body ? `<div class="nb">${esc(n.body)}</div>` : ''}
+      <div class="nd">${_timeAgo(n.created_at)}</div>
+    </div>`).join('');
+}
+
+async function clickNotif(id) {
+  const n = _notifs.find(x => x.notification_id === id);
+  if (!n) return;
+  if (!n.is_read) {
+    try {
+      await fetch(`${api()}/notifications/read`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify({ ids: [id] }),
+      });
+    } catch (_) {}
+    refreshNotifs();
+  }
+  if (n.review_id) {
+    document.getElementById('notif-panel').classList.add('hidden');
+    openReviewPanel(n.review_id);
+  }
+}
+
+async function markAllNotifsRead() {
+  try {
+    await fetch(`${api()}/notifications/read`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({}),
+    });
+    refreshNotifs();
+    toast('All notifications marked read', 'ok', 2000);
+  } catch (e) { toast('Failed: ' + e.message, 'err'); }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Review panel — share, comments, AI persona review, summaries
+// ═══════════════════════════════════════════════════════════════
+const RV = { reviewId: null, ws: null, aiResult: null, personas: [] };
+
+function closeReviewPanel() { document.getElementById('review-overlay').classList.add('hidden'); }
+
+async function openReviewPanel(reviewId) {
+  const u = requireUser();
+  if (!u) return;
+  document.getElementById('review-overlay').classList.remove('hidden');
+  const body = document.getElementById('review-body');
+  body.innerHTML = '<div class="notif-empty">Loading…</div>';
+
+  RV.reviewId = (typeof reviewId === 'string' && reviewId) ? reviewId : null;
+
+  // Load personas once (for the AI review selector)
+  if (!RV.personas.length) {
+    try {
+      const r = await fetch(`${api()}/personas`, { headers: authHeaders() });
+      if (r.ok) RV.personas = (await r.json()).personas || [];
+    } catch (_) {}
+  }
+
+  // No explicit review id → find the review linked to the current job
+  if (!RV.reviewId) {
+    if (!S.jobId) {
+      body.innerHTML = '<div class="notif-empty">Generate a document first — then you can share it for review.</div>';
+      return;
+    }
+    try {
+      const [rs, rr] = await Promise.all([
+        fetch(`${api()}/review/sent`,     { headers: authHeaders() }),
+        fetch(`${api()}/review/received`, { headers: authHeaders() }),
+      ]);
+      const sent = rs.ok ? (await rs.json()).reviews || [] : [];
+      const recv = rr.ok ? (await rr.json()).reviews || [] : [];
+      const match = [...sent, ...recv].find(r => r.job_id === S.jobId);
+      if (match) RV.reviewId = match.review_id;
+    } catch (_) {}
+  }
+
+  if (!RV.reviewId) { renderShareForm(); return; }
+  await loadReviewWorkspace();
+}
+
+function renderShareForm() {
+  document.getElementById('review-status-chip').innerHTML = '';
+  document.getElementById('review-body').innerHTML = `
+    <div class="review-sec">
+      <div class="review-sec-title">&#128228; Share this document for review</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:8px">
+        Reviewers get an in-app notification and can comment, run AI persona reviews, and approve or reject.
+      </div>
+      <input class="review-input" id="share-emails" placeholder="Reviewer emails, comma-separated — e.g. srinivas@adani.com, ali@adani.com"/>
+      <textarea class="review-ta" id="share-message" style="margin-top:8px" placeholder="Optional note to reviewers…"></textarea>
+      <div class="review-row" style="margin-top:10px">
+        <button class="btn-sm btn-primary" onclick="submitShare()">&#128228; Share for review</button>
+      </div>
+    </div>`;
+}
+
+async function submitShare() {
+  const u = requireUser();
+  if (!u) return;
+  const emails = (document.getElementById('share-emails').value || '')
+    .split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
+  if (!emails.length) { toast('Enter at least one reviewer email', 'err'); return; }
+  const message = (document.getElementById('share-message').value || '').trim();
+  try {
+    const r = await fetch(`${api()}/review/share`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ job_id: S.jobId, reviewers: emails.map(e => ({ email: e })), message }),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Share failed');
+    RV.reviewId = d.review_id;
+    toast(`Shared with ${emails.length} reviewer(s)`, 'ok');
+    await loadReviewWorkspace();
+  } catch (e) { toast('Share failed: ' + e.message, 'err'); }
+}
+
+async function loadReviewWorkspace() {
+  const body = document.getElementById('review-body');
+  try {
+    const r = await fetch(`${api()}/review/${RV.reviewId}`, { headers: authHeaders() });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Load failed');
+    RV.ws = d;
+    renderReviewWorkspace();
+  } catch (e) {
+    body.innerHTML = `<div class="notif-empty">Failed to load review: ${esc(e.message)}</div>`;
+  }
+}
+
+function renderReviewWorkspace() {
+  const d = RV.ws, u = getUser();
+  const isAuthor   = (d.requested_by?.email || '') === u.email;
+  const myAssign   = (d.reviewers || []).find(a => a.email === u.email);
+  const status     = d.review_status || 'draft';
+  document.getElementById('review-status-chip').innerHTML =
+    `<span class="rev-chip ${esc(status)}" style="margin-left:8px">${esc(status.replace(/_/g, ' '))}</span>`;
+
+  const reviewers = (d.reviewers || []).map(a => `
+    <span class="rev-chip ${esc(a.status)}" title="${esc(a.email)}">
+      ${esc(a.name || a.email)} — ${esc(a.status.replace(/_/g, ' '))}
+    </span>`).join(' ');
+
+  const personaOpts = (RV.personas.length
+      ? RV.personas.map(p => `<option value="${esc(p.name)}">${esc(p.name)}</option>`)
+      : ['Project Manager', 'Technical Reviewer', 'Business Analyst', 'Compliance Officer', 'Financial Auditor']
+          .map(p => `<option value="${p}">${p}</option>`)
+    ).join('');
+
+  const sectionOpts = ['<option value="">— whole document —</option>']
+    .concat((d.sections || []).map(s =>
+      `<option value="${esc(s.section_id)}">${esc(s.section_title)}</option>`)).join('');
+
+  document.getElementById('review-body').innerHTML = `
+    <div class="review-sec">
+      <div class="review-sec-title">&#128101; Reviewers</div>
+      <div class="review-row">${reviewers || '<span style="color:var(--muted);font-size:12px">None</span>'}</div>
+      <div class="review-row" style="margin-top:10px">
+        ${isAuthor ? `<button class="btn-sm btn-ghost" onclick="renotifyReviewers()">&#9200; Send reminder</button>` : ''}
+        ${myAssign && !['accepted','rejected'].includes(myAssign.status) ? `
+          <button class="btn-sm btn-primary" onclick="submitVerdict('accepted')">&#9989; Accept</button>
+          <button class="btn-sm btn-ghost"   onclick="submitVerdict('revision_requested')">&#9998; Request revision</button>
+          <button class="btn-sm btn-ghost"   onclick="submitVerdict('rejected')" style="color:var(--red)">&#10060; Reject</button>` : ''}
+      </div>
+      ${d.message ? `<div style="font-size:12px;color:var(--muted);margin-top:8px">Note: ${esc(d.message)}</div>` : ''}
+    </div>
+
+    <div class="review-sec">
+      <div class="review-sec-title">&#128172; Comments (${(d.comments || []).length})</div>
+      <div id="rc-list">${renderComments(d.comments || [], isAuthor)}</div>
+      <div class="review-row" style="margin-top:10px">
+        <select class="review-input" id="rc-section" style="max-width:220px">${sectionOpts}</select>
+        <input class="review-input" id="rc-text" style="flex:1" placeholder="Add a comment…"
+               onkeydown="if(event.key==='Enter')submitReviewComment()"/>
+        <button class="btn-sm btn-primary" onclick="submitReviewComment()">Add</button>
+      </div>
+    </div>
+
+    <div class="review-sec">
+      <div class="review-sec-title">&#129302; AI persona review</div>
+      <div class="review-row">
+        <select class="review-input" id="ai-persona" style="max-width:220px">${personaOpts}</select>
+        <input class="review-input" id="ai-instructions" style="flex:1" placeholder="Optional extra instructions…"/>
+        <button class="btn-sm btn-primary" id="ai-run-btn" onclick="runAiReview()">&#9654; Run</button>
+      </div>
+      <div id="ai-result"></div>
+    </div>
+
+    <div class="review-sec">
+      <div class="review-sec-title">&#128202; Feedback summaries ${isAuthor ? '(for you, the author)' : ''}</div>
+      <div class="review-row">
+        <button class="btn-sm btn-primary" onclick="generateSummaries(false)">&#9654; Summarize feedback</button>
+        <button class="btn-sm btn-ghost"   onclick="generateSummaries(true)" title="Ignore cache and regenerate">&#8635; Force refresh</button>
+      </div>
+      <div id="summaries-box">${renderSummaries(d.ai_summaries || [])}</div>
+    </div>`;
+}
+
+function renderComments(comments, isAuthor) {
+  if (!comments.length) return '<div style="font-size:12px;color:var(--muted)">No comments yet.</div>';
+  const item = (c, isReply) => `
+    <div class="rc-item ${c.status === 'resolved' ? 'resolved' : ''} ${isReply ? 'rc-reply' : ''}">
+      <div class="rc-meta">
+        <b>${esc(c.author?.name || c.author?.email || '?')}</b>
+        ${c.source === 'ai' ? `&#129302; ${esc(c.persona || 'AI')}` : ''}
+        ${c.section_title ? `&middot; on <b>${esc(c.section_title)}</b>` : ''}
+        &middot; ${_timeAgo(c.created_at)}
+        ${c.status === 'resolved' ? '&middot; &#9989; resolved' : ''}
+      </div>
+      <div>${esc(c.text)}</div>
+      <div class="review-row" style="margin-top:5px">
+        ${!isReply ? `<button class="btn-sm btn-ghost" onclick="replyToComment('${c.comment_id}')">Reply</button>` : ''}
+        ${isAuthor && c.status !== 'resolved' && c.section_id ?
+          `<button class="btn-sm btn-ghost" onclick="applyReviewComment('${c.comment_id}')" title="Regenerate the section using this feedback">&#128204; Apply to section</button>` : ''}
+        ${c.status !== 'resolved' ?
+          `<button class="btn-sm btn-ghost" onclick="resolveComment('${c.comment_id}')">Resolve</button>` : ''}
+      </div>
+      ${(c.replies || []).map(r => item(r, true)).join('')}
+    </div>`;
+  return comments.map(c => item(c, false)).join('');
+}
+
+async function submitReviewComment() {
+  const u = requireUser();
+  if (!u) return;
+  const text = (document.getElementById('rc-text').value || '').trim();
+  if (!text) return;
+  const section_id = document.getElementById('rc-section').value || null;
+  try {
+    const r = await fetch(`${api()}/review/${RV.reviewId}/comments`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ text, section_id }),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Failed');
+    toast('Comment added', 'ok', 2000);
+    await loadReviewWorkspace();
+  } catch (e) { toast('Comment failed: ' + e.message, 'err'); }
+}
+
+async function replyToComment(parentId) {
+  const u = requireUser();
+  if (!u) return;
+  const text = prompt('Your reply:');
+  if (!text || !text.trim()) return;
+  try {
+    const r = await fetch(`${api()}/review/${RV.reviewId}/comments`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ text: text.trim(), parent_id: parentId }),
+    });
+    if (!r.ok) throw new Error((await r.json()).error || 'Failed');
+    await loadReviewWorkspace();
+  } catch (e) { toast('Reply failed: ' + e.message, 'err'); }
+}
+
+async function resolveComment(commentId) {
+  try {
+    const r = await fetch(`${api()}/review/comments/${commentId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ resolved: true }),
+    });
+    if (!r.ok) throw new Error((await r.json()).error || 'Failed');
+    await loadReviewWorkspace();
+  } catch (e) { toast('Resolve failed: ' + e.message, 'err'); }
+}
+
+async function applyReviewComment(commentId) {
+  if (!confirm('Apply this comment? The targeted section will be regenerated with this feedback and a new version saved.')) return;
+  try {
+    const r = await fetch(`${api()}/review/comments/${commentId}/apply`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({}),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Apply failed');
+    toast(`Applied — section regenerated (v${d.new_version?.version_number ?? '?'})`, 'ok');
+    await loadReviewWorkspace();
+    if (previewIsOpen()) loadPreview();
+  } catch (e) { toast('Apply failed: ' + e.message, 'err'); }
+}
+
+async function submitVerdict(action) {
+  const labels = { accepted: 'accept', rejected: 'reject', revision_requested: 'request revisions on' };
+  if (!confirm(`Are you sure you want to ${labels[action]} this document?`)) return;
+  try {
+    const r = await fetch(`${api()}/review/${RV.reviewId}/respond`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ action }),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Failed');
+    toast(`Verdict recorded — document is now "${d.review_status.replace(/_/g, ' ')}"`, 'ok');
+    await loadReviewWorkspace();
+  } catch (e) { toast('Failed: ' + e.message, 'err'); }
+}
+
+// ── AI persona review ──────────────────────────────────────────
+async function runAiReview() {
+  const persona      = document.getElementById('ai-persona').value;
+  const instructions = (document.getElementById('ai-instructions').value || '').trim();
+  const btn = document.getElementById('ai-run-btn');
+  const box = document.getElementById('ai-result');
+  btn.disabled  = true;
+  btn.innerHTML = '&#8987; Reviewing…';
+  box.innerHTML = `<div style="font-size:12px;color:var(--muted);padding:8px 0">The AI is reading the document as a ${esc(persona)}… (10-30s)</div>`;
+  try {
+    const r = await fetch(`${api()}/review/${RV.reviewId}/ai-review`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ persona, instructions }),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'AI review failed');
+    RV.aiResult = d;
+    box.innerHTML = `
+      <div class="summary-card"><div class="sp">${esc(persona)} — overall</div>${esc(d.summary)}</div>
+      ${(d.section_comments || []).map((c, i) => `
+        <div class="ai-sug">
+          <input type="checkbox" id="ai-keep-${i}" checked style="margin-top:2px"/>
+          <div style="flex:1">
+            <div class="rc-meta" style="font-size:11px;color:var(--muted)">
+              <b>${esc(c.section_title)}</b> <span class="sev ${esc(c.severity || 'medium')}">${esc(c.severity || 'medium')}</span>
+            </div>
+            <div>${esc(c.comment)}</div>
+          </div>
+        </div>`).join('')}
+      ${(d.section_comments || []).length ? `
+        <div class="review-row" style="margin-top:10px">
+          <button class="btn-sm btn-primary" onclick="keepSelectedAiComments()">&#128190; Keep selected as comments</button>
+          <span style="font-size:11px;color:var(--muted)">Only kept comments are saved &amp; visible to others.</span>
+        </div>` : ''}`;
+  } catch (e) {
+    box.innerHTML = `<div style="font-size:12px;color:var(--red);padding:8px 0">${esc(e.message)}</div>`;
+  } finally {
+    btn.disabled  = false;
+    btn.innerHTML = '&#9654; Run';
+  }
+}
+
+async function keepSelectedAiComments() {
+  const u = requireUser();
+  if (!u || !RV.aiResult) return;
+  const selected = (RV.aiResult.section_comments || [])
+    .filter((_, i) => document.getElementById(`ai-keep-${i}`)?.checked)
+    .map(c => ({ section_id: c.section_id, comment: c.comment }));
+  if (!selected.length) { toast('Nothing selected', 'err'); return; }
+  try {
+    const r = await fetch(`${api()}/review/${RV.reviewId}/ai-review/keep`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ persona: RV.aiResult.persona, comments: selected }),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Failed');
+    toast(`${d.count} AI comment(s) saved`, 'ok');
+    document.getElementById('ai-result').innerHTML = '';
+    RV.aiResult = null;
+    await loadReviewWorkspace();
+  } catch (e) { toast('Keep failed: ' + e.message, 'err'); }
+}
+
+// ── Feedback summaries ─────────────────────────────────────────
+function renderSummaries(summaries) {
+  if (!summaries.length) return '<div style="font-size:12px;color:var(--muted);margin-top:8px">No summaries yet — click "Summarize feedback" once reviewers have commented.</div>';
+  return summaries.map(s => `
+    <div class="summary-card">
+      <div class="sp">${esc(s.persona)}${s.cached ? ' <span style="font-weight:400;color:var(--muted)">(cached)</span>' : ''}</div>
+      ${esc(s.summary)}
+    </div>`).join('');
+}
+
+async function generateSummaries(force) {
+  const box = document.getElementById('summaries-box');
+  box.innerHTML = '<div style="font-size:12px;color:var(--muted);padding:8px 0">&#8987; Summarizing reviewer feedback…</div>';
+  try {
+    const r = await fetch(`${api()}/review/${RV.reviewId}/summarize`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ force: !!force }),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Failed');
+    box.innerHTML = renderSummaries(d.summaries || []);
+  } catch (e) {
+    box.innerHTML = `<div style="font-size:12px;color:var(--red);padding:8px 0">${esc(e.message)}</div>`;
+  }
+}
+
+async function renotifyReviewers() {
+  try {
+    const r = await fetch(`${api()}/review/${RV.reviewId}/renotify`, {
+      method: 'POST', headers: authHeaders(),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || 'Failed');
+    toast(`Reminder sent to ${d.renotified} pending reviewer(s)`, 'ok');
+  } catch (e) { toast('Renotify failed: ' + e.message, 'err'); }
+}
+
+// ── Init: user chip + notification polling ─────────────────────
+renderUserChip();
+startNotifPolling();
+document.addEventListener('click', e => {
+  const panel = document.getElementById('notif-panel');
+  if (!panel.classList.contains('hidden') &&
+      !panel.contains(e.target) && !document.getElementById('bell-btn').contains(e.target)) {
+    panel.classList.add('hidden');
+  }
+});
 </script>
 </body>
 </html>

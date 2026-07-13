@@ -55,6 +55,7 @@ def call_with_fallback(
     max_completion_tokens: Optional[int] = None,
     timeout: int = 120,
     log_prefix: str = "[LLM]",
+    json_mode: bool = False,
 ) -> tuple[str, str]:
     """
     Call Gemini Vertex AI.
@@ -66,6 +67,10 @@ def call_with_fallback(
         timeout:                HTTP timeout in seconds.
         log_prefix:             Module identifier prepended to every log line.
                                 e.g. "[Extractor]", "[DeriveFields]"
+        json_mode:              Force a JSON object response (Vertex
+                                response_mime_type=application/json). Use for
+                                any call whose output is parsed as JSON —
+                                prevents prose/partial replies from Gemini.
 
     Returns:
         Tuple of (response_text, provider_used)
@@ -84,6 +89,7 @@ def call_with_fallback(
                 max_tokens  = max_tokens,
                 timeout     = timeout,
                 log_prefix  = log_prefix,
+                json_mode   = json_mode,
             )
             return text, "gemini_vertex"
         except Exception as exc:
@@ -214,6 +220,7 @@ def _call_gemini(
     max_tokens: int,
     timeout:    int,
     log_prefix: str,
+    json_mode:  bool = False,
 ) -> str:
     """
     Call Gemini on Vertex AI via litellm.
@@ -235,18 +242,54 @@ def _call_gemini(
     import litellm
     litellm.drop_params = True   # drop params unsupported by this model
 
+    from tenacity import (
+        retry, stop_after_attempt, wait_exponential_jitter,
+        retry_if_exception, before_sleep_log,
+    )
+
     project  = creds.get("project_id", os.getenv("VERTEX_PROJECT", ""))
     location = os.getenv("VERTEX_LOCATION", "us-central1")
     model_id = os.getenv("GEMINI_VERTEX_MODEL", "gemini-2.5-flash")
     model    = f"vertex_ai/{model_id}"
+
+    # ── Transient-error retry ────────────────────────────────────────────────
+    # 429 (rate limit), 5xx, timeouts and connection drops are retried with
+    # exponential backoff + jitter. Anything else (auth, bad request, safety
+    # block) fails immediately — retrying those only burns time and money.
+    _TRANSIENT_STATUS = {408, 429, 500, 502, 503, 504}
+    _TRANSIENT_NAMES  = {
+        "Timeout", "APITimeoutError", "APIConnectionError",
+        "RateLimitError", "InternalServerError", "ServiceUnavailableError",
+    }
+
+    def _is_transient(exc: BaseException) -> bool:
+        if getattr(exc, "status_code", None) in _TRANSIENT_STATUS:
+            return True
+        return type(exc).__name__ in _TRANSIENT_NAMES
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential_jitter(initial=2, max=20),
+        retry=retry_if_exception(_is_transient),
+        before_sleep=before_sleep_log(logger, logging.WARNING),
+        reraise=True,
+    )
+    def _completion_with_retry(**kw):
+        return litellm.completion(**kw)
 
     logger.info(
         "%s → Gemini  model=%s  project=%s  location=%s  max_tokens=%d  timeout=%ds",
         log_prefix, model, project, location, max_tokens, timeout,
     )
 
+    kwargs = {}
+    if json_mode:
+        # Vertex response_mime_type=application/json — guarantees a JSON body,
+        # eliminating the sporadic prose/partial replies seen on long prompts.
+        kwargs["response_format"] = {"type": "json_object"}
+
     t0 = time.time()
-    response = litellm.completion(
+    response = _completion_with_retry(
         model              = model,
         messages           = messages,
         vertex_project     = project,
@@ -254,6 +297,7 @@ def _call_gemini(
         vertex_credentials = json.dumps(creds),   # litellm accepts JSON string
         max_tokens         = max_tokens,           # litellm → max_output_tokens for Vertex
         timeout            = timeout,
+        **kwargs,
     )
     elapsed = time.time() - t0
 

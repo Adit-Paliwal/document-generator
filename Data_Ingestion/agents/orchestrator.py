@@ -27,7 +27,8 @@ Session state shared across all sub-agents via InvocationContext:
 
 Deployment:
   adk web                           — local dev  (run from Intellidraft/ parent dir)
-  adk deploy agent_engine ...       — Vertex AI Agent Engine
+  (Vertex AI Agent Engine deployment was retired 2026-07-13 — the platform
+   ships as a FastAPI app on Databricks Apps; agents run in-process.)
 """
 
 from __future__ import annotations

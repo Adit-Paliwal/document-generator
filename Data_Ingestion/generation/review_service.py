@@ -31,6 +31,7 @@ as the generator (Gemini primary, Azure GPT fallback).
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import re
@@ -41,6 +42,7 @@ from typing import Optional
 from generation.db import (
     DEFAULT_PERSONAS,
     GenerationJob,
+    Notification,
     Persona,
     ReviewAssignment,
     ReviewComment,
@@ -55,6 +57,82 @@ logger = logging.getLogger(__name__)
 
 # Review-status rollup order (worst wins where it matters)
 _VALID_RESPONSES = {"accepted", "rejected", "revision_requested"}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# In-app notifications
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _notify(
+    s,                                   # open SQLAlchemy session (caller commits)
+    recipient_email: str,
+    type_: str,
+    title: str,
+    body: str = "",
+    actor: Optional[dict] = None,        # {email, name} — who triggered it
+    review_id: Optional[str] = None,
+    job_id: Optional[str] = None,
+    project_id: Optional[str] = None,
+) -> None:
+    """Queue an in-app notification inside the caller's session. Never notifies
+    the actor about their own action; never raises (best-effort)."""
+    try:
+        recipient = (recipient_email or "").strip().lower()
+        if not recipient:
+            return
+        actor = actor or {}
+        if (actor.get("email") or "").strip().lower() == recipient:
+            return   # don't notify users about their own actions
+        s.add(Notification(
+            notification_id = str(uuid.uuid4()),
+            recipient_email = recipient,
+            actor_email     = (actor.get("email") or "").strip().lower() or None,
+            actor_name      = actor.get("name"),
+            type            = type_,
+            title           = title[:255],
+            body            = body or "",
+            review_id       = review_id,
+            job_id          = job_id,
+            project_id      = project_id,
+        ))
+    except Exception:
+        logger.exception("[notify] failed to queue notification (ignored)")
+
+
+def list_notifications(email: str, unread_only: bool = False, limit: int = 50) -> dict:
+    """Notifications for a user, newest first, plus the unread count."""
+    email = (email or "").strip().lower()
+    if not email:
+        raise ValueError("email is required")
+    limit = min(200, max(1, limit))
+    with get_session() as s:
+        base = s.query(Notification).filter(Notification.recipient_email == email)
+        unread_count = base.filter(Notification.is_read == False).count()  # noqa: E712
+        q = base
+        if unread_only:
+            q = q.filter(Notification.is_read == False)  # noqa: E712
+        rows = q.order_by(Notification.created_at.desc()).limit(limit).all()
+        return {
+            "notifications": [n.to_dict() for n in rows],
+            "unread_count":  unread_count,
+        }
+
+
+def mark_notifications_read(email: str, ids: Optional[list[str]] = None) -> dict:
+    """Mark specific notifications (ids) or ALL of the user's as read."""
+    email = (email or "").strip().lower()
+    if not email:
+        raise ValueError("email is required")
+    with get_session() as s:
+        q = s.query(Notification).filter(
+            Notification.recipient_email == email,
+            Notification.is_read == False,  # noqa: E712
+        )
+        if ids:
+            q = q.filter(Notification.notification_id.in_(ids))
+        updated = q.update({Notification.is_read: True}, synchronize_session=False)
+        s.commit()
+    return {"marked_read": updated}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -235,6 +313,18 @@ def share_for_review(
                 s.add(User(user_id=str(uuid.uuid4()), email=email,
                            name=r.get("name") or email, role="Contributor"))
 
+            # In-app notification to each reviewer
+            who = requested_by.get("name") or requested_by["email"]
+            _notify(
+                s, email, "review_shared",
+                f"{who} shared a {job.document_type or 'document'} with you for review",
+                body       = message or "",
+                actor      = requested_by,
+                review_id  = review.review_id,
+                job_id     = job_id,
+                project_id = review.project_id,
+            )
+
         job.review_status = "under_review"
         s.commit()
         result = review.to_dict()
@@ -244,17 +334,30 @@ def share_for_review(
 
 
 def renotify(review_id: str) -> dict:
-    """Stub notification: stamps last_renotified_at and logs (no email infra yet)."""
+    """Re-notify pending reviewers: stamps last_renotified_at and creates an
+    in-app notification for every reviewer who hasn't responded yet."""
     with get_session() as s:
         review = s.get(ReviewRequest, review_id)
         if not review:
             raise FileNotFoundError(f"Review '{review_id}' not found")
         now = datetime.utcnow()
+        author = {"email": review.requested_by_email, "name": review.requested_by_name}
+        who    = review.requested_by_name or review.requested_by_email
         pending = 0
         for a in review.assignments:
             if a.status in ("shared", "reviewing"):
                 a.last_renotified_at = now
                 pending += 1
+                _notify(
+                    s, a.reviewer_email, "review_renotified",
+                    f"Reminder: {who} is waiting for your review",
+                    body       = f"{review.document_type or 'Document'} shared "
+                                 f"{(now - review.created_at).days if review.created_at else 0} day(s) ago is still pending your review.",
+                    actor      = author,
+                    review_id  = review_id,
+                    job_id     = review.job_id,
+                    project_id = review.project_id,
+                )
         s.commit()
     logger.info("[review] Renotified %d pending reviewer(s) on review %s", pending, review_id)
     return {"review_id": review_id, "renotified": pending, "at": now.isoformat()}
@@ -404,6 +507,7 @@ def add_review_comment(
     parent_id: Optional[str] = None,
     source: str = "user",
     persona: Optional[str] = None,
+    notify: bool = True,                # False when the caller aggregates (keep_ai_comments)
 ) -> dict:
     if not (text or "").strip():
         raise ValueError("Comment text is required")
@@ -414,6 +518,7 @@ def add_review_comment(
         review = s.get(ReviewRequest, review_id)
         if not review:
             raise FileNotFoundError(f"Review '{review_id}' not found")
+        parent = None
         if parent_id:
             parent = s.get(ReviewComment, parent_id)
             if not parent or parent.review_id != review_id:
@@ -437,6 +542,27 @@ def add_review_comment(
             text         = text.strip(),
         )
         s.add(c)
+
+        if notify:
+            who     = author.get("name") or author["email"]
+            anchor  = f" on '{section_title}'" if section_title else ""
+            preview = text.strip()[:140]
+            # 1. notify the document author (unless they wrote the comment)
+            _notify(
+                s, review.requested_by_email, "comment_added",
+                f"{who} commented{anchor}",
+                body=preview, actor=author,
+                review_id=review_id, job_id=review.job_id, project_id=review.project_id,
+            )
+            # 2. on replies, also notify the parent comment's author
+            if parent and parent.author_email != review.requested_by_email:
+                _notify(
+                    s, parent.author_email, "comment_added",
+                    f"{who} replied to your comment",
+                    body=preview, actor=author,
+                    review_id=review_id, job_id=review.job_id, project_id=review.project_id,
+                )
+
         s.commit()
         return c.to_dict()
 
@@ -521,6 +647,23 @@ def respond(review_id: str, reviewer_email: str, action: str) -> dict:
         job = s.get(GenerationJob, review.job_id)
         if job:
             job.review_status = rollup
+
+        # In-app notification to the document author
+        _ACTION_LABEL = {
+            "accepted":           "accepted",
+            "rejected":           "rejected",
+            "revision_requested": "requested revisions on",
+        }
+        who = mine.reviewer_name or reviewer_email
+        _notify(
+            s, review.requested_by_email, "review_responded",
+            f"{who} {_ACTION_LABEL[action]} your {review.document_type or 'document'}",
+            body       = f"Overall review status: {rollup.replace('_', ' ')}",
+            actor      = {"email": reviewer_email, "name": mine.reviewer_name},
+            review_id  = review_id,
+            job_id     = review.job_id,
+            project_id = review.project_id,
+        )
         s.commit()
 
         return {
@@ -571,6 +714,18 @@ def apply_comment_to_section(comment_id: str, section_id: Optional[str] = None) 
             c.status = "resolved"
             c.applied_section_comment_id = sec_comment["comment_id"]
             c.updated_at = datetime.utcnow()
+            # Tell the comment's author their feedback made it into the document
+            review = s.get(ReviewRequest, c.review_id)
+            if review:
+                _notify(
+                    s, c.author_email, "comment_applied",
+                    f"Your comment was applied to '{c.section_title or 'a section'}'",
+                    body       = (c.text or "")[:140],
+                    actor      = {"email": review.requested_by_email, "name": review.requested_by_name},
+                    review_id  = c.review_id,
+                    job_id     = review.job_id,
+                    project_id = review.project_id,
+                )
             s.commit()
 
     logger.info("[review] Applied comment %s to section %s → v%s",
@@ -627,8 +782,20 @@ def ai_persona_review(review_id: str, persona: str, instructions: str = "") -> d
     )
     extra = f"\nADDITIONAL REVIEWER INSTRUCTIONS: {instructions.strip()}\n" if (instructions or "").strip() else ""
 
+    # Ontology: what this document type must contain at Adani (required inputs,
+    # place in the BRD→NDPR→NFA→NIT→RFP chain, reviewers, risk-if-weak) — the
+    # AI reviewer judges against the org's actual bar, not a generic one.
+    try:
+        from generation.ontology import for_review as _ontology_for_review
+        ontology_block = _ontology_for_review(doc_type or "")
+    except Exception:
+        logger.exception("[review] Ontology block failed — continuing without it")
+        ontology_block = ""
+
     prompt = f"""You are an expert document reviewer acting as a **{persona}** ({persona_desc}).
 Review the following {doc_type} strictly from that persona's point of view.{extra}
+{ontology_block}
+
 DOCUMENT SECTIONS:
 {section_block}
 
@@ -636,42 +803,60 @@ Return ONLY valid JSON (no markdown fences, no preamble) in exactly this shape:
 {{
   "summary": "<4-6 sentence overall assessment from the {persona} perspective — strengths, gaps, and the most important recommendation>",
   "section_comments": [
-    {{"section_id": "<id from the [SECTION id=...] tag>", "section_title": "<title>", "comment": "<one specific, actionable review comment for this section>"}}
+    {{"section_id": "<id from the [SECTION id=...] tag>", "section_title": "<title>", "severity": "high|medium|low", "comment": "<one specific, actionable review comment for this section>"}}
   ]
 }}
-Rules: comment on the 3-6 sections MOST relevant to a {persona}; be concrete and reference actual content; do not praise without substance."""
+Rules:
+- Comment on the 3-6 sections MOST relevant to a {persona}.
+- Every comment must reference specific content from the section (quote a phrase, figure, or claim) and state a concrete change or question — never generic advice that could apply to any document.
+- Set severity: "high" = would block approval, "medium" = should be fixed before finalizing, "low" = polish/nice-to-have.
+- Do not praise without substance; skip sections where you have nothing actionable to say.
+- Copy section_id EXACTLY from the [SECTION id=...] tag."""
 
     from llm_provider import call_with_fallback
-    raw, model_id = call_with_fallback(
-        messages   = [{"role": "user", "content": prompt}],
-        max_tokens = 2500,
-        timeout    = 120,
-        log_prefix = f"[ReviewAgent:{persona}]",
+
+    _RETRY_INSTRUCTION = (
+        "Your previous reply could not be parsed. Respond again with ONLY a valid JSON object "
+        "(no prose, no markdown fences) in exactly this shape: "
+        '{"summary": "<overall assessment>", "section_comments": [{"section_id": "<id>", '
+        '"section_title": "<title>", "severity": "high|medium|low", "comment": "<actionable comment>"}]}'
     )
 
-    parsed = _extract_json(raw)
-    if not isinstance(parsed, dict) or "summary" not in parsed:
-        raise RuntimeError("AI review returned an unexpected format — please retry")
-
-    valid_ids = {sec["section_id"] for sec in sections}
+    valid_ids   = {sec["section_id"] for sec in sections}
     title_by_id = {sec["section_id"]: sec["section_title"] for sec in sections}
-    comments = []
-    for item in parsed.get("section_comments", []) or []:
-        if not isinstance(item, dict):
-            continue
-        sid = item.get("section_id")
-        if sid not in valid_ids or not (item.get("comment") or "").strip():
-            continue
-        comments.append({
-            "section_id":    sid,
-            "section_title": item.get("section_title") or title_by_id.get(sid, ""),
-            "comment":       item["comment"].strip(),
-        })
 
+    validated, model_id, last_raw = None, "", ""
+    for attempt in (1, 2):
+        messages = [{"role": "user", "content": prompt}]
+        if attempt == 2:
+            # Corrective retry: show the model its malformed output and re-state the contract
+            messages.append({"role": "assistant", "content": last_raw[:4000]})
+            messages.append({"role": "user", "content": _RETRY_INSTRUCTION})
+        raw, model_id = call_with_fallback(
+            messages   = messages,
+            max_tokens = 4000,
+            timeout    = 120,
+            log_prefix = f"[ReviewAgent:{persona}]" + (" (retry)" if attempt == 2 else ""),
+            json_mode  = True,   # force application/json from Vertex — no prose replies
+        )
+        last_raw  = raw
+        validated = _validate_persona_review(_extract_json(raw), valid_ids, title_by_id)
+        if validated is not None:
+            break
+        logger.warning("[review] Persona review attempt %d returned unparseable/invalid JSON (%d chars): %.200s",
+                       attempt, len(raw or ""), raw or "")
+
+    if validated is None:
+        raise RuntimeError(
+            "AI review returned an invalid format twice — please retry. "
+            "If this persists, check the LLM provider logs."
+        )
+
+    summary, comments = validated
     return {
         "review_id":        review_id,
         "persona":          persona,
-        "summary":          str(parsed.get("summary", "")).strip(),
+        "summary":          summary,
         "section_comments": comments,
         "model":            model_id,
     }
@@ -696,7 +881,25 @@ def keep_ai_comments(
             section_id = item.get("section_id"),
             source     = "ai",
             persona    = persona,
+            notify     = False,   # aggregated below — avoid one notification per comment
         ))
+
+    # One aggregate notification to the document author instead of N
+    if kept:
+        with get_session() as s:
+            review = s.get(ReviewRequest, review_id)
+            if review:
+                who = author.get("name") or author.get("email", "A reviewer")
+                _notify(
+                    s, review.requested_by_email, "comments_kept",
+                    f"{who} added {len(kept)} AI review comment(s) ({persona})",
+                    body       = (kept[0].get("text") or "")[:140],
+                    actor      = author,
+                    review_id  = review_id,
+                    job_id     = review.job_id,
+                    project_id = review.project_id,
+                )
+                s.commit()
     return kept
 
 
@@ -704,17 +907,27 @@ def keep_ai_comments(
 # AI — summarize reviewer feedback for the author (sent side)
 # ─────────────────────────────────────────────────────────────────────────────
 
-def summarize_for_author(review_id: str, personas: Optional[list[str]] = None) -> list[dict]:
+def summarize_for_author(
+    review_id: str,
+    personas: Optional[list[str]] = None,
+    force: bool = False,
+) -> list[dict]:
     """
     Persona-wise AI summaries of ALL reviewer comments (the author's carousel).
-    Cached in review_summaries (latest per persona wins).
+
+    Staleness-aware caching: each stored summary carries a fingerprint of the
+    comment set it was generated from. If the comments haven't changed since,
+    the cached summary is returned without calling the LLM (unless force=True).
     """
     ensure_personas_seeded()
     with get_session() as s:
         review = s.get(ReviewRequest, review_id)
         if not review:
             raise FileNotFoundError(f"Review '{review_id}' not found")
-        doc_type = review.document_type or "document"
+        doc_type    = review.document_type or "document"
+        fingerprint = _comments_fingerprint(review.comments)
+        n_comments  = len(review.comments)
+        n_open      = sum(1 for c in review.comments if c.status == "open")
         comment_lines = []
         for c in review.comments:
             if c.parent_id:
@@ -724,6 +937,23 @@ def summarize_for_author(review_id: str, personas: Optional[list[str]] = None) -
             who = c.author_name or c.author_email
             tag = f" (AI:{c.persona})" if c.source == "ai" and c.persona else ""
             comment_lines.append(f"- [{prefix}] {who}{tag}: {c.text}")
+
+        # Latest cached summary per persona (for the staleness check)
+        cached_rows = (
+            s.query(ReviewSummary)
+            .filter(ReviewSummary.review_id == review_id)
+            .order_by(ReviewSummary.created_at.desc())
+            .all()
+        )
+        cached_by_persona: dict[str, ReviewSummary] = {}
+        for sm in cached_rows:
+            cached_by_persona.setdefault(sm.persona, sm)
+        cached_dicts = {
+            p: {**sm.to_dict(), "cached": True}
+            for p, sm in cached_by_persona.items()
+            if sm.comments_fingerprint == fingerprint
+        }
+
     if not comment_lines:
         raise ValueError("No reviewer comments to summarize yet")
 
@@ -735,15 +965,23 @@ def summarize_for_author(review_id: str, personas: Optional[list[str]] = None) -
 
     results = []
     for persona in personas:
+        # Cache hit — comments unchanged since this persona's summary was generated
+        if not force and persona in cached_dicts:
+            logger.info("[review] Summary cache hit for persona '%s' on review %s", persona, review_id)
+            results.append(cached_dicts[persona])
+            continue
+
         desc = _persona_description(persona)
         prompt = f"""You are a **{persona}** ({desc}).
-Below is all reviewer feedback collected on a {doc_type}.
+Below is all reviewer feedback collected on a {doc_type} ({n_comments} comment(s), {n_open} still open).
 
 REVIEWER FEEDBACK:
 {feedback_block}
 
 Write a concise summary (3-5 sentences) of this feedback FROM THE {persona} PERSPECTIVE for the document's author:
-what reviewers are saying that matters to a {persona}, the key risks/asks, and the single most important action.
+- Name the reviewers whose feedback matters most to a {persona} and what they actually said.
+- Call out the key risks/asks with any specific numbers, sections, or claims they referenced.
+- End with the single most important action the author should take next.
 Return plain text only — no headings, no bullets, no preamble."""
         try:
             text, model_id = call_with_fallback(
@@ -763,10 +1001,11 @@ Return plain text only — no headings, no bullets, no preamble."""
                 persona      = persona,
                 summary_text = text.strip(),
                 model        = model_id,
+                comments_fingerprint = fingerprint,
             )
             s.add(sm)
             s.commit()
-            results.append(sm.to_dict())
+            results.append({**sm.to_dict(), "cached": False})
 
     if not results:
         raise RuntimeError("All persona summaries failed — check LLM connectivity")
@@ -807,3 +1046,54 @@ def _extract_json(raw: str):
         except Exception:
             pass
     return None
+
+
+_VALID_SEVERITIES = {"high", "medium", "low"}
+
+
+def _validate_persona_review(parsed, valid_ids: set, title_by_id: dict):
+    """
+    Validate + normalise the persona-review JSON from the LLM.
+    Returns (summary, comments) on success, or None if the shape is unusable
+    (triggers the corrective retry in ai_persona_review).
+    Individual bad comment items are dropped, not fatal.
+    """
+    if not isinstance(parsed, dict):
+        return None
+    summary = str(parsed.get("summary") or "").strip()
+    if not summary:
+        return None
+    raw_comments = parsed.get("section_comments")
+    if raw_comments is None:
+        raw_comments = []
+    if not isinstance(raw_comments, list):
+        return None
+
+    comments = []
+    for item in raw_comments:
+        if not isinstance(item, dict):
+            continue
+        sid  = item.get("section_id")
+        text = (item.get("comment") or "").strip()
+        if sid not in valid_ids or not text:
+            continue
+        sev = str(item.get("severity") or "").strip().lower()
+        comments.append({
+            "section_id":    sid,
+            "section_title": item.get("section_title") or title_by_id.get(sid, ""),
+            "severity":      sev if sev in _VALID_SEVERITIES else "medium",
+            "comment":       text,
+        })
+    return summary, comments
+
+
+def _comments_fingerprint(comments) -> str:
+    """
+    Stable fingerprint of a review's comment set (ids + updated_at + text head).
+    Used by summarize_for_author() to detect whether cached summaries are stale.
+    """
+    parts = sorted(
+        f"{c.comment_id}:{c.updated_at.isoformat() if c.updated_at else ''}:{(c.text or '')[:80]}"
+        for c in comments
+    )
+    return hashlib.sha256("\n".join(parts).encode("utf-8")).hexdigest()[:32]

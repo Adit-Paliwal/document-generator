@@ -1,0 +1,1774 @@
+{
+  "technologies": [
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Data Driven Decisions",
+      "capability": "Business Data Lake",
+      "tool": "GCP BigQuery",
+      "description": "Google Cloud data warehouse used to store and query large business data sets.",
+      "used_in": "Business data lake",
+      "purpose": "Stores consolidated data and supports fast reporting, analytics and decision-making.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Data Driven Decisions",
+      "capability": "Enterprise Reporting",
+      "tool": "SAP BO/BW",
+      "description": "SAP BusinessObjects and Business Warehouse reporting platform.",
+      "used_in": "Enterprise reporting",
+      "purpose": "Creates standard reports and dashboards from SAP and enterprise data.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Data Driven Decisions",
+      "capability": "MLOps & AI Agents",
+      "tool": "GCP Vertex AI",
+      "description": "Google Cloud platform for building, training and deploying machine learning and AI models.",
+      "used_in": "MLOps",
+      "purpose": "Supports AI model lifecycle, prediction services and AI use cases.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid",
+      "domain": "Data Driven Decisions",
+      "capability": "MLOps & AI Agents",
+      "tool": "Drone Image/Video Analytics",
+      "description": "Analytics solution that processes drone images and videos.",
+      "used_in": "Grid inspection analytics",
+      "purpose": "Finds issues or observations from drone survey images and videos.",
+      "notes": "Ongoing Project"
+    },
+    {
+      "landscape": "AESL-Retail",
+      "domain": "Data Driven Decisions",
+      "capability": "MLOps & AI Agents",
+      "tool": "Image Analytics",
+      "description": "AI-based image processing solution.",
+      "used_in": "Retail analytics",
+      "purpose": "Analyzes images for operational insights and exception detection.",
+      "notes": "Ongoing Project"
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Data Driven Decisions",
+      "capability": "MLOps & AI Agents",
+      "tool": "Agentic AI",
+      "description": "AI agents that can perform tasks using instructions, tools and workflows.",
+      "used_in": "AI automation",
+      "purpose": "Helps automate knowledge work, analysis and process assistance.",
+      "notes": "Ongoing Project"
+    },
+    {
+      "landscape": "AESL-Retail",
+      "domain": "Data Driven Decisions",
+      "capability": "MLOps & AI Agents",
+      "tool": "Theft Prediction",
+      "description": "Analytics model for identifying theft risk patterns.",
+      "used_in": "Demand/revenue protection",
+      "purpose": "Predicts possible electricity theft cases so teams can act early.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Retail",
+      "domain": "Data Driven Decisions",
+      "capability": "Demand Forecasting",
+      "tool": "Demand Forecasting - DA/ST/MT/LT",
+      "description": "Forecasting solution for day-ahead, short-term, medium-term and long-term demand.",
+      "used_in": "Demand forecasting",
+      "purpose": "Predicts power demand for planning, procurement and operations.",
+      "notes": "Ongoing Project"
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Data Driven Decisions",
+      "capability": "Data Governance & Quality",
+      "tool": "Dataplex",
+      "description": "Google Cloud data governance and data management service.",
+      "used_in": "Data governance",
+      "purpose": "Organizes, secures and manages data across data lake and analytics platforms.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Data Driven Decisions",
+      "capability": "Data Governance & Quality",
+      "tool": "Unity Catalog",
+      "description": "Central catalog for data governance, metadata and access management.",
+      "used_in": "Data catalog",
+      "purpose": "Maintains governed data assets and controls access to data.",
+      "notes": "Ongoing Project"
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Data Driven Decisions",
+      "capability": "Data Governance & Quality",
+      "tool": "SAP MDG",
+      "description": "SAP Master Data Governance solution.",
+      "used_in": "Master data governance",
+      "purpose": "Maintains clean and approved master data for business processes.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Data Driven Decisions",
+      "capability": "Analytics & Insights",
+      "tool": "Power BI",
+      "description": "Microsoft business intelligence dashboard and reporting tool.",
+      "used_in": "Analytics dashboards",
+      "purpose": "Creates interactive dashboards and business reports.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Data Driven Decisions",
+      "capability": "Analytics & Insights",
+      "tool": "Data Authenticated System (DAS / a-DAS)",
+      "description": "System used to authenticate and validate data before reporting or use.",
+      "used_in": "Analytics data validation",
+      "purpose": "Helps ensure that published or consumed data is trusted and verified.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Data Driven Decisions",
+      "capability": "Analytics & Insights",
+      "tool": "Control Tower",
+      "description": "Central monitoring dashboard for operational visibility.",
+      "used_in": "Management monitoring",
+      "purpose": "Provides single-view tracking of important KPIs, alerts and activities.",
+      "notes": "Ongoing Project"
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Data Driven Decisions",
+      "capability": "Analytics & Insights",
+      "tool": "Data & Analytics Platform",
+      "description": "Enterprise platform that brings data, pipelines, analytics and reporting together.",
+      "used_in": "Enterprise analytics",
+      "purpose": "Enables governed analytics and reusable data products.",
+      "notes": "Ongoing Project"
+    },
+    {
+      "landscape": "AESL-Grid",
+      "domain": "Data Driven Decisions",
+      "capability": "Analytics & Insights",
+      "tool": "MIS Automation (a-MISA)",
+      "description": "Automation solution for Management Information System reports.",
+      "used_in": "MIS reporting",
+      "purpose": "Automates regular reports and reduces manual reporting effort.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Retail",
+      "domain": "Data Driven Decisions",
+      "capability": "Analytics & Insights",
+      "tool": "Process Intelligence",
+      "description": "Tool or capability to analyze process flow and process performance.",
+      "used_in": "Process analytics",
+      "purpose": "Identifies process gaps, delays and improvement areas.",
+      "notes": "Ongoing Project"
+    },
+    {
+      "landscape": "AESL-Grid",
+      "domain": "Data Driven Decisions",
+      "capability": "Strategic Decision Support",
+      "tool": "Think-cell",
+      "description": "PowerPoint charting and presentation add-in.",
+      "used_in": "Executive presentations",
+      "purpose": "Creates management charts and executive presentation visuals.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid",
+      "domain": "Data Driven Decisions",
+      "capability": "Strategic Decision Support",
+      "tool": "BO Card",
+      "description": "Balanced scorecard or business objective card for executive tracking.",
+      "used_in": "Strategic decision support",
+      "purpose": "Tracks key business metrics for leadership review.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Business Core",
+      "capability": "Enterprise Finance & ERP",
+      "tool": "SAP ECC on HANA",
+      "description": "SAP ERP system running on HANA database.",
+      "used_in": "Enterprise core ERP",
+      "purpose": "Handles finance, materials, projects, sales, maintenance and general ledger processes.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Business Core",
+      "capability": "Enterprise Finance & ERP",
+      "tool": "SAP TRM",
+      "description": "SAP Treasury and Risk Management module.",
+      "used_in": "Treasury",
+      "purpose": "Manages treasury, cash, risk and financial instruments.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Business Core",
+      "capability": "Enterprise Finance & ERP",
+      "tool": "SAP VIM",
+      "description": "SAP Vendor Invoice Management solution.",
+      "used_in": "Accounts payable",
+      "purpose": "Digitizes and manages vendor invoice approval and processing.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Business Core",
+      "capability": "Enterprise Finance & ERP",
+      "tool": "SAP GRC",
+      "description": "SAP Governance, Risk and Compliance solution.",
+      "used_in": "Access governance",
+      "purpose": "Controls user access, compliance checks and risk monitoring.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid",
+      "domain": "Business Core",
+      "capability": "Enterprise Finance & ERP",
+      "tool": "SAP BPC",
+      "description": "SAP Business Planning and Consolidation solution.",
+      "used_in": "Financial planning",
+      "purpose": "Supports budgeting, planning, forecasting and consolidation.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Business Core",
+      "capability": "Enterprise Finance & ERP",
+      "tool": "SAP Analytics Cloud",
+      "description": "SAP cloud analytics and planning platform.",
+      "used_in": "Management consolidation",
+      "purpose": "Provides planning, analytics and consolidation dashboards.",
+      "notes": "Ongoing Project"
+    },
+    {
+      "landscape": "AESL-Grid",
+      "domain": "Business Core",
+      "capability": "Enterprise Finance & ERP",
+      "tool": "SAP HR / HCM",
+      "description": "SAP Human Capital Management solution.",
+      "used_in": "Human capital management",
+      "purpose": "Manages employee and HR master processes.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Retail",
+      "domain": "Business Core",
+      "capability": "Enterprise Core",
+      "tool": "SAP DMS",
+      "description": "SAP Document Management System.",
+      "used_in": "Document management",
+      "purpose": "Stores and manages business documents linked to SAP processes.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Retail",
+      "domain": "Business Core",
+      "capability": "Commercial Operations",
+      "tool": "SAP IS-U",
+      "description": "SAP Industry Solution for Utilities.",
+      "used_in": "Meter-to-cash and customer service",
+      "purpose": "Supports billing, tariffs, collection, energy audit and utility customer operations.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Retail",
+      "domain": "Business Core",
+      "capability": "Customer Management",
+      "tool": "SAP C4C",
+      "description": "SAP Cloud for Customer CRM solution.",
+      "used_in": "CRM - Customer 360",
+      "purpose": "Provides customer profile, interaction and service information in one place.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Retail",
+      "domain": "Business Core",
+      "capability": "Customer Management",
+      "tool": "SAP ISS",
+      "description": "SAP-based web billing and BDTS solution shown in the retail landscape.",
+      "used_in": "Web bill and BDTS",
+      "purpose": "Supports digital customer billing and related service processes.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Retail",
+      "domain": "Business Core",
+      "capability": "Customer Management",
+      "tool": "In10s",
+      "description": "Customer communication management solution.",
+      "used_in": "Customer communication",
+      "purpose": "Manages structured customer communication and messages.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Retail",
+      "domain": "Business Core",
+      "capability": "Customer Management",
+      "tool": "Contact Center",
+      "description": "Customer contact and service interaction platform capability.",
+      "used_in": "Contact center",
+      "purpose": "Handles customer calls, service requests and support interactions.",
+      "notes": "Ongoing Project"
+    },
+    {
+      "landscape": "AESL-Retail",
+      "domain": "Business Core",
+      "capability": "Customer Management",
+      "tool": "Green Energy Certificate",
+      "description": "Digital capability for green energy certificate handling.",
+      "used_in": "Customer service",
+      "purpose": "Supports requests and issuance or tracking of green energy certificates.",
+      "notes": "Ongoing Project"
+    },
+    {
+      "landscape": "AESL-Retail",
+      "domain": "Business Core",
+      "capability": "Customer Management",
+      "tool": "Open Access",
+      "description": "Capability for open access electricity service processes.",
+      "used_in": "Customer service",
+      "purpose": "Supports customers using open access power arrangements.",
+      "notes": "Ongoing Project"
+    },
+    {
+      "landscape": "AESL-Retail",
+      "domain": "Business Core",
+      "capability": "Customer Management",
+      "tool": "Loyalty Management",
+      "description": "Solution for customer loyalty benefits and programs.",
+      "used_in": "Customer engagement",
+      "purpose": "Tracks customer loyalty, benefits and related offers.",
+      "notes": "Ongoing Project"
+    },
+    {
+      "landscape": "AESL-Retail",
+      "domain": "Business Core",
+      "capability": "Customer Management",
+      "tool": "Behavioral Demand Response (BDR)",
+      "description": "Customer demand response capability based on behavior and communication.",
+      "used_in": "Demand response",
+      "purpose": "Encourages customers to shift or reduce electricity usage during demand events.",
+      "notes": "Ongoing Project"
+    },
+    {
+      "landscape": "AESL-Retail",
+      "domain": "Business Core",
+      "capability": "Customer Management",
+      "tool": "Consent Management",
+      "description": "System to capture and manage customer consent.",
+      "used_in": "Customer data and communication consent",
+      "purpose": "Maintains customer permission for communication, data use or services.",
+      "notes": "Ongoing Project"
+    },
+    {
+      "landscape": "AESL-Retail",
+      "domain": "Customer Self Service & Engagement",
+      "capability": "Customer Self Service",
+      "tool": "Sitecore",
+      "description": "Digital experience and website content management platform.",
+      "used_in": "Website",
+      "purpose": "Manages customer-facing website content and digital experience.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Retail",
+      "domain": "Customer Self Service & Engagement",
+      "capability": "Customer Self Service",
+      "tool": "Mobile Apps - Android",
+      "description": "Android mobile application channel for customers.",
+      "used_in": "Mobile apps",
+      "purpose": "Allows customers to access services and information from Android devices.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Retail",
+      "domain": "Customer Self Service & Engagement",
+      "capability": "Customer Self Service",
+      "tool": "Mobile Apps - iOS",
+      "description": "iOS mobile application channel for customers.",
+      "used_in": "Mobile apps",
+      "purpose": "Allows customers to access services and information from Apple mobile devices.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Retail",
+      "domain": "Customer Self Service & Engagement",
+      "capability": "Customer Engagement",
+      "tool": "Tetherfi",
+      "description": "Digital contact center and customer engagement platform.",
+      "used_in": "Video contact center",
+      "purpose": "Supports video-based customer interaction and contact center services.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Retail",
+      "domain": "Customer Self Service & Engagement",
+      "capability": "Customer Engagement",
+      "tool": "Avaya",
+      "description": "Enterprise call center and communication platform.",
+      "used_in": "Call center",
+      "purpose": "Routes and manages customer service calls.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Retail",
+      "domain": "Customer Self Service & Engagement",
+      "capability": "Customer Engagement",
+      "tool": "Krista",
+      "description": "Conversational AI or chatbot automation platform.",
+      "used_in": "ChatBot / Voicebot / Email Bot",
+      "purpose": "Automates customer conversations across chat, voice and email.",
+      "notes": "Ongoing Project"
+    },
+    {
+      "landscape": "AESL-Retail",
+      "domain": "Customer Self Service & Engagement",
+      "capability": "Customer Engagement",
+      "tool": "SunTech Kiosk Self Service",
+      "description": "Self-service kiosk platform.",
+      "used_in": "Kiosk self service",
+      "purpose": "Lets customers perform selected service actions through kiosks.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Retail",
+      "domain": "Customer Self Service & Engagement",
+      "capability": "Customer Engagement",
+      "tool": "Viva Connect",
+      "description": "Microsoft Viva-based employee/customer communication channel solution.",
+      "used_in": "SMS and WhatsApp",
+      "purpose": "Sends service messages and updates through SMS and WhatsApp.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid",
+      "domain": "Grid Business Core",
+      "capability": "Field Operations & Maintenance",
+      "tool": "Maventic",
+      "description": "Field force mobility platform.",
+      "used_in": "Field operations",
+      "purpose": "Helps field teams receive, update and close work orders using mobile tools.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Business Core",
+      "capability": "Field Operations",
+      "tool": "Adani Industry Cloud (AIC)",
+      "description": "Industry cloud platform used for operational applications.",
+      "used_in": "Asset performance / APM",
+      "purpose": "Supports asset performance management and operational applications.",
+      "notes": "Ongoing Project in Grid Asset Performance Management"
+    },
+    {
+      "landscape": "AESL-Grid",
+      "domain": "Grid Business Core",
+      "capability": "Field Operations & Maintenance",
+      "tool": "Vehicle Tracking System",
+      "description": "GPS-based vehicle tracking system.",
+      "used_in": "Field logistics",
+      "purpose": "Tracks field vehicles for visibility, safety and productivity.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid",
+      "domain": "Grid Business Core",
+      "capability": "Field Operations & Maintenance",
+      "tool": "Drones",
+      "description": "Drone devices used for field inspection and survey.",
+      "used_in": "Field inspection",
+      "purpose": "Collects aerial images and videos for asset inspection.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid",
+      "domain": "Grid Business Core",
+      "capability": "Field Operations & Maintenance",
+      "tool": "Theft & Fuel Management",
+      "description": "System to monitor fuel usage and prevent fuel theft.",
+      "used_in": "Field operations",
+      "purpose": "Tracks fuel consumption and controls misuse or theft.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Retail",
+      "domain": "Business Core",
+      "capability": "Field Operations",
+      "tool": "FleetX",
+      "description": "Vehicle management system shown for retail field operations.",
+      "used_in": "VMS",
+      "purpose": "Manages fleet movement and vehicle operational visibility.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Retail",
+      "domain": "Business Core",
+      "capability": "Field Operations",
+      "tool": "Asset Lifecycle Tracking",
+      "description": "Digital tracking of asset movement and lifecycle.",
+      "used_in": "Asset lifecycle",
+      "purpose": "Tracks asset status from installation to maintenance or retirement.",
+      "notes": "Ongoing Project"
+    },
+    {
+      "landscape": "AESL-Retail",
+      "domain": "Business Core",
+      "capability": "Field Operations",
+      "tool": "APM",
+      "description": "Asset Performance Management capability.",
+      "used_in": "Asset performance",
+      "purpose": "Monitors asset health, performance and maintenance needs.",
+      "notes": "Ongoing Project"
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Business Core",
+      "capability": "Employee Productivity",
+      "tool": "Plutomen",
+      "description": "AR/VR platform used for training and remote assistance.",
+      "used_in": "AR/VR-based training",
+      "purpose": "Provides immersive training and guided learning for employees.",
+      "notes": "Ongoing Project"
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Business Core",
+      "capability": "Employee Productivity",
+      "tool": "Smart Wearables",
+      "description": "Wearable devices for field employee safety and productivity.",
+      "used_in": "Employee productivity",
+      "purpose": "Supports hands-free work, alerts, monitoring or guided tasks.",
+      "notes": "Ongoing Project"
+    },
+    {
+      "landscape": "AESL-Grid",
+      "domain": "Business Core",
+      "capability": "Employee Productivity",
+      "tool": "a-NIS",
+      "description": "Application marked as not in system in the grid landscape.",
+      "used_in": "Employee productivity",
+      "purpose": "Shown as a planned or external productivity capability.",
+      "notes": "Not in system"
+    },
+    {
+      "landscape": "AESL-Retail",
+      "domain": "Business Core",
+      "capability": "Employee Productivity",
+      "tool": "Work Management / MyWork",
+      "description": "Employee work management application.",
+      "used_in": "Work management",
+      "purpose": "Assigns, tracks and manages employee work activities.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Retail",
+      "domain": "Business Core",
+      "capability": "Employee Productivity",
+      "tool": "Digital Adoption",
+      "description": "Digital adoption solution or initiative.",
+      "used_in": "Employee productivity",
+      "purpose": "Guides users to adopt digital tools and processes.",
+      "notes": "Ongoing Project"
+    },
+    {
+      "landscape": "AESL-Retail",
+      "domain": "Business Core",
+      "capability": "Employee Productivity",
+      "tool": "Quality Management",
+      "description": "Quality management capability for work and service processes.",
+      "used_in": "Employee productivity",
+      "purpose": "Tracks quality checks, defects and improvement actions.",
+      "notes": "Ongoing Project"
+    },
+    {
+      "landscape": "AESL-Retail",
+      "domain": "Business Core",
+      "capability": "Workforce Systems",
+      "tool": "Contract Labor Payroll",
+      "description": "Payroll capability for contractual workforce.",
+      "used_in": "Workforce systems",
+      "purpose": "Calculates and manages payments for contract labor.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Retail",
+      "domain": "Business Core",
+      "capability": "Workforce Systems",
+      "tool": "Employee Lifecycle",
+      "description": "Employee lifecycle management capability.",
+      "used_in": "Workforce systems",
+      "purpose": "Manages employee joining, movement, service and exit processes.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid",
+      "domain": "Grid Business Core",
+      "capability": "Engineering & Design",
+      "tool": "PLS-CADD",
+      "description": "Transmission line design and analysis software.",
+      "used_in": "Engineering design",
+      "purpose": "Designs and analyzes overhead transmission lines.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid",
+      "domain": "Grid Business Core",
+      "capability": "Engineering & Design",
+      "tool": "STAAD.Pro",
+      "description": "Structural analysis and design software.",
+      "used_in": "Engineering design",
+      "purpose": "Designs and checks structural components used in grid projects.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Business Core",
+      "capability": "Project Engineering & Monitoring",
+      "tool": "AutoCAD",
+      "description": "2D computer-aided design drafting tool.",
+      "used_in": "2-D drawings",
+      "purpose": "Creates engineering drawings and layouts.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Retail",
+      "domain": "Business Core",
+      "capability": "Project Engineering & Monitoring",
+      "tool": "BricsCAD",
+      "description": "CAD platform for 2D drafting and design.",
+      "used_in": "2-D drawings",
+      "purpose": "Creates or edits engineering drawings in CAD format.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Business Core",
+      "capability": "Project Engineering & Monitoring",
+      "tool": "Bentley",
+      "description": "Bentley engineering design software.",
+      "used_in": "3-D design",
+      "purpose": "Supports 3D engineering design and infrastructure modelling.",
+      "notes": "Ongoing Project"
+    },
+    {
+      "landscape": "AESL-Grid",
+      "domain": "Grid Business Core",
+      "capability": "Project Engineering & Monitoring",
+      "tool": "Field Quality Inspection",
+      "description": "Digital inspection capability for project field quality.",
+      "used_in": "Project engineering",
+      "purpose": "Captures inspection results and quality observations at project sites.",
+      "notes": "Ongoing Project"
+    },
+    {
+      "landscape": "AESL-Grid",
+      "domain": "Grid Business Core",
+      "capability": "Project Engineering & Monitoring",
+      "tool": "Right of Way (a-ROW)",
+      "description": "System for Right of Way tracking and approvals.",
+      "used_in": "ROW management",
+      "purpose": "Tracks land, permissions and clearances needed for transmission routes.",
+      "notes": "Ongoing Project"
+    },
+    {
+      "landscape": "AESL-Grid",
+      "domain": "Grid Business Core",
+      "capability": "Project Engineering & Monitoring",
+      "tool": "Project Progress Monitoring",
+      "description": "Dashboard or system for project progress tracking.",
+      "used_in": "Project monitoring",
+      "purpose": "Monitors project milestones, progress and delays.",
+      "notes": "Ongoing Project"
+    },
+    {
+      "landscape": "AESL-Grid",
+      "domain": "Grid Business Core",
+      "capability": "Project Engineering & Monitoring",
+      "tool": "Transmission Line Project Tracking (a-TLPT)",
+      "description": "System for tracking transmission line project activities.",
+      "used_in": "Transmission project management",
+      "purpose": "Tracks progress and status of transmission line work.",
+      "notes": "Ongoing Project"
+    },
+    {
+      "landscape": "AESL-Retail",
+      "domain": "Business Core",
+      "capability": "Project Engineering & Monitoring",
+      "tool": "OpticVyu",
+      "description": "Project site monitoring solution using visual updates.",
+      "used_in": "Substation progress monitoring",
+      "purpose": "Tracks substation work progress using images or visual records.",
+      "notes": "Ongoing Project"
+    },
+    {
+      "landscape": "AESL-Grid",
+      "domain": "Grid Business Core",
+      "capability": "Planning & Design Optimization",
+      "tool": "Bid Management",
+      "description": "System to manage bids and tender responses.",
+      "used_in": "Planning and procurement",
+      "purpose": "Tracks bid preparation, submission and evaluation activities.",
+      "notes": "Ongoing Project"
+    },
+    {
+      "landscape": "AESL-Grid",
+      "domain": "Grid Business Core",
+      "capability": "Planning & Design Optimization",
+      "tool": "DRSO / a-DRSO",
+      "description": "Design route survey optimization capability.",
+      "used_in": "Planning and design optimization",
+      "purpose": "Optimizes route survey and design planning activities.",
+      "notes": "Ongoing Project"
+    },
+    {
+      "landscape": "AESL-Retail",
+      "domain": "Business Core",
+      "capability": "Network Management",
+      "tool": "Esri GIS",
+      "description": "Geographic Information System platform for map-based asset and network data.",
+      "used_in": "GIS",
+      "purpose": "Maps electrical assets, locations and network relationships.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Retail",
+      "domain": "Business Core",
+      "capability": "Network Management",
+      "tool": "Network SLD",
+      "description": "Single Line Diagram system for network representation.",
+      "used_in": "Network management",
+      "purpose": "Shows network layout and electrical connections in diagram form.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Retail",
+      "domain": "Business Core",
+      "capability": "Network Management",
+      "tool": "SPF Network Change Management",
+      "description": "Network change management solution shown as SPF.",
+      "used_in": "Network management",
+      "purpose": "Controls and tracks network change requests.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Retail",
+      "domain": "Business Core",
+      "capability": "Network Planning",
+      "tool": "CYME",
+      "description": "Electrical network analysis and planning software.",
+      "used_in": "Network analysis",
+      "purpose": "Models and studies distribution network behavior.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Retail",
+      "domain": "Business Core",
+      "capability": "Network Planning",
+      "tool": "ETAP",
+      "description": "Electrical power system analysis software.",
+      "used_in": "Relay coordination",
+      "purpose": "Performs power system studies and relay coordination.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Retail",
+      "domain": "Business Core",
+      "capability": "Network Planning",
+      "tool": "PSS/E",
+      "description": "Power system simulation software.",
+      "used_in": "Network simulation",
+      "purpose": "Simulates power system performance and planning scenarios.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid",
+      "domain": "Grid Business Core",
+      "capability": "Grid & Operations",
+      "tool": "GE SCADA Systems",
+      "description": "GE supervisory control and data acquisition system.",
+      "used_in": "Grid operations",
+      "purpose": "Monitors and controls grid assets in real time.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid",
+      "domain": "Grid Business Core",
+      "capability": "Grid & Operations",
+      "tool": "Siemens SCADA Systems",
+      "description": "Siemens supervisory control and data acquisition system.",
+      "used_in": "Grid operations",
+      "purpose": "Monitors and controls grid operations and equipment.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid",
+      "domain": "Grid Business Core",
+      "capability": "Grid & Operations",
+      "tool": "Hitachi SCADA Systems",
+      "description": "Hitachi supervisory control and data acquisition system.",
+      "used_in": "Grid operations",
+      "purpose": "Supports real-time grid monitoring and control.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid",
+      "domain": "Grid Business Core",
+      "capability": "Grid & Operations",
+      "tool": "NARI SCADA Systems",
+      "description": "NARI grid control and SCADA system.",
+      "used_in": "Grid operations",
+      "purpose": "Supports grid monitoring, telemetry and control activities.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid",
+      "domain": "Grid Business Core",
+      "capability": "Grid & Operations",
+      "tool": "ENOC",
+      "description": "Energy Network Operations Center capability.",
+      "used_in": "Grid operations",
+      "purpose": "Provides centralized grid operations monitoring.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Retail",
+      "domain": "Business Core",
+      "capability": "Grid & Operations",
+      "tool": "OSI SCADA/ADMS",
+      "description": "Operational Technology SCADA and Advanced Distribution Management System.",
+      "used_in": "Distribution grid operations",
+      "purpose": "Monitors, controls and manages distribution network operations.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Retail",
+      "domain": "Business Core",
+      "capability": "Grid & Operations",
+      "tool": "Schneider Electric Outage Management",
+      "description": "Outage management solution for utility operations.",
+      "used_in": "Outage management",
+      "purpose": "Tracks outages, restoration and service interruption management.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Retail",
+      "domain": "Business Core",
+      "capability": "Grid & Operations",
+      "tool": "IoT Sensors",
+      "description": "Internet-connected sensors installed on field assets.",
+      "used_in": "Grid operations",
+      "purpose": "Collects live equipment and network condition data.",
+      "notes": "Ongoing Project"
+    },
+    {
+      "landscape": "AESL-Retail",
+      "domain": "Business Core",
+      "capability": "Smart Metering",
+      "tool": "EasySoft Head End Systems",
+      "description": "Head-end system for meter data collection.",
+      "used_in": "Smart metering",
+      "purpose": "Collects and manages readings from smart meters.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Retail",
+      "domain": "Business Core",
+      "capability": "Smart Metering",
+      "tool": "Fluentgrid Head End Systems",
+      "description": "Head-end system for smart meter data integration.",
+      "used_in": "Smart metering",
+      "purpose": "Receives meter data and supports smart metering operations.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Retail",
+      "domain": "Business Core",
+      "capability": "Smart Metering",
+      "tool": "EasySoft MDM",
+      "description": "Meter Data Management system.",
+      "used_in": "Smart metering",
+      "purpose": "Validates, stores and manages meter readings.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Retail",
+      "domain": "Business Core",
+      "capability": "Smart Metering",
+      "tool": "Yokogawa Power Quality",
+      "description": "Power quality monitoring system.",
+      "used_in": "Power quality",
+      "purpose": "Monitors voltage, harmonics and other power quality parameters.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Retail",
+      "domain": "Business Core",
+      "capability": "Smart Metering",
+      "tool": "Elink ABT Metering",
+      "description": "Availability Based Tariff metering solution.",
+      "used_in": "ABT metering",
+      "purpose": "Manages special metering requirements for energy accounting.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Retail",
+      "domain": "Business Core",
+      "capability": "Energy Resource Management",
+      "tool": "BESS",
+      "description": "Battery Energy Storage System.",
+      "used_in": "Energy resource management",
+      "purpose": "Stores electricity and supports grid balancing or backup.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Retail",
+      "domain": "Business Core",
+      "capability": "Energy Resource Management",
+      "tool": "DERMS",
+      "description": "Distributed Energy Resource Management System.",
+      "used_in": "Energy resource management",
+      "purpose": "Manages distributed assets such as solar, batteries and other flexible resources.",
+      "notes": "Ongoing Project"
+    },
+    {
+      "landscape": "AESL-Retail",
+      "domain": "Business Core",
+      "capability": "EV Charging",
+      "tool": "Elocity Charge Point Management",
+      "description": "EV charging management platform.",
+      "used_in": "EV charging",
+      "purpose": "Manages EV charging stations, sessions and operations.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Enterprise Systems",
+      "capability": "ITSM",
+      "tool": "ServiceNow",
+      "description": "IT service management platform.",
+      "used_in": "ITSM",
+      "purpose": "Manages incidents, service requests, changes and IT support workflows.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Enterprise Systems",
+      "capability": "Travel & Expense",
+      "tool": "Quest2Travel by MakeMyTrip",
+      "description": "Travel and expense management platform.",
+      "used_in": "Travel and expense management",
+      "purpose": "Handles travel booking, expense submission and approvals.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Enterprise Systems",
+      "capability": "Employee Lifecycle",
+      "tool": "Oracle Fusion Cloud Services",
+      "description": "Oracle cloud platform for enterprise employee lifecycle services.",
+      "used_in": "Employee lifecycle",
+      "purpose": "Supports employee lifecycle processes and related enterprise workflows.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Enterprise Systems",
+      "capability": "Contract Workforce",
+      "tool": "Kronos",
+      "description": "Workforce management and time tracking platform.",
+      "used_in": "Contract workforce",
+      "purpose": "Tracks attendance, shifts and workforce operations.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Enterprise Systems",
+      "capability": "Common Data Environment",
+      "tool": "ACC",
+      "description": "Common data environment platform shown as ACC.",
+      "used_in": "Common data environment",
+      "purpose": "Provides a central place for project or enterprise documents and collaboration.",
+      "notes": "Ongoing Project"
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Enterprise Systems",
+      "capability": "Corporate Communication",
+      "tool": "WorkTalk",
+      "description": "Corporate communication platform.",
+      "used_in": "Corporate communication",
+      "purpose": "Shares internal updates and supports employee communication.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Enterprise Systems",
+      "capability": "Compliance Management",
+      "tool": "Legatrix",
+      "description": "Compliance management software.",
+      "used_in": "Compliance management",
+      "purpose": "Tracks compliance obligations, due dates and evidence.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Enterprise Systems",
+      "capability": "Incident Management",
+      "tool": "a-ISMS",
+      "description": "Incident management system.",
+      "used_in": "Incident management",
+      "purpose": "Captures, tracks and closes incidents.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Enterprise Systems",
+      "capability": "EHS Management",
+      "tool": "Gensuite",
+      "description": "Environment, Health and Safety management platform.",
+      "used_in": "EHS management",
+      "purpose": "Tracks safety, environmental and health-related activities.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Enterprise Systems",
+      "capability": "Sourcing",
+      "tool": "SAP Ariba",
+      "description": "SAP cloud procurement and sourcing platform.",
+      "used_in": "Sourcing",
+      "purpose": "Manages supplier sourcing, procurement events and spend processes.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Enterprise Systems",
+      "capability": "Safety",
+      "tool": "Safex",
+      "description": "Safety management platform.",
+      "used_in": "Safety",
+      "purpose": "Tracks safety observations, actions and compliance.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Enterprise Systems",
+      "capability": "Approval Workflow",
+      "tool": "a-eNFA",
+      "description": "Electronic note for approval workflow system.",
+      "used_in": "Approval workflow",
+      "purpose": "Routes approvals digitally and tracks approval status.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Enterprise Systems",
+      "capability": "Email",
+      "tool": "Office 365",
+      "description": "Microsoft cloud productivity and email platform.",
+      "used_in": "Email",
+      "purpose": "Provides enterprise email, collaboration and productivity tools.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Enterprise Systems",
+      "capability": "Enterprise Data Lake",
+      "tool": "EDL",
+      "description": "Enterprise Data Lake platform.",
+      "used_in": "Enterprise data storage",
+      "purpose": "Stores enterprise data for reporting, analytics and integration.",
+      "notes": "Ongoing Project"
+    },
+    {
+      "landscape": "AESL-Grid",
+      "domain": "Enterprise Systems",
+      "capability": "Document Management",
+      "tool": "OpenText",
+      "description": "Enterprise content and document management platform.",
+      "used_in": "DMS",
+      "purpose": "Stores and manages documents, records and workflows.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid",
+      "domain": "Enterprise Systems",
+      "capability": "Employee Payroll",
+      "tool": "ALLSEC",
+      "description": "Payroll and employee service platform.",
+      "used_in": "Employee payroll",
+      "purpose": "Processes payroll and employee service activities.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid",
+      "domain": "Enterprise Systems",
+      "capability": "Project Monitoring",
+      "tool": "Oracle Primavera P6",
+      "description": "Project scheduling and project management software.",
+      "used_in": "Project monitoring",
+      "purpose": "Plans, schedules and monitors project activities.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Integration & Automation",
+      "capability": "Middleware",
+      "tool": "SAP PO",
+      "description": "SAP Process Orchestration middleware.",
+      "used_in": "Middleware",
+      "purpose": "Connects SAP and non-SAP systems through integration flows.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Integration & Automation",
+      "capability": "Middleware",
+      "tool": "Theobald Software",
+      "description": "SAP data connectivity and extraction tool.",
+      "used_in": "Middleware",
+      "purpose": "Helps integrate or extract SAP data for external systems.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid",
+      "domain": "Integration & Automation",
+      "capability": "Middleware",
+      "tool": "SAP SLT + BODS",
+      "description": "SAP Landscape Transformation and BusinessObjects Data Services.",
+      "used_in": "Data integration",
+      "purpose": "Replicates, transforms and loads SAP data for reporting and integration.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Retail",
+      "domain": "Integration & Automation",
+      "capability": "Middleware",
+      "tool": "SAP SLT + DIC",
+      "description": "SAP data replication or integration layer shown in retail landscape.",
+      "used_in": "Data integration",
+      "purpose": "Moves SAP data to downstream systems and reporting layers.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Integration & Automation",
+      "capability": "Middleware",
+      "tool": "Informatica",
+      "description": "Enterprise data integration and ETL platform.",
+      "used_in": "Middleware",
+      "purpose": "Moves and transforms data between systems.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Integration & Automation",
+      "capability": "Middleware",
+      "tool": "HIP",
+      "description": "Hybrid Integration Platform.",
+      "used_in": "Integration platform",
+      "purpose": "Provides standardized integration capability across applications.",
+      "notes": "Ongoing Project"
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Integration & Automation",
+      "capability": "MQTT Client",
+      "tool": "N3uron",
+      "description": "Industrial IoT and MQTT connectivity platform.",
+      "used_in": "MQTT client",
+      "purpose": "Connects operational devices and streams data using MQTT.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Integration & Automation",
+      "capability": "Robotic & Agentic Automation",
+      "tool": "APA",
+      "description": "Automation process assistant or process automation capability shown as APA.",
+      "used_in": "Robotic and agentic automation",
+      "purpose": "Automates repeatable business tasks and assists process execution.",
+      "notes": "Ongoing Project"
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Integration & Automation",
+      "capability": "Robotic & Agentic Automation",
+      "tool": "Automation Anywhere RPA",
+      "description": "Robotic Process Automation platform.",
+      "used_in": "RPA",
+      "purpose": "Automates repetitive rule-based tasks across applications.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Integration & Automation",
+      "capability": "Low Code",
+      "tool": "Mendix",
+      "description": "Low-code application development platform.",
+      "used_in": "Low-code applications",
+      "purpose": "Builds business applications quickly with less manual coding.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Integration & Automation",
+      "capability": "Workflow",
+      "tool": "SAP Fiori",
+      "description": "SAP user experience and workflow application layer.",
+      "used_in": "Workflow",
+      "purpose": "Provides web/mobile SAP apps and task-based user experiences.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Integration & Automation",
+      "capability": "Third-Party APIs",
+      "tool": "Ola API",
+      "description": "Third-party mobility API.",
+      "used_in": "Third-party APIs",
+      "purpose": "Connects business systems with Ola services where required.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Integration & Automation",
+      "capability": "Third-Party APIs",
+      "tool": "Uber API",
+      "description": "Third-party mobility API.",
+      "used_in": "Third-party APIs",
+      "purpose": "Connects business systems with Uber services where required.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Retail",
+      "domain": "Integration & Automation",
+      "capability": "Third-Party APIs",
+      "tool": "Skymet Weather",
+      "description": "Weather data service/API.",
+      "used_in": "Weather integration",
+      "purpose": "Uses weather information for forecasting, planning or operations.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Infra & Connectivity",
+      "capability": "Cloud Infra",
+      "tool": "GCP",
+      "description": "Google Cloud Platform cloud infrastructure.",
+      "used_in": "Cloud infrastructure",
+      "purpose": "Runs cloud workloads, analytics and data services.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Infra & Connectivity",
+      "capability": "Cloud Infra",
+      "tool": "Microsoft Azure",
+      "description": "Microsoft cloud infrastructure platform.",
+      "used_in": "Cloud infrastructure",
+      "purpose": "Hosts enterprise applications, virtual access and cloud services.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Retail",
+      "domain": "Infra & Connectivity",
+      "capability": "Cloud Infra",
+      "tool": "ACX Data Centers",
+      "description": "Data center or cloud connectivity provider shown in retail landscape.",
+      "used_in": "Cloud/data center connectivity",
+      "purpose": "Supports infrastructure hosting or connectivity.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid",
+      "domain": "Infra & Connectivity",
+      "capability": "Data Center",
+      "tool": "STT GDC / STT",
+      "description": "Data center service provider.",
+      "used_in": "Data center",
+      "purpose": "Hosts enterprise infrastructure and workloads.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Retail",
+      "domain": "Infra & Connectivity",
+      "capability": "Data Center",
+      "tool": "CtrlS",
+      "description": "Data center service provider.",
+      "used_in": "Data center",
+      "purpose": "Hosts enterprise infrastructure, disaster recovery or business applications.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Infra & Connectivity",
+      "capability": "SAP Reverse Proxy",
+      "tool": "SAP Web Dispatcher",
+      "description": "SAP reverse proxy and load balancing component.",
+      "used_in": "SAP reverse proxy",
+      "purpose": "Secures and routes traffic to SAP web applications.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid",
+      "domain": "Infra & Connectivity",
+      "capability": "Virtual App Access",
+      "tool": "Palo Alto Networks",
+      "description": "Security platform used for virtual app access.",
+      "used_in": "Virtual app access",
+      "purpose": "Provides secure application access and network security controls.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Retail",
+      "domain": "Infra & Connectivity",
+      "capability": "Virtual App Access",
+      "tool": "Citrix XenApp",
+      "description": "Virtual application delivery platform.",
+      "used_in": "Virtual app access",
+      "purpose": "Provides remote access to enterprise applications.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Infra & Connectivity",
+      "capability": "Network",
+      "tool": "Jio",
+      "description": "Telecom network service provider.",
+      "used_in": "Network connectivity",
+      "purpose": "Provides enterprise network connectivity.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Infra & Connectivity",
+      "capability": "Network",
+      "tool": "Airtel",
+      "description": "Telecom network service provider.",
+      "used_in": "Network connectivity",
+      "purpose": "Provides enterprise network connectivity.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Infra & Connectivity",
+      "capability": "Network",
+      "tool": "Vodafone Idea (VI)",
+      "description": "Telecom network service provider.",
+      "used_in": "Network connectivity",
+      "purpose": "Provides enterprise network connectivity.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Infra & Connectivity",
+      "capability": "Network",
+      "tool": "Tata",
+      "description": "Telecom/network service provider.",
+      "used_in": "Network connectivity",
+      "purpose": "Provides WAN or enterprise connectivity services.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Infra & Connectivity",
+      "capability": "Network",
+      "tool": "Cisco",
+      "description": "Networking hardware and network management technology.",
+      "used_in": "Network connectivity",
+      "purpose": "Supports routers, switches and enterprise network operations.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Infra & Connectivity",
+      "capability": "Network",
+      "tool": "PowerTel",
+      "description": "Telecom/network connectivity provider.",
+      "used_in": "Network connectivity",
+      "purpose": "Provides network connectivity for business and grid locations.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Infra & Connectivity",
+      "capability": "Grid Connectivity",
+      "tool": "Fiber Optic",
+      "description": "Fiber optic communication network.",
+      "used_in": "Grid connectivity",
+      "purpose": "Provides high-speed communication links for grid and enterprise sites.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Cyber Security & Governance",
+      "capability": "Perimeter",
+      "tool": "Radware WAF",
+      "description": "Web Application Firewall solution.",
+      "used_in": "Perimeter security",
+      "purpose": "Protects web applications from external attacks.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Cyber Security & Governance",
+      "capability": "Perimeter",
+      "tool": "F5",
+      "description": "Application delivery and security platform.",
+      "used_in": "Perimeter security",
+      "purpose": "Supports load balancing, app delivery and web security.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Cyber Security & Governance",
+      "capability": "Perimeter",
+      "tool": "Fortinet Firewall/IPS-IDS",
+      "description": "Network firewall with intrusion prevention and detection.",
+      "used_in": "Perimeter security",
+      "purpose": "Protects networks and detects malicious traffic.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Cyber Security & Governance",
+      "capability": "Perimeter",
+      "tool": "Netskope Proxy",
+      "description": "Secure web and cloud access proxy.",
+      "used_in": "Proxy security",
+      "purpose": "Controls internet and cloud access and protects users from risky content.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Cyber Security & Governance",
+      "capability": "Perimeter",
+      "tool": "Forescout Network Access Control",
+      "description": "Network access control platform.",
+      "used_in": "Network access control",
+      "purpose": "Identifies devices and controls network access.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Cyber Security & Governance",
+      "capability": "Identity",
+      "tool": "BeyondTrust PIM/PAM",
+      "description": "Privileged Identity and Access Management platform.",
+      "used_in": "Identity security",
+      "purpose": "Controls and monitors privileged user access.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Cyber Security & Governance",
+      "capability": "Identity",
+      "tool": "RSA MFA",
+      "description": "Multi-factor authentication solution.",
+      "used_in": "Identity security",
+      "purpose": "Adds extra login verification for secure access.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Cyber Security & Governance",
+      "capability": "Identity",
+      "tool": "Windows Hello FRS",
+      "description": "Windows biometric or secure sign-in capability.",
+      "used_in": "Identity security",
+      "purpose": "Provides secure user sign-in and authentication.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Cyber Security & Governance",
+      "capability": "End Point",
+      "tool": "CrowdStrike EDR",
+      "description": "Endpoint Detection and Response security platform.",
+      "used_in": "Endpoint security",
+      "purpose": "Detects, investigates and responds to endpoint threats.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Cyber Security & Governance",
+      "capability": "End Point",
+      "tool": "Microsoft Defender",
+      "description": "Microsoft endpoint protection solution.",
+      "used_in": "Endpoint security",
+      "purpose": "Protects laptops, servers and endpoints from malware and threats.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Cyber Security & Governance",
+      "capability": "End Point",
+      "tool": "Microsoft Intune EMM",
+      "description": "Enterprise Mobility Management and device management platform.",
+      "used_in": "Endpoint and mobile management",
+      "purpose": "Manages devices, apps, policies and compliance.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Retail",
+      "domain": "Cyber Security & Governance",
+      "capability": "End Point",
+      "tool": "Protectt.ai",
+      "description": "Mobile application security platform.",
+      "used_in": "Mobile threat defense",
+      "purpose": "Protects mobile apps and devices from threats.",
+      "notes": "Ongoing Project"
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Cyber Security & Governance",
+      "capability": "Data Security",
+      "tool": "Encryption",
+      "description": "Technology that protects data by converting it into unreadable form without keys.",
+      "used_in": "Data security",
+      "purpose": "Protects sensitive data at rest and in transit.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Cyber Security & Governance",
+      "capability": "Data Security",
+      "tool": "Forcepoint DLP",
+      "description": "Data Loss Prevention platform.",
+      "used_in": "Data security",
+      "purpose": "Prevents sensitive data from being leaked or misused.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Retail",
+      "domain": "Cyber Security & Governance",
+      "capability": "Data Security",
+      "tool": "PII Management",
+      "description": "Capability to manage personally identifiable information.",
+      "used_in": "Data privacy",
+      "purpose": "Identifies and protects customer or employee personal data.",
+      "notes": "Ongoing Project"
+    },
+    {
+      "landscape": "AESL-Retail",
+      "domain": "Cyber Security & Governance",
+      "capability": "Data Security",
+      "tool": "OpenText SAP Archival",
+      "description": "OpenText solution for archiving SAP documents and data.",
+      "used_in": "SAP archival",
+      "purpose": "Stores SAP records securely for compliance and retrieval.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Cyber Security & Governance",
+      "capability": "Securing Operations & Monitoring",
+      "tool": "Microsoft Sentinel",
+      "description": "Cloud-native security information and event management platform.",
+      "used_in": "OT SOC",
+      "purpose": "Monitors security events and supports threat detection and response.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Cyber Security & Governance",
+      "capability": "Digital Rights",
+      "tool": "Microsoft Azure Information Protection",
+      "description": "Information protection and document classification solution.",
+      "used_in": "Digital rights",
+      "purpose": "Classifies, labels and protects documents and emails.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Cyber Security & Governance",
+      "capability": "Architecture & Lifecycle Governance",
+      "tool": "SAP Solution Manager",
+      "description": "SAP application lifecycle management platform.",
+      "used_in": "Change management",
+      "purpose": "Manages SAP changes, monitoring and lifecycle activities.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Cyber Security & Governance",
+      "capability": "Architecture & Lifecycle Governance",
+      "tool": "GitLab",
+      "description": "DevOps platform for source code, CI/CD and collaboration.",
+      "used_in": "DevOps",
+      "purpose": "Manages code repositories, pipelines and deployment collaboration.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Cyber Security & Governance",
+      "capability": "Architecture & Lifecycle Governance",
+      "tool": "EA Tool",
+      "description": "Enterprise Architecture tool.",
+      "used_in": "Architecture governance",
+      "purpose": "Maintains application, technology and architecture inventory.",
+      "notes": "Ongoing Project"
+    },
+    {
+      "landscape": "AESL-Retail",
+      "domain": "Cyber Security & Governance",
+      "capability": "Architecture & Lifecycle Governance",
+      "tool": "Jira",
+      "description": "Agile project and issue tracking platform.",
+      "used_in": "Work tracking",
+      "purpose": "Tracks tasks, defects, stories and delivery progress.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Physical Security",
+      "capability": "Access Control",
+      "tool": "Genetec",
+      "description": "Physical security and access control platform.",
+      "used_in": "Access control",
+      "purpose": "Manages building access, surveillance and physical security events.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid",
+      "domain": "Physical Security",
+      "capability": "Visitor Management",
+      "tool": "Veris",
+      "description": "Visitor management system.",
+      "used_in": "Visitor management",
+      "purpose": "Registers and tracks visitors at facilities.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid",
+      "domain": "Physical Security",
+      "capability": "Visitor Management",
+      "tool": "Mantra",
+      "description": "Visitor management or biometric access technology.",
+      "used_in": "Visitor management",
+      "purpose": "Supports visitor entry, identity capture and access processes.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Retail",
+      "domain": "Physical Security",
+      "capability": "Visitor Management",
+      "tool": "Spectra",
+      "description": "Visitor management solution.",
+      "used_in": "Visitor management",
+      "purpose": "Manages visitor registration and facility entry.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid, AESL-Retail",
+      "domain": "Physical Security",
+      "capability": "Guard Tracking",
+      "tool": "Technopurple",
+      "description": "Guard patrolling and tracking solution.",
+      "used_in": "Guard tracking / Guard tour tracking",
+      "purpose": "Tracks security guard patrols and site coverage.",
+      "notes": "Ongoing Project"
+    },
+    {
+      "landscape": "AESL-Grid",
+      "domain": "Physical Security",
+      "capability": "Incident Management",
+      "tool": "a-ISMS",
+      "description": "Incident management system.",
+      "used_in": "Physical security incident management",
+      "purpose": "Captures and tracks physical security incidents.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid",
+      "domain": "Physical Security",
+      "capability": "Security Entry Permit",
+      "tool": "Security Entry Permit",
+      "description": "Digital permit process for security-controlled entry.",
+      "used_in": "Facility entry",
+      "purpose": "Approves and records entry permission for people or assets.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid",
+      "domain": "Physical Security",
+      "capability": "Security Violations",
+      "tool": "Security Violations",
+      "description": "System or module to record security violations.",
+      "used_in": "Security monitoring",
+      "purpose": "Tracks rule violations, observations and corrective actions.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid",
+      "domain": "Physical Security",
+      "capability": "Security Ticketing",
+      "tool": "Security Ticketing",
+      "description": "Ticketing system for security requests and incidents.",
+      "used_in": "Security operations",
+      "purpose": "Manages security tickets until closure.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid",
+      "domain": "Physical Security",
+      "capability": "Security Audit Management",
+      "tool": "Security Audit Management",
+      "description": "Audit management module for physical security.",
+      "used_in": "Security audit",
+      "purpose": "Tracks audit observations, compliance and closure actions.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid",
+      "domain": "Partner Management",
+      "capability": "Website",
+      "tool": "Sitecore",
+      "description": "Digital experience and website content management platform.",
+      "used_in": "Website",
+      "purpose": "Manages external website content and partner-facing pages.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid",
+      "domain": "Partner Management",
+      "capability": "Supplier Information Management",
+      "tool": "SIM",
+      "description": "Supplier Information Management system.",
+      "used_in": "Supplier information management",
+      "purpose": "Maintains supplier profile, documents and onboarding information.",
+      "notes": ""
+    },
+    {
+      "landscape": "AESL-Grid",
+      "domain": "Partner Management",
+      "capability": "Billing",
+      "tool": "BillPro",
+      "description": "Billing solution.",
+      "used_in": "Billing",
+      "purpose": "Supports billing activities and billing document generation.",
+      "notes": "Ongoing Project"
+    },
+    {
+      "landscape": "AESL-Grid",
+      "domain": "Partner Management",
+      "capability": "NOC + FFM",
+      "tool": "FiberColo",
+      "description": "Network operations center and field force management solution/provider.",
+      "used_in": "NOC + FFM",
+      "purpose": "Supports fiber/network operations and field workforce management.",
+      "notes": ""
+    }
+  ]
+}

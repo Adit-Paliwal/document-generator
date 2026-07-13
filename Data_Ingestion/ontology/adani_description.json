@@ -1,0 +1,22 @@
+{
+  "entities": [
+    {
+      "entity": "Adani Group",
+      "what_they_are": "Adani Group is a large Indian business group, also called a diversified conglomerate. It has multiple companies working in different sectors.",
+      "area_of_work": "It works across important sectors such as energy, infrastructure, logistics, ports, mining, agriculture, real estate, defence, and aerospace. It also develops and operates large infrastructure assets across India and globally.",
+      "purpose": "The main purpose of Adani Group is to build and operate large-scale businesses and infrastructure that support India’s growth. In simple words, it creates and manages important services and assets that help the country’s economy, industries, and people."
+    },
+    {
+      "entity": "AESL — Adani Energy Solutions Limited",
+      "what_they_are": "AESL is a key company under Adani Group’s energy business. It was earlier known as Adani Transmission Limited.",
+      "area_of_work": "AESL works in power transmission, power distribution, smart metering, and cooling solutions. It helps in moving electricity through transmission networks and supports modern energy services. It predominantly governed by Government Norms and Regulations. AESL primarily serves internal as well as external power Evacutation projects",
+      "purpose": "The purpose of AESL is to strengthen India’s energy infrastructure. In simple words, AESL helps electricity reach different regions safely and reliably, while also using digital and smart technologies to improve energy services."
+    },
+    {
+      "entity": "AEML — Adani Electricity Mumbai Limited",
+      "what_they_are": "AEML is the power distribution company serving Mumbai. It is part of AESL’s distribution business.",
+      "area_of_work": "AEML supplies electricity to residential, commercial, and industrial customers in Mumbai. It also focuses on customer service, reliable power supply, digital services, and sustainable energy initiatives.",
+      "purpose": "The purpose of AEML is to provide safe, reliable, and continuous electricity to Mumbai consumers. In simple words, AEML is the company that manages electricity supply for homes, offices, shops, and industries in Mumbai."
+    }
+  ]
+}

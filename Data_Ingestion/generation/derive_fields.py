@@ -96,9 +96,19 @@ Stakeholders:
 
 {doc_context_block}
 
+{ontology_block}
+
 ═══════════════════════════════════════
 FIELDS TO DERIVE
 ═══════════════════════════════════════
+
+GROUNDING RULES:
+- Ground systems_involved and data_sources in the AESL TECHNICAL ESTATE above:
+  reference the actual named systems (SAP IS-U, OSI SCADA/ADMS, GCP BigQuery, SAP Ariba, …)
+  wherever they plausibly apply, instead of inventing generic system names.
+- Use Adani terminology exactly as defined in the glossary above; expand acronyms on first use.
+- For industry_benchmarks, include the applicable regulatory frameworks (e.g. MERC, BEE)
+  when the project touches distribution, metering, tariffs, or demand response.
 
 Return EXACTLY this JSON (all 12 fields, each a detailed string of 150–400 words):
 
@@ -161,6 +171,16 @@ def derive_project_fields(project_data: dict, document_ids: list[str]) -> dict:
     # Load document context if any documents are attached
     doc_context_block = _load_document_context(document_ids)
 
+    # Business ontology: estate overview + systems/terms matched in the intake
+    # text and documents — grounds systems_involved / data_sources / benchmarks.
+    try:
+        from generation.ontology import for_derivation
+        _scan = " ".join(str(v) for v in project_data.values() if isinstance(v, str)) + " " + doc_context_block
+        ontology_block = for_derivation(_scan)
+    except Exception:
+        logger.exception("[DeriveFields] Ontology block failed — continuing without it")
+        ontology_block = ""
+
     user_prompt = _USER_TMPL.format(
         project_name         = project_data.get("project_name")          or "Not provided",
         project_code         = project_data.get("project_code")          or "N/A",
@@ -179,6 +199,7 @@ def derive_project_fields(project_data: dict, document_ids: list[str]) -> dict:
         risks                = project_data.get("risks")                 or "None stated",
         stakeholders_str     = stakeholders_str,
         doc_context_block    = doc_context_block,
+        ontology_block       = ontology_block,
     )
 
     logger.info(
@@ -281,9 +302,11 @@ def _call_llm(user_prompt: str) -> dict:
             max_tokens = 16_000,
             timeout    = 180,
             log_prefix = "[DeriveFields]",
+            json_mode  = True,   # 12 large fields → force application/json (plain mode
+                                 # returned 34KB of malformed JSON under load)
         )
     except RuntimeError:
-        raise   # propagate to Flask route → HTTP 502
+        raise   # propagate to the API route → HTTP 502
 
     logger.info("[DeriveFields] LLM response received via provider=%s len=%d", provider, len(raw))
 

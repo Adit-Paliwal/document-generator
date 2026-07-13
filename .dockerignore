@@ -1,72 +1,28 @@
-# ── Python ────────────────────────────────────────────────
-__pycache__/
-*.py[cod]
-*.pyc
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
+# Keep the build context small and secret-free
+.git
+.gitignore
+*.md
+*.zip
+*.xlsx
+*.docx
+*.postman_collection.json
 
-# ── Virtual environments ──────────────────────────────────
+# Python noise
+**/__pycache__/
+**/*.pyc
 env/
 .venv/
-venv/
-ENV/
+*.egg-info/
 
-# ── Secrets — NEVER bake into image ──────────────────────
-.env
-Data_Ingestion/.env
-Data_Ingestion/agent/.env
-*.key
-*.pem
-*.pfx
-secrets/
-# GCP service account key — must NEVER be baked into the image
-key.json
-Data_Ingestion/key.json
+# Node — the image rebuilds the frontend in stage 1
+frontend-react/node_modules/
+frontend-react/dist/
 
-# ── Local data — mount as volume instead ─────────────────
+# Local data / secrets — never bake these into the image
 Data_Ingestion/local_storage/
-*.db
-*.sqlite
-*.db-shm
-*.db-wal
+Data_Ingestion/.env
+# NOTE: key.json is mounted at runtime via docker-compose (not copied in)
 
-# ── Version control ───────────────────────────────────────
-.git/
-.gitignore
-.gitattributes
-
-# ── IDE / OS ──────────────────────────────────────────────
-.vscode/
-.idea/
-.DS_Store
-Thumbs.db
-*.swp
-*.bak
-~$*
-
-# ── Frontend — legacy top-level dir only ──────────────────
-# The real UI now lives in Data_Ingestion/frontend/ and is served by Flask,
-# so it MUST stay in the image (re-included via negations below).
-/frontend/
-
-# ── Docs / assets (not needed in image) ──────────────────
-*.md
-*.html
-*.postman*
-*.xlsx
-*.zip
-*.pdf
-
-# ── Re-include the HTML the Flask app serves (UI pages + API docs) ───────────
-!Data_Ingestion/frontend/index.html
-!Data_Ingestion/frontend/chat.html
-!Data_Ingestion/api-docs.html
-
-# ── ADK session state ─────────────────────────────────────
-.adk/
-
-# ── Node ──────────────────────────────────────────────────
-node_modules/
-.next/
-.cache/
+# Test + scratch
+Data_Ingestion/tests/__pycache__/
+.claude/

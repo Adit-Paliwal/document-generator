@@ -1,7 +1,9 @@
 # IntelliDraft — Azure Databricks Phase 1 Deployment Guide
 
 > **All data lives in Databricks only** — no GCS, no Redis, no PostgreSQL.  
-> Flask API → Databricks Apps · DB → Databricks SQL Warehouse · Files → Unity Catalog Volumes
+> FastAPI (main.py) → Databricks Apps · DB → Databricks SQL Warehouse · Files → Unity Catalog Volumes
+> Frontend: build the React app (`cd frontend-react && npm run build`) and copy
+> `frontend-react/dist` → `Data_Ingestion/frontend-react-dist` before syncing.
 
 ---
 
@@ -170,9 +172,7 @@ databricks secrets put-secret intellidraft VERTEX_AI_LOCATION \
 databricks secrets put-secret intellidraft GOOGLE_APPLICATION_CREDENTIALS_JSON \
   --string-value '{"type":"service_account","project_id":"..."}'
 
-# Flask session secret — generate a strong random string
-databricks secrets put-secret intellidraft FLASK_SECRET_KEY \
-  --string-value "change-this-to-a-long-random-secret-string-minimum-32-chars"
+# (SECRET_KEY retired with Flask — no session secret needed for the FastAPI app)
 ```
 
 Verify the scope was created:
@@ -204,9 +204,9 @@ databricks sync . /Workspace/Users/your-email@company.com/intellidraft-api
 
 # You should see output like:
 # Uploaded app.yaml
-# Uploaded run_server.py
+# Uploaded main.py
 # Uploaded storage/databricks_volume_storage.py
-# ... (all files)
+# ... (all files, including frontend-react-dist/ and ontology/)
 ```
 
 ---
@@ -268,7 +268,7 @@ databricks apps get intellidraft-api
 
 ## Section 10 — Verify the Database Tables Were Created
 
-The first boot of the Flask app calls `Base.metadata.create_all(engine)` which creates all 7 tables automatically. Verify in SQL Editor:
+The first boot of the FastAPI app calls `Base.metadata.create_all(engine)` which creates all tables automatically (projects, jobs, sections, versions, comments, reviews, personas, users, notifications, …). Verify in SQL Editor:
 
 ```sql
 USE CATALOG intellidraft;
@@ -407,20 +407,27 @@ GRANT WRITE VOLUME ON VOLUME intellidraft.ops.files TO `<app-service-principal-e
 | `VERTEX_AI_PROJECT` | Apps UI | Yes | GCP project ID |
 | `VERTEX_AI_LOCATION` | Apps UI | Yes | e.g. `us-central1` |
 | `GOOGLE_APPLICATION_CREDENTIALS_JSON` | Apps UI | Yes | Full GCP service account JSON |
-| `SECRET_KEY` | Apps UI | Yes | Flask session secret (any string) |
+| `GENERATION_CONCURRENCY` | Apps UI | No | Parallel section generation (default 4) |
+| `CORS_ALLOW_ORIGINS` | Apps UI | No | Restrict origins in production (default `*`) |
+| `THREADPOOL_TOKENS` | Apps UI | No | Sync-endpoint threadpool size (default 80) |
 
 ---
 
-## Files Changed in This Package
+## Key files (post-cleanup, 2026-07-13)
 
-| File | Change |
+| File | Role |
 |---|---|
-| `Data_Ingestion/app.yaml` | **NEW** — Databricks Apps config (Flask + gunicorn) |
-| `Data_Ingestion/storage/databricks_volume_storage.py` | **NEW** — Unity Catalog Volume storage service |
-| `Data_Ingestion/storage/gcs_storage.py` | **MODIFIED** — Added `DATABRICKS_MODE` branch in factory |
-| `Data_Ingestion/requirements.txt` | **MODIFIED** — Added databricks packages, removed redis/celery/GCS |
+| `Data_Ingestion/main.py` | The FastAPI server — the ONLY API entry point |
+| `Data_Ingestion/app.yaml` | Databricks Apps config (gunicorn + uvicorn workers) |
+| `Data_Ingestion/frontend-react-dist/` | Built React SPA (copy of `frontend-react/dist`) |
+| `Data_Ingestion/ontology/*.json` | Business ontology pack (prompt grounding) |
+| `Data_Ingestion/storage/databricks_volume_storage.py` | Unity Catalog Volume storage service |
 
-Zero changes to: `run_server.py`, `generation/`, `api/`, `agents/`, `models/`, `parsers/`
+Removed in the cleanup: Flask (`run_server.py`), Celery/Redis preview workers,
+Cloud Run + GCP deploy scripts, Vertex AI Agent Engine deploy scripts.
+
+Other supported target: **Docker / self-host** (`Dockerfile` + `docker-compose.yml`,
+FastAPI multi-stage). See [SETUP.md](SETUP.md) → Option B.
 
 ---
 

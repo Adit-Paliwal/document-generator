@@ -279,7 +279,18 @@ def _call_llm(content: str) -> dict:
     # doesn't break Python string formatting.
     prompt = _USER_TMPL.replace("<<DOCUMENT_CONTENT>>", content)
 
-    combined_prompt = f"{_SYSTEM}\n\n---\n\n{prompt}"
+    # Business ontology: org entities + glossary terms matched in THIS document.
+    # Knowing that AEML-D is a distribution division or that ABT is a tariff
+    # scheme directly improves business_unit / field recognition.
+    try:
+        from generation.ontology import for_extraction
+        ontology_block = for_extraction(content)
+    except Exception:
+        logger.exception("[Extractor] Ontology block failed — continuing without it")
+        ontology_block = ""
+
+    combined_prompt = f"{_SYSTEM}\n\n{ontology_block}\n\n---\n\n{prompt}" if ontology_block \
+                      else f"{_SYSTEM}\n\n---\n\n{prompt}"
 
     logger.info("[Extractor] Sending prompt to LLM (content_len=%d chars)", len(content))
 
@@ -290,9 +301,10 @@ def _call_llm(content: str) -> dict:
             max_tokens = 8_000,
             timeout    = 120,
             log_prefix = "[Extractor]",
+            json_mode  = True,   # force application/json from Vertex — reliable parse
         )
     except RuntimeError:
-        raise   # propagate clean error to the Flask route → HTTP 502
+        raise   # propagate clean error to the API route → HTTP 502
 
     logger.info("[Extractor] LLM response received via provider=%s len=%d", provider, len(raw))
 
