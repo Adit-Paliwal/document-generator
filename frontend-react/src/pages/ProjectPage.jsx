@@ -101,7 +101,8 @@ export default function ProjectPage() {
           <div className="min-w-0 flex-1">
             {tab === "Generation" ? (
               <GenerationTab projectId={projectId} projName={proj.project_name} docType={docType}
-                             job={currentJob} refreshDocs={refreshDocs} />
+                             job={currentJob} refreshDocs={refreshDocs}
+                             onGenerated={() => setTabIdx(TABS.indexOf("Preview"))} />
             ) : (
               <PreviewTab projectId={projectId} docType={docType} job={currentJob} refreshDocs={refreshDocs} />
             )}
@@ -189,7 +190,7 @@ function DataTab({ projectId }) {
 
 /* ═══════════════ Generation tab — chat + generate ═══════════════ */
 
-function GenerationTab({ projectId, projName, docType, job, refreshDocs }) {
+function GenerationTab({ projectId, projName, docType, job, refreshDocs, onGenerated }) {
   const toast = useToast();
   const [msgs, setMsgs] = useState([]);
   const [input, setInput] = useState("");
@@ -226,13 +227,16 @@ function GenerationTab({ projectId, projName, docType, job, refreshDocs }) {
         if (j.status === "completed" || j.status === "failed") {
           clearInterval(pollRef.current);
           setGenStatus(null);
-          refreshDocs();
+          // Refresh the doc states FIRST so the Preview tab has the finished job,
+          // then auto-switch to Preview on success.
+          await refreshDocs();
           setMsgs((m) => [...m, {
             role: "assistant",
             content: j.status === "completed"
-              ? `✅ ${docType} generated — ${j.total_sections} sections. Open the Preview tab to review and edit.`
+              ? `✅ ${docType} generated — ${j.total_sections} sections. Opening the Preview tab…`
               : `❌ Generation failed: ${j.error || "unknown error"}`,
           }]);
+          if (j.status === "completed") onGenerated?.();
         }
       } catch { /* keep polling */ }
     }, 2500);
